@@ -1,0 +1,9 @@
+[tool.jupytext]
+formats = "ipynb,py:percent"
+
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    ]   # PEP 508 specifications.
+build-backend = "setuptools.build_meta"

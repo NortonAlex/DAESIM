@@ -31,6 +31,12 @@ Once you're finished, you can deactivate the conda environment with the command:
 
 $ conda deactivate
 
+Now you have created the conda virtual environment to work in, we must install the package. To install the package use the command:
+
+$ pip install -e .
+
+Hopefully everything installed successfully. You can now run the code or open a jupyter notebook to start testing. 
+
 ### Why do I only see `.py` files in the `notebooks` directory?
 
 Tracking notebooks is a pain because of all the extra metadata that is in them.

@@ -16,12 +16,20 @@ Text todo
 
 ## Getting started
 
-Make your conda environment using the environment.yml file and the command:
+Make your conda environment called `daesim` using the environment.yml file and the command:
 
 $ conda env create --name daesim --file environment.yml
 
+Then, you can activate your new environment with the command:
+
+$ conda activate daesim
+
 Then run `jupyter notebook` to open a jupyter server.
 From there, go into notebooks and work through the example notebooks.
+
+Once you're finished, you can deactivate the conda environment with the command:
+
+$ conda deactivate
 
 ### Why do I only see `.py` files in the `notebooks` directory?
 
@@ -46,9 +54,9 @@ Then, to add your changes, make a merge request from your own branch back into t
 
 ## Support
 
-If you need support, the first place to go is the [issue tracker](https://gitlab.com/magicc/phd-coding-intro/-/issues).
-From there, you can tag other MAGICC users to ask for help.
-As a second step, reach out directly to your supervisor or collaborators.
+If you need support, the first place to go is the [issue tracker] (todo: link the repository / issues).
+From there, you can tag other model users to ask for help.
+As a second step, reach out directly to your collaborators.
 
 ## Other helpful snippets
 
@@ -69,12 +77,15 @@ git checkout -b local-source origin/local-source
 # Activate your environment
 conda activate daesim
 
-# Call make (just in case, you don't always have to do this)
-make conda-environment
+[remove]# Call make (just in case, you don't always have to do this)
+# make conda-environment
+
+# If any dependencies have changed, update your conda environment
+conda env update --file environment.yml --prune
 
 # Checkout (create) your own branch in case you want to make any commits
 # (typically we use the branch name plus our initials)
-git checkout -b calculator-notebook-an
+git checkout -b test-notebook-an
 
 # You're now ready to work
 # E.g. by starting a notebook server and looking at the notebooks
@@ -94,8 +105,8 @@ https://www.educative.io/answers/what-is-self-in-python
 - [Clean Code](https://thixalongmy.haugiang.gov.vn/media/1175/clean_code.pdf) (buying the book is also a good option)
 - [Refactoring](http://silab.fon.bg.ac.rs/wp-content/uploads/2016/10/Refactoring-Improving-the-Design-of-Existing-Code-Addison-Wesley-Professional-1999.pdf) (buying the book is also a good option)
 - [Refactoring guru](refactoring.guru), incredible resource for understanding coding patterns and how to make them better (There is also a book, could be worth investing in)
-- [End of object inheritance](https://www.youtube.com/watch?v=3MNVP9-hglc) This one is hard to explain and understand until you start writing lots of code, but its worth watching (and re-watching) to understand the coding style you see in MAGICC
-- [End of object inheritance](https://www.youtube.com/watch?v=3MNVP9-hglc) This one is hard to explain and understand until you start writing lots of code, but its worth watching (and re-watching) to understand the coding style you see in MAGICC
+- [End of object inheritance](https://www.youtube.com/watch?v=3MNVP9-hglc) This one is hard to explain and understand until you start writing lots of code, but its worth watching (and re-watching) to understand the coding style you see in new climate models (e.g. MAGICC)
+- [End of object inheritance](https://www.youtube.com/watch?v=3MNVP9-hglc) This one is hard to explain and understand until you start writing lots of code, but its worth watching (and re-watching) to understand the coding style you see in new climate models (e.g. MAGICC)
 - [Composition over inheritance](https://www.youtube.com/watch?v=0mcP8ZpUR38) A nice explainer to see the principles of the above in practice
 - [Dependency injection vs. inversion](https://www.youtube.com/watch?v=2ejbLVkCndI) A further explainer to see the above in practice
 

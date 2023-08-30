@@ -24,18 +24,17 @@ Then, you can activate your new environment with the command:
 
 $ conda activate daesim
 
-Then run `jupyter notebook` to open a jupyter server.
-From there, go into notebooks and work through the example notebooks.
-
-Once you're finished, you can deactivate the conda environment with the command:
-
-$ conda deactivate
-
 Now you have created the conda virtual environment to work in, we must install the package. To install the package use the command:
 
 $ pip install -e .
 
-Hopefully everything installed successfully. You can now run the code or open a jupyter notebook to start testing. 
+Hopefully everything installed successfully. 
+
+You can now run the code or open a jupyter notebook to start testing. To open a jupyter notebook run `jupyter notebook` to open a jupyter server. From there, go into the notebooks directory and work through the examples.
+
+Once you're finished, you can deactivate the conda environment with the command:
+
+$ conda deactivate
 
 ### Why do I only see `.py` files in the `notebooks` directory?
 

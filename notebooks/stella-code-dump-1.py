@@ -15,6 +15,9 @@
 # %%
 import numpy as np
 import pandas as pd
+from typing import Tuple, Callable
+
+from attrs import define, field
 
 # %% [markdown]
 # ### Notes for translating code
@@ -70,6 +73,10 @@ Climate_dayLengthPrev = Climate_ampl*np.sin((Climate_DayJulPrev-79)*0.01721)+12
 
 
 # %%
+## Climate module variables:
+Climate_solRadGrd = 20.99843025   ## correction for cloudy days
+Climate_airTempC = 21.43692112   ## Including the F to C conversion. May need be changed if data are in C already; So as the data are already in C we have changed this
+
 
 # %% [markdown]
 # ## Conditions for plant
@@ -91,6 +98,9 @@ iniRootDensity = 0.05
 propNPhRoot = 0.002    ## [Question: If "NPh" means non-photosynthetic, then why isn't propNPhRoot = 1? 100% of root biomass should be non-photosynthetic]
 
 
+## Climate module variables:
+Climate_Elevation = Climate_Elevation
+
 ## Soil module variables:
 Soil_calSoilDepth = 0.09
 
@@ -111,6 +121,7 @@ else:
     PlantTime = 0
 maxPhAboveBM = maxAboveBM*maxPropPhAboveBM  ## The maximum general photosynthetic biomass above ground (not site specific). kg/m2*dimless=kg/m2
 maxNPhBM = (maxAboveBM-maxPhAboveBM)*(1+1/propAboveBelowNPhBM)   ## maximum above ground non phtosynthetic+(max above ground non pythosynthetic/proportion of above to below ground non photosynthetic)kg/m2
+maxNPhAboveBM = iniNPhAboveBM*(propAboveBelowNPhBM+1)/propAboveBelowNPhBM  ## initial non-photo above ground biomass
 maxBM = maxNPhBM+maxPhAboveBM   ## kg/m2
 iniPhBM = propPhBEverGreen*iniNPhAboveBM*maxPropPhAboveBM/(1-maxPropPhAboveBM)   ## initial biomass of photosynthetic tissue  (kgC/m^2).[]. calculated based on the available above ground non-photosynthetic tissue. PH/(PH+Ab_BM)=Max_Ph_to_Ab_BM. The introduction of the PhBio_evgrn_prop in this equation eliminates all leaves from deciduous trees.  Only coniferous trees are photosynthesizing!
 rootBM = Non_photosynthetic_Biomass/(propAboveBelowNPhBM+1)   ## NPHbelow=root biomass=nonphotobiomass*below/(above+below)= nonphoto/(above/below+1). kg/m2
@@ -175,6 +186,11 @@ else:
 
 # %%
 ### Bio time for plant
+
+## Climate module variables:
+Climate_airTempC = Climate_airTempC
+
+
 # Biological time counter
 if PlantTime == 1:
     cf_Air_Temp = -Bio_time/DT   ## TODO: Remove time-step dependency
@@ -206,6 +222,10 @@ halfSaturCoeffN = 0.02  ## half-saturation coefficient for Nitrogen; 0.00265 [Qu
 optTemperature = 20   ## optimal temperature
 NPPCalibration = 0.45   ## NPP 1/day(The rate at which an ecosystem accumulates energy); 0.12; 0.25
 
+## Climate module variables:
+Climate_solRadGrd = Climate_solRadGrd
+Climate_airTempC = Climate_airTempC
+
 # Saturating light intensity (langleys/d) for the selected crop
 # {for macrophytes-> . Source:  599 [corn](Chang, 1981 Table 1)
 # 1600 (µmol irradiance m^2 *s) coniferous forests ( Gholtz et all 1994, page40)
@@ -215,10 +235,6 @@ NPPCalibration = 0.45   ## NPP 1/day(The rate at which an ecosystem accumulates 
 # Irradiance =1 watt/m^2 (1 watt =1joule/sec)
 # 1.43e-3 Langleys/min =1µE M/s
 saturatingLightIntensity = 600 
-
-## Climate module variables:
-Climate_solRadGrd = 20.99843025   ## correction for cloudy days
-Climate_airTempC = 21.43692112   ## Including the F to C conversion. May need be changed if data are in C already; So as the data are already in C we have changed this
 
 ## Blue Stella variables - calculated within this module
 PO4Aval = 0.2   # TODO: Change name to "PO4Avail"; ErrorCheck: What is this? Why is it set to 0 in Stella? This makes the NutrCoeff=0, NPPControlCoeff=0, then calculatedPhBioNPP=0
@@ -238,6 +254,11 @@ if (Photosynthetic_Biomass<maxPhAboveBM):
     calculatedPhBioNPP = NPPControlCoeff*NPPCalibration*Photosynthetic_Biomass*(1-Photosynthetic_Biomass/maxPhAboveBM)
 else:
     calculatedPhBioNPP = 0
+
+# %% [markdown]
+# ### PhNPP
+#
+# Module decides whether to use NPP from data (empiricalNPP) or calculated dynamically (calculatedPhBioNPP)
 
 # %%
 if Climate_DayJul < 366*Climate_nYear:
@@ -261,8 +282,8 @@ propPhBLeafRate = 0   ## Leaf fall rate
 dayLengRequire = 13   ## [Question: Need some information on this.]
 
 ## Climate module variables:
-Climate_dayLength = Climate_ampl*np.sin((Climate_DayJul-79)*0.01721)+12
-
+Climate_dayLength = Climate_dayLength
+Climate_dayLengthPrev = Climate_dayLengthPrev
 
 ## Blue Stella variables - calculated within this module
 
@@ -343,5 +364,164 @@ else:
 
 Transup = Sprouting * sproutRate * Non_photosynthetic_Biomass
 
+
+# %% [markdown]
+# ### NPhBioMort
+
+# %%
+## Green Stella variables 
+# TODO: Convert to parameter set
+propNPhMortality = 0.04 ## non-photo mortality rate
+
+
+## Blue Stella variables - calculated within this module
+
+## NPhBioMort: Mortality/sensescence is assumed to occur at constant specific rate.  If the macropyhte is killed at harvest then the remaining carbon is shunted to organic matter pools. (Photosynthetic components have a greater mortality burden is during time of water stress, ultimately depleting nonphotosynthetic carbon stores.); kg*1/d 
+NPhBioMort = Non_photosynthetic_Biomass*propNPhMortality
+
+
+
+# %% [markdown]
+# ### Exudation
+
+# %%
+## Green Stella variables 
+# TODO: Convert to parameter set
+rhizodepositReleaseRate = 0.025
+
+## Conditions for plant module variables:
+rootBM = rootBM
+
+## Blue Stella variables - calculated within this module
+exudation = rootBM*rhizodepositReleaseRate  ## 
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ## State: Photosynthetic Biomass
+
+# %%
+## ODE
+# Photosynthetic_Biomass(t) = Photosynthetic_Biomass(t-dt) + (PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort)*dt
+
+## Initial value
+iniPhBM
+
+# %% [markdown]
+# ## State: Non-Photosynthetic Biomass
+
+# %%
+## ODE
+# Non_photosynthetic_Biomass(t) = Non_photosynthetic_Biomass(t-dt) + (NPhBioPlanting + Transdown - Transup - NPhBioHarvest - NPhBioMort - exudation)*dt
+
+## Initial value
+# ErrorCheck: Why is this maxNPhAboveBM? Shouldn't it just be an initial value of total non-photosynthetic biomass, not just the above-ground portion? It seems inconsistent with the rest of hte model structure e.g. how does rootBM, propAboveBelowNPhBM, etc play into this?
+maxNPhAboveBM 
+
+
+# %% [markdown]
+# # Plant Module Calculator
+
+# %%
+@define 
+class PlantModuleCalculator:
+    """
+    Calculator of plant biophysics
+    """
+
+    # Class parameters
+    halfSaturCoeffP: float=field(default=0.01)    ## half-saturation coefficient for P; 0.000037 [Question: why do the Stella docs give a value (0.000037) that is different to the actual value used (0.01)?]
+    halfSaturCoeffN: float=field(default=0.02)  ## half-saturation coefficient for Nitrogen; 0.00265 [Question: why do the Stella docs give a value (0.00265) that is different to the actual value used (0.002)?]
+    optTemperature: float=field(default=20)   ## optimal temperature
+    NPPCalibration: float=field(default=0.45)   ## NPP 1/day(The rate at which an ecosystem accumulates energy); 0.12; 0.25
+    saturatingLightIntensity: float=field(default=600)   ## Saturating light intensity (langleys/d) for the selected crop
+
+    mortality_constant: float=field(default=0.01)   ## temporary variable
+        
+        
+    def calculate(self,Photosynthetic_Biomass,solRadGrd,airTempC) -> Tuple[float]:
+        
+        PhBioPlanting = 0
+        PhBioHarvest = 0
+        Transup = 0.1
+        Transdown = 0.1
+        
+        WatStressHigh = 1
+        WatStressLow = 0.99
+        
+        # Call the calculate_PhBioNPP method
+        PhNPP = self.calculate_PhBioNPP(solRadGrd,airTempC,WatStressHigh,WatStressLow)
+        
+        # Call the calculate_PhBioMort method
+        PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
+        
+        dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
+    
+        return (dPhBMdt)
+    
+
+    def calculate_PhBioNPP(self,solRadGrd,airTempC,WatStressHigh,WatStressLow):
+        PO4Aval = 0.2   # TODO: Change name to "PO4Avail"; ErrorCheck: What is this? Why is it set to 0 in Stella? This makes the NutrCoeff=0, NPPControlCoeff=0, then calculatedPhBioNPP=0
+        DINAvail = 0.2   # [Question: No documentation. Check paper or ask Firouzeh/Justin to provide.] ErrorCheck: What is this? Why is it set to 0 in Stella? This makes the NutrCoeff=0, NPPControlCoeff=0, then calculatedPhBioNPP=0
+        NutrCoeff = min( (DINAvail/(DINAvail+self.halfSaturCoeffN)),  (PO4Aval/(PO4Aval+self.halfSaturCoeffP) ))
+
+        LightCoeff = solRadGrd*10/self.saturatingLightIntensity*np.exp(1-solRadGrd/self.saturatingLightIntensity)
+
+        WaterCoeff = min(WatStressHigh,WatStressLow)
+
+        TempCoeff = np.exp(0.20*(airTempC-self.optTemperature)) * np.abs(((40-airTempC)/(40-self.optTemperature)))**(0.2*(40-self.optTemperature))   ## See Stella docs
+
+        NPPControlCoeff = min(LightCoeff,TempCoeff)*WaterCoeff*NutrCoeff   ## Total control function for primary production,  using minimum of physical control functions and multiplicative nutrient and water controls.  Units=dimensionless.
+
+        # calculatedPhBioNPP ## Estimated net primary productivity
+        if (Photosynthetic_Biomass<maxPhAboveBM):
+            calculatedPhBioNPP = NPPControlCoeff*NPPCalibration*Photosynthetic_Biomass*(1-Photosynthetic_Biomass/maxPhAboveBM)
+        else:
+            calculatedPhBioNPP = 0
+            
+        return calculatedPhBioNPP
+    
+    def calculate_PhBioMort(self,Photosynthetic_Biomass):
+        PhBioMort = self.mortality_constant * Photosynthetic_Biomass
+        
+        return PhBioMort
+
+# %% [markdown]
+# #### - Initialise the Plant module
+#
+# You can initialise it simply with the default parameters or you can initialise it and assign different parameters. 
+#
+# This example initalises it with a mortality_constant=0.002 and the rest of the parameters are default values.
+
+# %%
+Plant1 = PlantModuleCalculator(mortality_constant=0.002)
+
+# %% [markdown]
+# #### - Use the `calculate` method to compute the RHS for the state
+
+# %%
+_PhBM = 2.0
+
+print("dy/dt =",Plant1.calculate(_PhBM, _solRadGrd, _airTempC))
+
+# %% [markdown]
+# #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
+
+# %%
+_solRadGrd = 20.99843025
+_airTempC = 21.43692112
+
+print("PhBioNPP =",Plant1.calculate_PhBioNPP(_solRadGrd, _airTempC, 1, 0.99))
+
+# %%
+Plant1.calculate_PhBioMort(_PhBM)
+
+# %%
+
+# %%
+
+# %%
 
 # %%

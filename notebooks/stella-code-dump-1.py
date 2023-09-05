@@ -21,6 +21,8 @@ import pandas as pd
 from typing import Tuple, Callable
 from attrs import define, field
 from scipy.interpolate import interp1d
+from scipy.optimize import OptimizeResult
+from scipy.integrate import solve_ivp
 
 import matplotlib.pyplot as plt
 
@@ -559,7 +561,7 @@ class PlantModuleCalculator:
         )  ## See Stella docs
 
         NPPControlCoeff = (
-            min(LightCoeff, TempCoeff) * WaterCoeff * NutrCoeff
+            np.minimum(LightCoeff, TempCoeff) * WaterCoeff * NutrCoeff
         )  ## Total control function for primary production,  using minimum of physical control functions and multiplicative nutrient and water controls.  Units=dimensionless.
 
         # calculatedPhBioNPP ## Estimated net primary productivity
@@ -650,6 +652,157 @@ print(constant_co2_exp(t1), linear_plateau_co2_exp(t1))
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 axes[0].plot(Climate_solRadGrd_f(time))
 axes[1].plot(Climate_airTempC_f(time))
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+@define
+class SimplePlantModel:
+
+    """
+    Simple one-box plant carbon model
+
+    """
+
+    calculator: PlantModuleCalculator
+    """Calculator of simple carbon model"""
+
+    state1_init: float
+    """
+    Initial value for state 1
+    """
+
+    time_start: float
+    """
+    Time at which the initialisation values apply.
+    """
+
+    def run(
+        self,
+        airTempC: Callable[[float], float],
+        solRadGrd: Callable[[float], float],
+        time_axis: float,
+    ) -> Tuple[float]:
+        func_to_solve = self._get_func_to_solve(airTempC, solRadGrd)
+
+        t_eval = time_axis
+        t_span = (self.time_start, t_eval[-1])
+        start_state = (self.state1_init,)
+
+        solve_kwargs = {
+            "t_span": t_span,
+            "t_eval": t_eval,
+            "y0": start_state,
+        }
+
+        res_raw = self._solve_ivp(
+            func_to_solve,
+            **solve_kwargs,
+        )
+
+        return res_raw
+
+    def _get_func_to_solve(
+        self, solRadGrd, airTempC: Callable[float, float]
+    ) -> Callable[float, float]:
+        def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
+            """
+            Function to solve i.e. f(t, y) that goes on the RHS of dy/dt = f(t, y)
+
+            Parameters
+            ----------
+            t
+                time
+
+            y
+                State vector
+
+            Returns
+            -------
+                dy / dt (also as a vector)
+            """
+            airTempCh = airTempC(t).squeeze()
+            solRadGrdh = solRadGrd(t).squeeze()
+
+            dydt = self.calculator.calculate(
+                Photosynthetic_Biomass=y[0],
+                solRadGrd=solRadGrdh,
+                airTempC=airTempCh,
+            )
+
+            # TODO: Use this python magic when we have more than one state variable in dydt
+            # dydt = [v for v in dydt]
+
+            return dydt
+
+        return func_to_solve
+
+    def _solve_ivp(
+        self, func_to_solve, t_span, t_eval, y0, rtol=1e-6, atol=1e-6, **kwargs
+    ) -> OptimizeResult:
+        raw = solve_ivp(
+            func_to_solve,
+            t_span=t_span,
+            t_eval=t_eval,
+            y0=y0,
+            atol=atol,
+            rtol=rtol,
+            **kwargs,
+        )
+        if not raw.success:
+            info = "Your model failed to solve, perhaps there was a runaway feedback?"
+            error_msg = f"{info}\n{raw}"
+            raise SolveError(error_msg)
+
+        return raw
+
+
+# %%
+PlantX = PlantModuleCalculator(mortality_constant=0.0003)
+
+Model = SimplePlantModel(calculator=PlantX, state1_init=10.0, time_start=1)
+
+# %%
+time_axis = np.arange(1, 1001, 1)
+
+res = Model.run(
+    airTempC=Climate_airTempC_f, solRadGrd=Climate_solRadGrd_f, time_axis=time_axis
+)
+
+# %%
+Plant1
+
+# %%
+PhBioNPP = PlantX.calculate_PhBioNPP(
+    Climate_solRadGrd_f(time_axis),
+    Climate_airTempC_f(time_axis),
+    1,
+    0.99,
+)
+
+PhBioMort = PlantX.calculate_PhBioMort(res.y[0])
+
+# %%
+fig, axes = plt.subplots(2, 3, figsize=(14, 10))
+
+axes[0, 0].plot(time_axis, Climate_solRadGrd_f(time_axis), c="0.5")
+axes[0, 0].set_ylabel("solRadGrd")
+axes[0, 1].plot(time_axis, Climate_airTempC_f(time_axis), c="0.5")
+axes[0, 1].set_ylabel("airTempC")
+axes[0, 2].plot(res.t, res.y[0], c="C0")
+axes[0, 2].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
+
+axes[1, 0].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
+axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
+axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
+axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
+
+plt.tight_layout()
 
 # %%
 

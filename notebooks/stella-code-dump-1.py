@@ -617,12 +617,10 @@ print("PhBioNPP =", Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0
 # %%
 Plant1.calculate_PhBioMort(_PhBM)
 
-# %%
-
 # %% [markdown]
 # ## Create interpolation function for the forcing data
 #
-# We'll be using the solve_ivp ODE solver and it does the time-stepping by itself (rather than pre-defined time-points like in odeint).
+# We'll be using the solve_ivp ODE solver. It does the time-stepping by itself (rather than pre-defined time-points like in odeint).
 #
 # So, in order for discrete forcing data to be used with solve_ivp, the solver must be able to compute the forcing at any point over the temporal domain. To do this, we interpolate the forcing data and pass the interpolated function to the model. 
 
@@ -663,7 +661,15 @@ axes[1].plot(Climate_airTempC_f(time))
 
 # %%
 
-# %%
+# %% [markdown]
+# ## Plant "Model"
+#
+# Here, the term "Model" really means a layer that invokes a calculator (or calculators) and executes it over a time-domain given some set of initial conditions and forcing data. 
+#
+# The class is initialised with the calculator(s), initial conditions and start time. 
+#
+# The run() method takes the forcing data and the time axis over which to run. 
+#
 
 # %%
 @define
@@ -767,10 +773,16 @@ class SimplePlantModel:
         return raw
 
 
+# %% [markdown]
+# Initialise the calculator. Then create the Model class with that calculator, initial conditions and start time. 
+
 # %%
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 
 Model = SimplePlantModel(calculator=PlantX, state1_init=10.0, time_start=1)
+
+# %% [markdown]
+# Define a time-axis over which to execute the model. Then run the model given some forcing data.
 
 # %%
 time_axis = np.arange(1, 1001, 1)
@@ -779,15 +791,14 @@ res = Model.run(
     airTempC=Climate_airTempC_f, solRadGrd=Climate_solRadGrd_f, time_axis=time_axis
 )
 
+# %% [markdown]
+# The result that is returned from the run() method is (for now) just the evolution of the ODE over the time domain.
+
 # %%
 res.y[0]
 
-# %%
-Plant1
-
-# %%
-
-# %%
+# %% [markdown]
+# Now that the model ODE has been evaluated, you can compute any related "diagnostic" quantities.
 
 # %%
 PhBioNPP = PlantX.calculate_PhBioNPP(

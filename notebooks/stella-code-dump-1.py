@@ -95,6 +95,8 @@ Climate_airTempC = 21.43692112  ## Including the F to C conversion. May need be 
 plantingDay = 30
 
 # %%
+
+# %%
 ## Green Stella variables
 # TODO: Convert to parameter set
 maxAboveBM = 0.6  ## Max above ground biomass kg/m2. 0.9
@@ -514,6 +516,11 @@ class PlantModuleCalculator:
         default=600
     )  ## Saturating light intensity (langleys/d) for the selected crop
 
+    maxAboveBM: float = field(default=0.6)  ## Max above ground biomass kg/m2. 0.9
+    maxPropPhAboveBM: float = field(
+        default=0.75
+    )  ## proportion of photosynthetic biomass in the above ground biomass (0,1)(alfa*). 0.65
+
     mortality_constant: float = field(default=0.01)  ## temporary variable
 
     def calculate(self, Photosynthetic_Biomass, solRadGrd, airTempC) -> Tuple[float]:
@@ -527,7 +534,7 @@ class PlantModuleCalculator:
 
         # Call the calculate_PhBioNPP method
         PhNPP = self.calculate_PhBioNPP(
-            solRadGrd, airTempC, WatStressHigh, WatStressLow
+            Photosynthetic_Biomass, solRadGrd, airTempC, WatStressHigh, WatStressLow
         )
 
         # Call the calculate_PhBioMort method
@@ -537,7 +544,9 @@ class PlantModuleCalculator:
 
         return dPhBMdt
 
-    def calculate_PhBioNPP(self, solRadGrd, airTempC, WatStressHigh, WatStressLow):
+    def calculate_PhBioNPP(
+        self, Photosynthetic_Biomass, solRadGrd, airTempC, WatStressHigh, WatStressLow
+    ):
         PO4Aval = 0.2  # TODO: Change name to "PO4Avail"; ErrorCheck: What is this? Why is it set to 0 in Stella? This makes the NutrCoeff=0, NPPControlCoeff=0, then calculatedPhBioNPP=0
         DINAvail = 0.2  # [Question: No documentation. Check paper or ask Firouzeh/Justin to provide.] ErrorCheck: What is this? Why is it set to 0 in Stella? This makes the NutrCoeff=0, NPPControlCoeff=0, then calculatedPhBioNPP=0
         NutrCoeff = min(
@@ -564,16 +573,12 @@ class PlantModuleCalculator:
             np.minimum(LightCoeff, TempCoeff) * WaterCoeff * NutrCoeff
         )  ## Total control function for primary production,  using minimum of physical control functions and multiplicative nutrient and water controls.  Units=dimensionless.
 
+        maxPhAboveBM = (
+            self.maxAboveBM * self.maxPropPhAboveBM
+        )  ## The maximum general photosynthetic biomass above ground (not site specific). kg/m2*dimless=kg/m2
+
         # calculatedPhBioNPP ## Estimated net primary productivity
-        if Photosynthetic_Biomass < maxPhAboveBM:
-            calculatedPhBioNPP = (
-                NPPControlCoeff
-                * NPPCalibration
-                * Photosynthetic_Biomass
-                * (1 - Photosynthetic_Biomass / maxPhAboveBM)
-            )
-        else:
-            calculatedPhBioNPP = 0
+        calculatedPhBioNPP = np.minimum(Photosynthetic_Biomass, maxPhAboveBM)
 
         return calculatedPhBioNPP
 
@@ -607,7 +612,7 @@ print("dy/dt =", Plant1.calculate(_PhBM, _solRadGrd, _airTempC))
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
 
 # %%
-print("PhBioNPP =", Plant1.calculate_PhBioNPP(_solRadGrd, _airTempC, 1, 0.99))
+print("PhBioNPP =", Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0.99))
 
 # %%
 Plant1.calculate_PhBioMort(_PhBM)
@@ -775,10 +780,18 @@ res = Model.run(
 )
 
 # %%
+res.y[0]
+
+# %%
 Plant1
 
 # %%
+
+# %%
+
+# %%
 PhBioNPP = PlantX.calculate_PhBioNPP(
+    res.y[0],
     Climate_solRadGrd_f(time_axis),
     Climate_airTempC_f(time_axis),
     1,

@@ -113,7 +113,7 @@ plantingDay = 30
 # TODO: Convert to parameter set
 maxAboveBM = 0.6  ## Max above ground biomass kg/m2. 0.9
 maxPropPhAboveBM = 0.75  ## proportion of photosynthetic biomass in the above ground biomass (0,1)(alfa*). 0.65
-propPhBEverGreen = 0.3  ## Proportion of evergreen photo biomass
+propPhBEverGreen = 0.3  ## Proportion of evergreen photo biomass [Question: What does this mean, in a physiological sense? What does it represent in a real-world plant? ]
 iniNPhAboveBM = (
     0.04  ## initially available above ground non-photosynthetic tissue. kg/m2
 )
@@ -535,7 +535,33 @@ class PlantModuleCalculator:
 
     mortality_constant: float = field(default=0.01)  ## temporary variable
 
-    def calculate(self, Photosynthetic_Biomass, solRadGrd, airTempC) -> Tuple[float]:
+    propPhMortality: float = field(
+        default=0.015
+    )  ## Proportion of photosynthetic biomass that dies in fall time
+    propPhtoNPhMortality: float = field(
+        default=0
+    )  ## A proportion that decides how much of the Ph biomass will die or go to the roots at the fall time
+    propPhBLeafRate: float = field(
+        default=0
+    )  ## Leaf fall rate [Question: This parameter has the prefix "prop" but it says it is a "rate". What does this parameter mean? What are its units? Why is the default value = 0?]
+    dayLengRequire: float = field(
+        default=13
+    )  ## [Question: Need some information on this.]
+    propPhBEverGreen: float = field(
+        default=0.3
+    )  ## Proportion of evergreen photo biomass
+
+    FallLitterTurnover: float = field(
+        default=0.001
+    )  ## Modificatoin: This is a new parameter required to run in this framework.
+
+    Max_Photosynthetic_Biomass: float = field(
+        default=0.6
+    )  ## A dummy, stella enforced variable that is needed for the sole purpose of tracking the maximum attained value of non-photosynthetic biomass; Finding the max of Ph in the whole period of model run; maximal biomass reached during the season
+
+    def calculate(
+        self, Photosynthetic_Biomass, solRadGrd, airTempC, dayLength, dayLengthPrev
+    ) -> Tuple[float]:
         PhBioPlanting = 0
         PhBioHarvest = 0
         Transup = 0.1
@@ -550,7 +576,14 @@ class PlantModuleCalculator:
         )
 
         # Call the calculate_PhBioMort method
-        PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
+        # PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
+        PhBioMort = self.calculate_PhBioMortality(
+            Photosynthetic_Biomass,
+            dayLength,
+            dayLengthPrev,
+            WatStressHigh,
+            WatStressLow,
+        )
 
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
 
@@ -599,6 +632,71 @@ class PlantModuleCalculator:
 
         return PhBioMort
 
+    def calculate_PhBioMortality(
+        self,
+        Photosynthetic_Biomass,
+        dayLength,
+        dayLengthPrev,
+        WatStressHigh,
+        WatStressLow,
+    ):
+        ## Climate module variables:
+        # Climate_dayLength = Climate_dayLength
+        # Climate_dayLengthPrev = Climate_dayLengthPrev
+
+        ## Blue Stella variables - calculated within this module
+
+        WaterCoeff = min(
+            WatStressHigh, WatStressLow
+        )  ## TODO: Modify the structure here as it is used a couple of times in the Plant module
+
+        PropPhMortDrought = 0.1 * max(0, (1 - WaterCoeff))
+
+        # FallLitterCalc
+        ## Modification: Had to vectorize the if statements to support array-based calculations
+        _vfunc = np.vectorize(self.calculate_FallLitter)
+        FallLitterCalc = _vfunc(dayLength, dayLengthPrev, Photosynthetic_Biomass)
+
+        ## [Question: What does this function represent?]
+        Fall_litter = np.minimum(
+            FallLitterCalc,
+            np.maximum(
+                0,
+                Photosynthetic_Biomass
+                - self.propPhBEverGreen
+                * self.Max_Photosynthetic_Biomass
+                / (1 + self.propPhBEverGreen),
+            ),
+        )
+
+        ## PhBioMort: mortality of photosynthetic biomass as influenced by seasonal cues plus mortality due to current
+        ## (not historical) water stress.  Use maximum specific rate of mortality and constraints due to unweighted
+        ## combination of seasonal litterfall and water stress feedbacks (both range 0,1). units = 1/d * kg * (dimless +dimless)  = kg/d
+        PhBioMort = Fall_litter * (
+            1 - self.propPhtoNPhMortality
+        ) + Photosynthetic_Biomass * (PropPhMortDrought + self.propPhMortality)
+
+        return PhBioMort
+    
+    def calculate_FallLitter(self, dayLength, dayLengthPrev, Photosynthetic_Biomass):
+            if (dayLength > self.dayLengRequire) or (dayLength >= dayLengthPrev):  ## Question: These two options define very different phenological periods. Why use this approach? 
+                ## Question: This formulation means that during the growing season (when dayLength < dayLengRequire) there is no litter production! Even a canopy that is growing will turnover leaves/branches and some litter will be produced. This is especially true for trees like Eucalypts.
+                ## TODO: Modify this formulation to something more similar to my Knorr implementation in CARDAMOM, where there is a background turnover rate. 
+                return 0
+            elif Photosynthetic_Biomass < 0.01 * (1 - self.propPhBEverGreen):
+                ## [Question: What is the 0.01 there for?]
+                ## [Question: So, this if statement option essentially says convert ALL Photosynthetic_Biomass into litter in this time-step, yes? Why? ]
+                ## Modification: I had to remove the time-step (DT) dependency in the equation below. Instead, I have implemented a turnover rate parameter. This may change the results compared to Stella.
+                return (1 - self.propPhBEverGreen) * np.minimum(
+                        Photosynthetic_Biomass * self.FallLitterTurnover, Photosynthetic_Biomass
+                    )
+            else:
+                ## [Question: What is this if statement option doing? Why this formulation? Why is it to the power of 3?]
+                return (1 - self.propPhBEverGreen) * (
+                    self.Max_Photosynthetic_Biomass * self.propPhBLeafRate / Photosynthetic_Biomass
+                ) ** 3
+
+
 
 # %% [markdown]
 # #### - Initialise the Plant module
@@ -608,7 +706,7 @@ class PlantModuleCalculator:
 # This example initalises it with a mortality_constant=0.002 and the rest of the parameters are default values.
 
 # %%
-Plant1 = PlantModuleCalculator(mortality_constant=0.002)
+Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
 
 # %% [markdown]
 # #### - Use the `calculate` method to compute the RHS for the state
@@ -617,14 +715,28 @@ Plant1 = PlantModuleCalculator(mortality_constant=0.002)
 _PhBM = 2.0
 _solRadGrd = 20.99843025
 _airTempC = 21.43692112
+_dayLength = 11.900191330084594
+_dayLengthPrev = 11.89987139219148
 
-print("dy/dt =", Plant1.calculate(_PhBM, _solRadGrd, _airTempC))
+print(
+    "dy/dt =",
+    Plant1.calculate(_PhBM, _solRadGrd, _airTempC, _dayLength, _dayLengthPrev),
+)
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
 
 # %%
 print("PhBioNPP =", Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0.99))
+
+# %%
+_dayLength = 11.900191330084594
+_dayLengthPrev = 11.89987139219148
+
+print(
+    "PhBioMortality =",
+    Plant1.calculate_PhBioMortality(_PhBM, _dayLength, _dayLengthPrev, 1, 0.99),
+)
 
 # %%
 Plant1.calculate_PhBioMort(_PhBM)
@@ -654,19 +766,29 @@ plt.plot(constant_co2_exp(time))
 plt.plot(linear_plateau_co2_exp(time))
 
 # %%
+df_forcing["PlantGrowth.dayLengthPrev"]
+
+# %%
 time = df_forcing["Days"].values
 
 Climate_airTempC_f = interp1d(time, df_forcing["Climate.airTempC"].values)
 Climate_solRadGrd_f = interp1d(time, df_forcing["Climate.solRadGrd"].values)
+Climate_dayLength_f = interp1d(time, df_forcing["Climate.dayLength"].values)
+PlantGrowth_dayLengthPrev_f = interp1d(
+    time, df_forcing["PlantGrowth.dayLengthPrev"].values
+)
+
 
 ## Select any time within the time domain
 t1 = 100
 print(constant_co2_exp(t1), linear_plateau_co2_exp(t1))
 
 ## plot the interpolated time-series
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-axes[0].plot(Climate_solRadGrd_f(time))
-axes[1].plot(Climate_airTempC_f(time))
+fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+axes[0, 0].plot(Climate_solRadGrd_f(time))
+axes[0, 1].plot(Climate_airTempC_f(time))
+axes[1, 0].plot(Climate_dayLength_f(time))
+axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time))
 
 
 # %%
@@ -709,9 +831,13 @@ class SimplePlantModel:
         self,
         airTempC: Callable[[float], float],
         solRadGrd: Callable[[float], float],
+        dayLength: Callable[[float], float],
+        dayLengthPrev: Callable[[float], float],
         time_axis: float,
     ) -> Tuple[float]:
-        func_to_solve = self._get_func_to_solve(airTempC, solRadGrd)
+        func_to_solve = self._get_func_to_solve(
+            airTempC, solRadGrd, dayLength, dayLengthPrev
+        )
 
         t_eval = time_axis
         t_span = (self.time_start, t_eval[-1])
@@ -731,7 +857,11 @@ class SimplePlantModel:
         return res_raw
 
     def _get_func_to_solve(
-        self, solRadGrd, airTempC: Callable[float, float]
+        self,
+        solRadGrd,
+        airTempC,
+        dayLength,
+        dayLengthPrev: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -751,11 +881,15 @@ class SimplePlantModel:
             """
             airTempCh = airTempC(t).squeeze()
             solRadGrdh = solRadGrd(t).squeeze()
+            dayLengthh = dayLength(t).squeeze()
+            dayLengthPrevh = dayLengthPrev(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
+                dayLength=dayLengthh,
+                dayLengthPrev=dayLengthPrevh,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt
@@ -800,7 +934,11 @@ Model = SimplePlantModel(calculator=PlantX, state1_init=10.0, time_start=1)
 time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
-    airTempC=Climate_airTempC_f, solRadGrd=Climate_solRadGrd_f, time_axis=time_axis
+    airTempC=Climate_airTempC_f,
+    solRadGrd=Climate_solRadGrd_f,
+    dayLength=Climate_dayLength_f,
+    dayLengthPrev=PlantGrowth_dayLengthPrev_f,
+    time_axis=time_axis,
 )
 
 # %% [markdown]
@@ -821,7 +959,14 @@ PhBioNPP = PlantX.calculate_PhBioNPP(
     0.99,
 )
 
-PhBioMort = PlantX.calculate_PhBioMort(res.y[0])
+PhBioMort = PlantX.calculate_PhBioMortality(
+    res.y[0],
+    Climate_dayLength_f(time_axis),
+    PlantGrowth_dayLengthPrev_f(time_axis),
+    1,
+    0.99,
+)
+
 
 # %%
 fig, axes = plt.subplots(2, 3, figsize=(14, 10))

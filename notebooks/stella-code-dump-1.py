@@ -559,13 +559,16 @@ class PlantModuleCalculator:
         default=0.6
     )  ## A dummy, stella enforced variable that is needed for the sole purpose of tracking the maximum attained value of non-photosynthetic biomass; Finding the max of Ph in the whole period of model run; maximal biomass reached during the season
 
+    BioRepro: float = field(default=1800)  ## bio time when reproductive organs start to grow; 1900
+    propPhtoNphReproduction: float = field(default=0.005)  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
+
     def calculate(
-        self, Photosynthetic_Biomass, solRadGrd, airTempC, dayLength, dayLengthPrev
+        self, Photosynthetic_Biomass, solRadGrd, airTempC, dayLength, dayLengthPrev, Bio_time, propPhAboveBM
     ) -> Tuple[float]:
         PhBioPlanting = 0
         PhBioHarvest = 0
         Transup = 0.1
-        Transdown = 0.1
+        #Transdown = 0.1
 
         WatStressHigh = 1
         WatStressLow = 0.99
@@ -577,13 +580,16 @@ class PlantModuleCalculator:
 
         # Call the calculate_PhBioMort method
         # PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
-        PhBioMort = self.calculate_PhBioMortality(
+        PhBioMort,Fall_litter = self.calculate_PhBioMortality(
             Photosynthetic_Biomass,
             dayLength,
             dayLengthPrev,
             WatStressHigh,
             WatStressLow,
         )
+        
+        # Call the calculate_Transdown method
+        Transdown = self.calculate_Transdown(Photosynthetic_Biomass,PhNPP,Fall_litter,propPhAboveBM,Bio_time)
 
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
 
@@ -676,7 +682,7 @@ class PlantModuleCalculator:
             1 - self.propPhtoNPhMortality
         ) + Photosynthetic_Biomass * (PropPhMortDrought + self.propPhMortality)
 
-        return PhBioMort
+        return (PhBioMort,Fall_litter)
     
     def calculate_FallLitter(self, dayLength, dayLengthPrev, Photosynthetic_Biomass):
             if (dayLength > self.dayLengRequire) or (dayLength >= dayLengthPrev):  ## Question: These two options define very different phenological periods. Why use this approach? 
@@ -695,6 +701,31 @@ class PlantModuleCalculator:
                 return (1 - self.propPhBEverGreen) * (
                     self.Max_Photosynthetic_Biomass * self.propPhBLeafRate / Photosynthetic_Biomass
                 ) ** 3
+            
+    def calculate_Transdown(self,Photosynthetic_Biomass,PhNPP,Fall_litter,propPhAboveBM,Bio_time):
+
+        # TransdownRate:
+        # The plant attempts to obtain the optimum photobiomass to total above ground biomass ratio.  Once this is reached,
+        # NPP is used to grow more Nonphotosythethic biomass decreasing the optimum ratio.  This in turn allows new Photobiomass
+        # to compensate for this loss; IF Ph_to_Ab_BM[Habitat,Soil]>•Max_Ph_to_Ab_BM[Habitat,Soil] THEN 1; ELSE Ph_to_Ab_BM[Habitat,Soil]/•Max_Ph_to_Ab_BM[Habitat,Soil]
+
+        if Bio_time > self.BioRepro + 1:
+            TransdownRate = 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
+        elif propPhAboveBM < self.maxPropPhAboveBM:
+            TransdownRate = 0
+        else:
+            TransdownRate = np.cos((self.maxPropPhAboveBM / self.propPhAboveBM) * np.pi / 2) ** 0.1
+
+        ## TODO: Include HarvestTime info
+        # if HarvestTime > 0:
+        #     Transdown = 0
+        # else:
+        #     Transdown = TransdownRate*(PhNPP+propPhtoNphReproduction*Photosynthetic_Biomass)+(propPhtoNPhMortality*Fall_litter)
+        Transdown = TransdownRate * (
+            PhNPP + self.propPhtoNphReproduction * Photosynthetic_Biomass
+        ) + (self.propPhtoNPhMortality * Fall_litter)
+        
+        return Transdown
 
 
 
@@ -712,34 +743,58 @@ Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
 # #### - Use the `calculate` method to compute the RHS for the state
 
 # %%
+plt.plot(df_forcing["PlantGrowth.Bio time"].values)
+
+df_forcing["PlantGrowth.Bio time"].values[0:10]
+
+# %%
 _PhBM = 2.0
 _solRadGrd = 20.99843025
 _airTempC = 21.43692112
 _dayLength = 11.900191330084594
 _dayLengthPrev = 11.89987139219148
+_Bio_time = 0.0
+_propPhAboveBM = 0.473684210526
 
 print(
     "dy/dt =",
-    Plant1.calculate(_PhBM, _solRadGrd, _airTempC, _dayLength, _dayLengthPrev),
+    Plant1.calculate(
+        _PhBM,
+        _solRadGrd,
+        _airTempC,
+        _dayLength,
+        _dayLengthPrev,
+        _Bio_time,
+        _propPhAboveBM,
+    ),
 )
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
 
 # %%
-print("PhBioNPP =", Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0.99))
+PhBioNPP = Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0.99)
+print("PhBioNPP =", PhBioNPP)
 
 # %%
 _dayLength = 11.900191330084594
 _dayLengthPrev = 11.89987139219148
 
-print(
-    "PhBioMortality =",
-    Plant1.calculate_PhBioMortality(_PhBM, _dayLength, _dayLengthPrev, 1, 0.99),
+PhBioMort, Fall_litter = Plant1.calculate_PhBioMortality(
+    _PhBM, _dayLength, _dayLengthPrev, 1, 0.99
 )
 
+print("PhBioMort =", PhBioMort)
+print("Fall_litter =", Fall_litter)
+
 # %%
-Plant1.calculate_PhBioMort(_PhBM)
+Transdown = Plant1.calculate_Transdown(
+    _PhBM, PhBioNPP, Fall_litter, _propPhAboveBM, _Bio_time
+)
+print(
+    "Transdown =",
+    Transdown,
+)
 
 # %% [markdown]
 # ## Create interpolation function for the forcing data

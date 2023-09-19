@@ -602,10 +602,13 @@ class PlantModuleCalculator:
     propPhtoNphReproduction: float = field(
         default=0.005
     )  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
+        
+    propNPhMortality: float = field(default=0.04)  # non-photo mortality rate [Question: Units?? ]
 
     def calculate(
         self,
         Photosynthetic_Biomass,
+        Non_Photosynthetic_Biomass,
         solRadGrd,
         airTempC,
         dayLength,
@@ -642,6 +645,9 @@ class PlantModuleCalculator:
             WatStressHigh,
             WatStressLow,
         )
+        
+        # Call the calculated_NPhBioMort method
+        NPhBioMort = self.calculate_NPhBioMort(Non_Photosynthetic_Biomass)
 
         # Call the calculate_Transdown method
         Transdown = self.calculate_Transdown(
@@ -856,6 +862,10 @@ class PlantModuleCalculator:
             return 0
         else:
             return np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
+        
+    def calculate_NPhBioMort(self,Non_Photosynthetic_Biomass):
+        return self.propNPhMortality * Non_Photosynthetic_Biomass
+        
 
 
 # %% [markdown]
@@ -884,6 +894,7 @@ df_forcing["PlantGrowth.Bio time"].values[0:10]
 
 # %%
 _PhBM = 2.0
+_NPhBM = 1.0
 _solRadGrd = 20.99843025
 _airTempC = 21.43692112
 _dayLength = 11.900191330084594
@@ -895,6 +906,7 @@ print(
     "dy/dt =",
     Plant1.calculate(
         _PhBM,
+        _NPhBM,
         _solRadGrd,
         _airTempC,
         _dayLength,
@@ -1104,6 +1116,7 @@ class SimplePlantModel:
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
+                Non_Photosynthetic_Biomass=y[1],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
@@ -1141,10 +1154,6 @@ class SimplePlantModel:
 
 # %% [markdown]
 # Initialise the calculator. Then create the Model class with that calculator, initial conditions and start time. 
-
-# %%
-0.3 * 0.04 * 0.75 / (1 - 0.75)
-0.04 * (0.85 + 1) / 0.85
 
 # %%
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)

@@ -26,6 +26,9 @@ from scipy.integrate import solve_ivp
 
 import matplotlib.pyplot as plt
 
+# %%
+from daesim.climate_funcs import *
+
 # %% [markdown]
 # ### Notes for translating code
 #
@@ -34,13 +37,15 @@ import matplotlib.pyplot as plt
 # "ErrorCheck": Check with Firouzeh/Justin to see if this is correct or an error.
 #
 # "[Question...]": Ask Firouzeh/Justin why this equation/variable/value is used, whether it makes sense.
+#
+# "Modification": A piece of code that HAD to be modified compared with the Stella version in order to work within this framework or in Python more generally. 
 
 # %% [markdown]
 # ## Model run variables
 
 # %%
 start_time = 1
-end_time = 365
+end_time = 400
 dt = 1
 time = np.arange(start_time, end_time + dt, dt)
 
@@ -72,13 +77,20 @@ Climate_nYear = 0  # 3   ## Number of years we have empirical data for
 Climate_cellArea = 1  ## area of the unit considered m2
 
 # julian day, 1 thru 365
-Climate_DayJul = (t - dt) % (365 + 1)
-Climate_DayJulPrev = (t - dt - dt) % (365 + 1)
+Climate_DayJul = (t - dt) % (365 + 1)  ## TODO: This is really the "ordinal date", not the Julian day. Rename it.
+Climate_DayJulPrev = (t - dt - dt) % (365 + 1)  ## TODO: This is really the "ordinal date", not the Julian day. Rename it.
+Climate_DayJul = (
+    t - dt
+) % 365 + 1  # Modification: Changed this equation so that Jan 1st (UTC 00:00:00) is represented by 1 (not 0). December 31st (UTC 00:00:00) is represented by 365.
+Climate_DayJulPrev = (t - 2 * dt) % 365 + 1
 
-Climate_ampl = np.exp(7.42 + 0.045 * Climate_CLatDeg) / 3600
-Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12
-
+Climate_ampl = np.exp(7.42 + 0.045 * Climate_CLatDeg) / 3600   ## ErrorCheck: Where does this equation come from? Is it globally applicable?
+Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12  ## ErrorCheck: This formulation seems odd. It doesn't return expected behaviour of a day-length calculator. E.g. it gives a shorter day length amplitude (annual min to annual max) at higher latitudes (e.g. -60o compared to -30o), it should be the other way around! I am going to replace it with my own solar calculations
 Climate_dayLengthPrev = Climate_ampl * np.sin((Climate_DayJulPrev - 79) * 0.01721) + 12
+
+Climate_dayLength = sunlight_duration(Climate_CLatDeg, Climate_DayJul - 1)
+Climate_dayLengthPrev = sunlight_duration(Climate_CLatDeg, Climate_DayJulPrev - 1)
+
 
 
 # %%

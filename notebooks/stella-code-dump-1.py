@@ -115,7 +115,7 @@ maxAboveBM = 0.6  ## Max above ground biomass kg/m2. 0.9
 maxPropPhAboveBM = 0.75  ## proportion of photosynthetic biomass in the above ground biomass (0,1)(alfa*). 0.65
 propPhBEverGreen = 0.3  ## Proportion of evergreen photo biomass [Question: What does this mean, in a physiological sense? What does it represent in a real-world plant? ]
 iniNPhAboveBM = (
-    0.04  ## initially available above ground non-photosynthetic tissue. kg/m2
+    0.04  ## initially available above ground non-photosynthetic tissue. kg/m2 
 )
 propAboveBelowNPhBM = (
     0.85  ## Ratio of above to below ground non-photosynthetic biomas (beta)
@@ -154,11 +154,11 @@ maxNPhBM = (maxAboveBM - maxPhAboveBM) * (
 )  ## maximum above ground non phtosynthetic+(max above ground non pythosynthetic/proportion of above to below ground non photosynthetic)kg/m2
 maxNPhAboveBM = (
     iniNPhAboveBM * (propAboveBelowNPhBM + 1) / propAboveBelowNPhBM
-)  ## initial non-photo above ground biomass
+)  ## initial non-photo above ground biomass. [Question: What is this really representing? Errorcheck: If this is truly the "initial non-photo above ground biomass", then it should be equivalent to iniNPhAboveBM. ]
 maxBM = maxNPhBM + maxPhAboveBM  ## kg/m2
 iniPhBM = (
     propPhBEverGreen * iniNPhAboveBM * maxPropPhAboveBM / (1 - maxPropPhAboveBM)
-)  ## initial biomass of photosynthetic tissue  (kgC/m^2).[]. calculated based on the available above ground non-photosynthetic tissue. PH/(PH+Ab_BM)=Max_Ph_to_Ab_BM. The introduction of the PhBio_evgrn_prop in this equation eliminates all leaves from deciduous trees.  Only coniferous trees are photosynthesizing!
+)  ## initial biomass of photosynthetic tissue  (kgC/m^2).[]. calculated based on the available above ground non-photosynthetic tissue. PH/(PH+Ab_BM)=Max_Ph_to_Ab_BM. The introduction of the PhBio_evgrn_prop in this equation eliminates all leaves from deciduous trees.  Only coniferous trees are photosynthesizing! [Question: Why use propPhBEverGreen at all? Question: In Stella this is calculated based on parameters and the initial value of "iniNPhAboveBM". Why not initialise with a value then derive ]
 rootBM = Non_photosynthetic_Biomass / (
     propAboveBelowNPhBM + 1
 )  ## NPHbelow=root biomass=nonphotobiomass*below/(above+below)= nonphoto/(above/below+1). kg/m2
@@ -248,6 +248,31 @@ else:
 # Bio_time(t - dt) + (cf_Air_Temp) * dt
 Bio_time = df_forcing["PlantGrowth.Bio time"].values[it]
 
+
+# %%
+ratio_above_to_below_NPh = 0.85  # = propAboveBelowNPhBM
+frac_Green_in_AboveBM = 0.75  # = maxPropPhAboveBM
+frac_Evergreen_in_Green = 0.3  # = propPhBEverGreen
+
+frac_NPh_in_AboveBM = 1 - frac_Green_in_AboveBM
+
+initial_NPhAboveBM = 0.04  # kg/m2
+print("initial above-ground (non-photosynthetic) biomass =", initial_NPhAboveBM)
+belowground_NPhBM = 0.04 / 0.85
+print("initial below-ground (non-photosynthetic) biomass =", belowground_NPhBM)
+
+initial_PhBM = initial_NPhAboveBM * frac_Green_in_AboveBM / (1 - frac_Green_in_AboveBM)
+print(initial_PhBM)
+print()
+
+print("Verification:")
+print("  ratio above- to below-ground NPh =", initial_NPhAboveBM / belowground_NPhBM)
+print(
+    "  frac Ph (green) in above-ground BM =",
+    initial_PhBM / (initial_PhBM + initial_NPhAboveBM),
+)
+
+# %%
 
 # %% [markdown]
 # ## Plant
@@ -434,7 +459,7 @@ Transdown = TransdownRate * (
 # TODO: Convert to parameter set
 sproutRate = 0.01  ## Sprouting rate. Rate of translocation of assimilates from non-photo to photo bimass during early growth period
 bioStart = 20  ## start of sprouting. [Question: What is the physiological definition?]
-bioEnd = 80  ## [Question: What is the  physiological definition?]
+bioEnd = 80  ## [Question: What is the physiological definition?]
 ## TODO: This parameter is used in calculation of both "Conditions for plant", Transdown and Transup, make sure its available to both calculations
 maxPropPhAboveBM = 0.75
 
@@ -559,19 +584,45 @@ class PlantModuleCalculator:
         default=0.6
     )  ## A dummy, stella enforced variable that is needed for the sole purpose of tracking the maximum attained value of non-photosynthetic biomass; Finding the max of Ph in the whole period of model run; maximal biomass reached during the season
 
-    BioRepro: float = field(default=1800)  ## bio time when reproductive organs start to grow; 1900
-    propPhtoNphReproduction: float = field(default=0.005)  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
+    iniNPhAboveBM: float = field(
+        default=0.04
+    )  ## initially available above ground non-photosynthetic tissue. kg/m2
+    propAboveBelowNPhBM: float = field(
+        default=0.85
+    )  ## Ratio of above to below ground non-photosynthetic biomas (beta)
+    heightMaxBM: float = field(default=1.2)  ## Height at maximum biomass
+    iniRootDensity: float = field(default=0.05)
+    propNPhRoot: float = field(
+        default=0.002
+    )  ## [Question: If "NPh" means non-photosynthetic, then why isn't propNPhRoot = 1? 100% of root biomass should be non-photosynthetic]
+
+    BioRepro: float = field(
+        default=1800
+    )  ## bio time when reproductive organs start to grow; 1900
+    propPhtoNphReproduction: float = field(
+        default=0.005
+    )  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
 
     def calculate(
-        self, Photosynthetic_Biomass, solRadGrd, airTempC, dayLength, dayLengthPrev, Bio_time, propPhAboveBM
+        self,
+        Photosynthetic_Biomass,
+        solRadGrd,
+        airTempC,
+        dayLength,
+        dayLengthPrev,
+        Bio_time,
+        propPhAboveBM,
     ) -> Tuple[float]:
         PhBioPlanting = 0
         PhBioHarvest = 0
         Transup = 0.1
-        #Transdown = 0.1
+        # Transdown = 0.1
 
         WatStressHigh = 1
         WatStressLow = 0.99
+
+        # Call the initialisation method
+        PlantConditions = self._initialise(self.iniNPhAboveBM)
 
         # Call the calculate_PhBioNPP method
         PhNPP = self.calculate_PhBioNPP(
@@ -580,20 +631,67 @@ class PlantModuleCalculator:
 
         # Call the calculate_PhBioMort method
         # PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
-        PhBioMort,Fall_litter = self.calculate_PhBioMortality(
+        PhBioMort, Fall_litter = self.calculate_PhBioMortality(
             Photosynthetic_Biomass,
             dayLength,
             dayLengthPrev,
             WatStressHigh,
             WatStressLow,
         )
-        
+
         # Call the calculate_Transdown method
-        Transdown = self.calculate_Transdown(Photosynthetic_Biomass,PhNPP,Fall_litter,propPhAboveBM,Bio_time)
+        Transdown = self.calculate_Transdown(
+            Photosynthetic_Biomass,
+            PhNPP,
+            Fall_litter,
+            propPhAboveBM,
+            Bio_time,
+        )
 
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
 
         return dPhBMdt
+
+    def _initialise(self, iniNPhAboveBM):
+        ## TODO: Need to handle this initialisation better.
+        ## Ideally, we want initial values like "iniNPhAboveBM" (although that's not exactly tied to an ODE state) to only be defined in the "Model", not here in the calculator.
+
+        maxPhAboveBM = (
+            self.maxAboveBM * self.maxPropPhAboveBM
+        )  ## The maximum general photosynthetic biomass above ground (not site specific). kg/m2*dimless=kg/m2
+        maxNPhBM = (self.maxAboveBM - maxPhAboveBM) * (
+            1 + 1 / self.propAboveBelowNPhBM
+        )  ## maximum above ground non phtosynthetic+(max above ground non pythosynthetic/proportion of above to below ground non photosynthetic)kg/m2
+        maxNPhAboveBM = (
+            iniNPhAboveBM * (self.propAboveBelowNPhBM + 1) / self.propAboveBelowNPhBM
+        )  ## initial non-photo above ground biomass
+        maxBM = maxNPhBM + maxPhAboveBM  ## kg/m2
+        iniPhBM = (
+            self.propPhBEverGreen
+            * iniNPhAboveBM
+            * self.maxPropPhAboveBM
+            / (1 - self.maxPropPhAboveBM)
+        )  ## initial biomass of photosynthetic tissue  (kgC/m^2).[]. calculated based on the available above ground non-photosynthetic tissue. PH/(PH+Ab_BM)=Max_Ph_to_Ab_BM. The introduction of the PhBio_evgrn_prop in this equation eliminates all leaves from deciduous trees.  Only coniferous trees are photosynthesizing!
+
+        #         rootBM = Non_photosynthetic_Biomass / (
+        #             propAboveBelowNPhBM + 1
+        #         )  ## NPHbelow=root biomass=nonphotobiomass*below/(above+below)= nonphoto/(above/below+1). kg/m2
+        #         NPhAboveBM = (
+        #             propAboveBelowNPhBM * rootBM
+        #         )  ## Above ground non-photosynthetic biomass; (kg/m2)/(kg/m3)=m
+
+        #         if NPhAboveBM == 0:
+        #             propPhAboveBM = 0
+        #         else:
+        #             propPhAboveBM = Photosynthetic_Biomass / (Photosynthetic_Biomass + NPhAboveBM)
+
+        return {
+            "iniPhBM": iniPhBM,
+            "maxBM": maxBM,
+            "maxNPhBM": maxNPhBM,
+            "maxPhAboveBM": maxPhAboveBM,
+            "maxNPhAboveBM": maxNPhAboveBM,
+        }
 
     def calculate_PhBioNPP(
         self, Photosynthetic_Biomass, solRadGrd, airTempC, WatStressHigh, WatStressLow
@@ -661,7 +759,7 @@ class PlantModuleCalculator:
         # FallLitterCalc
         ## Modification: Had to vectorize the if statements to support array-based calculations
         _vfunc = np.vectorize(self.calculate_FallLitter)
-        FallLitterCalc = _vfunc(dayLength, dayLengthPrev, Photosynthetic_Biomass)
+        FallLitterCalc = _vfunc(Photosynthetic_Biomass, dayLength, dayLengthPrev)
 
         ## [Question: What does this function represent?]
         Fall_litter = np.minimum(
@@ -682,39 +780,49 @@ class PlantModuleCalculator:
             1 - self.propPhtoNPhMortality
         ) + Photosynthetic_Biomass * (PropPhMortDrought + self.propPhMortality)
 
-        return (PhBioMort,Fall_litter)
-    
-    def calculate_FallLitter(self, dayLength, dayLengthPrev, Photosynthetic_Biomass):
-            if (dayLength > self.dayLengRequire) or (dayLength >= dayLengthPrev):  ## Question: These two options define very different phenological periods. Why use this approach? 
-                ## Question: This formulation means that during the growing season (when dayLength < dayLengRequire) there is no litter production! Even a canopy that is growing will turnover leaves/branches and some litter will be produced. This is especially true for trees like Eucalypts.
-                ## TODO: Modify this formulation to something more similar to my Knorr implementation in CARDAMOM, where there is a background turnover rate. 
-                return 0
-            elif Photosynthetic_Biomass < 0.01 * (1 - self.propPhBEverGreen):
-                ## [Question: What is the 0.01 there for?]
-                ## [Question: So, this if statement option essentially says convert ALL Photosynthetic_Biomass into litter in this time-step, yes? Why? ]
-                ## Modification: I had to remove the time-step (DT) dependency in the equation below. Instead, I have implemented a turnover rate parameter. This may change the results compared to Stella.
-                return (1 - self.propPhBEverGreen) * np.minimum(
-                        Photosynthetic_Biomass * self.FallLitterTurnover, Photosynthetic_Biomass
-                    )
-            else:
-                ## [Question: What is this if statement option doing? Why this formulation? Why is it to the power of 3?]
-                return (1 - self.propPhBEverGreen) * (
-                    self.Max_Photosynthetic_Biomass * self.propPhBLeafRate / Photosynthetic_Biomass
-                ) ** 3
-            
-    def calculate_Transdown(self,Photosynthetic_Biomass,PhNPP,Fall_litter,propPhAboveBM,Bio_time):
+        return (PhBioMort, Fall_litter)
 
+    def calculate_FallLitter(self, Photosynthetic_Biomass, dayLength, dayLengthPrev):
+        if (dayLength > self.dayLengRequire) or (
+            dayLength >= dayLengthPrev
+        ):  ## Question: These two options define very different phenological periods. Why use this approach?
+            ## Question: This formulation means that during the growing season (when dayLength < dayLengRequire) there is no litter production! Even a canopy that is growing will turnover leaves/branches and some litter will be produced. This is especially true for trees like Eucalypts.
+            ## TODO: Modify this formulation to something more similar to my Knorr implementation in CARDAMOM, where there is a background turnover rate.
+            return 0
+        elif Photosynthetic_Biomass < 0.01 * (1 - self.propPhBEverGreen):
+            ## [Question: What is the 0.01 there for?]
+            ## [Question: So, this if statement option essentially says convert ALL Photosynthetic_Biomass into litter in this time-step, yes? Why? ]
+            ## Modification: I had to remove the time-step (DT) dependency in the equation below. Instead, I have implemented a turnover rate parameter. This may change the results compared to Stella.
+            return (1 - self.propPhBEverGreen) * np.minimum(
+                Photosynthetic_Biomass * self.FallLitterTurnover, Photosynthetic_Biomass
+            )
+        else:
+            ## [Question: What is this if statement option doing? Why this formulation? Why is it to the power of 3?]
+            return (1 - self.propPhBEverGreen) * (
+                self.Max_Photosynthetic_Biomass
+                * self.propPhBLeafRate
+                / Photosynthetic_Biomass
+            ) ** 3
+
+    def calculate_Transdown(
+        self, Photosynthetic_Biomass, PhNPP, Fall_litter, propPhAboveBM, Bio_time
+    ):
         # TransdownRate:
         # The plant attempts to obtain the optimum photobiomass to total above ground biomass ratio.  Once this is reached,
         # NPP is used to grow more Nonphotosythethic biomass decreasing the optimum ratio.  This in turn allows new Photobiomass
         # to compensate for this loss; IF Ph_to_Ab_BM[Habitat,Soil]>•Max_Ph_to_Ab_BM[Habitat,Soil] THEN 1; ELSE Ph_to_Ab_BM[Habitat,Soil]/•Max_Ph_to_Ab_BM[Habitat,Soil]
 
-        if Bio_time > self.BioRepro + 1:
-            TransdownRate = 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
-        elif propPhAboveBM < self.maxPropPhAboveBM:
-            TransdownRate = 0
-        else:
-            TransdownRate = np.cos((self.maxPropPhAboveBM / self.propPhAboveBM) * np.pi / 2) ** 0.1
+        #         if Bio_time > self.BioRepro + 1:
+        #             TransdownRate = 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
+        #         elif propPhAboveBM < self.maxPropPhAboveBM:
+        #             TransdownRate = 0
+        #         else:
+        #             TransdownRate = (
+        #                 np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
+        #             )
+        ## Modification: Had to vectorize the above if statements to support array-based calculations
+        _vfunc = np.vectorize(self.calculate_TransdownRate)
+        TransdownRate = _vfunc(Bio_time, propPhAboveBM)
 
         ## TODO: Include HarvestTime info
         # if HarvestTime > 0:
@@ -724,9 +832,16 @@ class PlantModuleCalculator:
         Transdown = TransdownRate * (
             PhNPP + self.propPhtoNphReproduction * Photosynthetic_Biomass
         ) + (self.propPhtoNPhMortality * Fall_litter)
-        
+
         return Transdown
 
+    def calculate_TransdownRate(self, Bio_time, propPhAboveBM):
+        if Bio_time > self.BioRepro + 1:
+            return 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
+        elif propPhAboveBM < self.maxPropPhAboveBM:
+            return 0
+        else:
+            return np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
 
 
 # %% [markdown]
@@ -738,6 +853,12 @@ class PlantModuleCalculator:
 
 # %%
 Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
+
+# %%
+Plant1._initialise(0.04)
+
+# %%
+Plant1._initialise(0.04)["iniPhBM"]
 
 # %% [markdown]
 # #### - Use the `calculate` method to compute the RHS for the state
@@ -832,18 +953,23 @@ Climate_dayLength_f = interp1d(time, df_forcing["Climate.dayLength"].values)
 PlantGrowth_dayLengthPrev_f = interp1d(
     time, df_forcing["PlantGrowth.dayLengthPrev"].values
 )
+PlantGrowth_Bio_time_f = interp1d(time, df_forcing["PlantGrowth.Bio time"].values)
+PlantGrowth_propPhAboveBM_f = interp1d(
+    time, df_forcing["PlantGrowth.propPhAboveBM"].values
+)
 
 
 ## Select any time within the time domain
 t1 = 100
-print(constant_co2_exp(t1), linear_plateau_co2_exp(t1))
 
 ## plot the interpolated time-series
-fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+fig, axes = plt.subplots(3, 2, figsize=(12, 10))
 axes[0, 0].plot(Climate_solRadGrd_f(time))
 axes[0, 1].plot(Climate_airTempC_f(time))
 axes[1, 0].plot(Climate_dayLength_f(time))
 axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time))
+axes[2, 0].plot(PlantGrowth_Bio_time_f(time))
+axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time))
 
 
 # %%
@@ -888,10 +1014,21 @@ class SimplePlantModel:
         solRadGrd: Callable[[float], float],
         dayLength: Callable[[float], float],
         dayLengthPrev: Callable[[float], float],
+        Bio_time: Callable[
+            [float], float
+        ],  ## TODO: Temporary driver (calculate internally at some point)
+        propPhAboveBM: Callable[
+            [float], float
+        ],  ## TODO: Temporary driver (calculate internally at some point)
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
-            airTempC, solRadGrd, dayLength, dayLengthPrev
+            airTempC,
+            solRadGrd,
+            dayLength,
+            dayLengthPrev,
+            Bio_time,
+            propPhAboveBM,
         )
 
         t_eval = time_axis
@@ -916,7 +1053,9 @@ class SimplePlantModel:
         solRadGrd,
         airTempC,
         dayLength,
-        dayLengthPrev: Callable[float, float],
+        dayLengthPrev,
+        Bio_time,
+        propPhAboveBM: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -938,6 +1077,8 @@ class SimplePlantModel:
             solRadGrdh = solRadGrd(t).squeeze()
             dayLengthh = dayLength(t).squeeze()
             dayLengthPrevh = dayLengthPrev(t).squeeze()
+            Bio_timeh = Bio_time(t).squeeze()
+            propPhAboveBMh = propPhAboveBM(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
@@ -945,6 +1086,8 @@ class SimplePlantModel:
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
+                Bio_time=Bio_timeh,
+                propPhAboveBM=propPhAboveBMh,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt
@@ -993,6 +1136,8 @@ res = Model.run(
     solRadGrd=Climate_solRadGrd_f,
     dayLength=Climate_dayLength_f,
     dayLengthPrev=PlantGrowth_dayLengthPrev_f,
+    Bio_time=PlantGrowth_Bio_time_f,
+    propPhAboveBM=PlantGrowth_propPhAboveBM_f,
     time_axis=time_axis,
 )
 
@@ -1014,13 +1159,22 @@ PhBioNPP = PlantX.calculate_PhBioNPP(
     0.99,
 )
 
-PhBioMort = PlantX.calculate_PhBioMortality(
+PhBioMort, Fall_litter = PlantX.calculate_PhBioMortality(
     res.y[0],
     Climate_dayLength_f(time_axis),
     PlantGrowth_dayLengthPrev_f(time_axis),
     1,
     0.99,
 )
+
+Transdown = PlantX.calculate_Transdown(
+    res.y[0],
+    PhBioNPP,
+    Fall_litter,
+    PlantGrowth_Bio_time_f(time_axis),
+    PlantGrowth_propPhAboveBM_f(time_axis),
+)
+
 
 
 # %%
@@ -1037,6 +1191,8 @@ axes[1, 0].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
 axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
 axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
 axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
+axes[1, 2].plot(time_axis, Transdown, c="C3", label="Transdown")
+axes[1, 2].set_ylabel("Diagnostic Flux: Transdown")
 
 plt.tight_layout()
 

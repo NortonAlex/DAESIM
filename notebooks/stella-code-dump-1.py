@@ -614,9 +614,13 @@ class PlantModuleCalculator:
         propPhAboveBM,
     ) -> Tuple[float]:
         PhBioPlanting = 0
+        NPhBioPlanting = 0
         PhBioHarvest = 0
+        NPhBioHarvest = 0
         Transup = 0.1
         # Transdown = 0.1
+        NPhBioMort = 0.0
+        exudation = 0.001
 
         WatStressHigh = 1
         WatStressLow = 0.99
@@ -648,9 +652,19 @@ class PlantModuleCalculator:
             Bio_time,
         )
 
+        # ODE for photosynthetic biomass
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
+        # ODE for non-photosynthetic biomass
+        dNPhBMdt = (
+            NPhBioPlanting
+            + Transdown
+            - Transup
+            - NPhBioHarvest
+            - NPhBioMort
+            - exudation
+        )
 
-        return dPhBMdt
+        return (dPhBMdt, dNPhBMdt)
 
     def _initialise(self, iniNPhAboveBM):
         ## TODO: Need to handle this initialisation better.
@@ -1003,6 +1017,11 @@ class SimplePlantModel:
     Initial value for state 1
     """
 
+    state2_init: float
+    """
+    Initial value for state 2
+    """
+
     time_start: float
     """
     Time at which the initialisation values apply.
@@ -1033,7 +1052,10 @@ class SimplePlantModel:
 
         t_eval = time_axis
         t_span = (self.time_start, t_eval[-1])
-        start_state = (self.state1_init,)
+        start_state = (
+            self.state1_init,
+            self.state2_init,
+        )
 
         solve_kwargs = {
             "t_span": t_span,
@@ -1121,9 +1143,15 @@ class SimplePlantModel:
 # Initialise the calculator. Then create the Model class with that calculator, initial conditions and start time. 
 
 # %%
+0.3 * 0.04 * 0.75 / (1 - 0.75)
+0.04 * (0.85 + 1) / 0.85
+
+# %%
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 
-Model = SimplePlantModel(calculator=PlantX, state1_init=10.0, time_start=1)
+Model = SimplePlantModel(
+    calculator=PlantX, state1_init=0.036, state2_init=0.0870588, time_start=1
+)
 
 # %% [markdown]
 # Define a time-axis over which to execute the model. Then run the model given some forcing data.
@@ -1146,6 +1174,9 @@ res = Model.run(
 
 # %%
 res.y[0]
+
+# %%
+res.y[1]
 
 # %% [markdown]
 # Now that the model ODE has been evaluated, you can compute any related "diagnostic" quantities.
@@ -1187,6 +1218,10 @@ axes[0, 1].set_ylabel("airTempC")
 axes[0, 2].plot(res.t, res.y[0], c="C0")
 axes[0, 2].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
 
+ax2 = axes[0, 2].twinx()
+ax2.plot(res.t, res.y[1], c="C1")
+ax2.set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
+
 axes[1, 0].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
 axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
 axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
@@ -1195,6 +1230,10 @@ axes[1, 2].plot(time_axis, Transdown, c="C3", label="Transdown")
 axes[1, 2].set_ylabel("Diagnostic Flux: Transdown")
 
 plt.tight_layout()
+
+# %%
+
+# %%
 
 # %%
 

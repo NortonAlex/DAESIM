@@ -634,6 +634,16 @@ class PlantModuleCalculator:
 
         # Call the initialisation method
         PlantConditions = self._initialise(self.iniNPhAboveBM)
+        
+        # Call "conditions for plant" methods (following Stella code naming convention for this)
+        rootBM = self.calculate_rootBM(Non_Photosynthetic_Biomass)
+        NPhAboveBM = self.calculate_NPhAboveBM(rootBM)
+        calSoilDepth = 0.09  ## TODO: Add soil module variable for calSoilDepth
+        rootDensity = self.calculate_rootDensity(Non_Photosynthetic_Biomass,calSoilDepth)  ## TODO: Add soil module variable for calSoilDepth
+        Elevation = 70.74206543  ## TODO: Add elevation to climate module
+        RootDepth = self.calculate_RootDepth(rootBM,rootDensity,Elevation)  ## TODO: Add elevation to climate module
+        
+        propPhAboveBM = self.calculate_propPhAboveBM(Photosynthetic_Biomass,NPhAboveBM)
 
         # Call the calculate_PhBioNPP method
         PhNPP = self.calculate_PhBioNPP(
@@ -888,6 +898,32 @@ class PlantModuleCalculator:
         
     def calculate_NPhBioMort(self,Non_Photosynthetic_Biomass):
         return self.propNPhMortality * Non_Photosynthetic_Biomass
+    
+    def calculate_rootBM(self,Non_Photosynthetic_Biomass):
+        return Non_Photosynthetic_Biomass/(self.propAboveBelowNPhBM+1)
+    
+    def calculate_NPhAboveBM(self,rootBM):
+        return self.propAboveBelowNPhBM*rootBM
+    
+    def calculate_rootDensity(self,Non_Photosynthetic_Biomass,calSoilDepth):
+        rootDensity = np.maximum(self.iniRootDensity, Non_Photosynthetic_Biomass*self.propNPhRoot*1/calSoilDepth)
+        return rootDensity
+    
+    def calculate_RootDepth(self,rootBM,rootDensity,Elevation):
+        RootDepth = np.maximum((Elevation/100) - 1, rootBM/rootDensity)
+        return RootDepth
+            
+    def calculate_propPhAboveBM(self,Photosynthetic_Biomass,NPhAboveBM):
+        _vfunc = np.vectorize(self.calculate_propPhAboveBM_conditional)
+        propPhAboveBM = _vfunc(Photosynthetic_Biomass,NPhAboveBM)
+        return propPhAboveBM
+        
+    def calculate_propPhAboveBM_conditional(self,Photosynthetic_Biomass,NPhAboveBM):
+        if NPhAboveBM == 0:
+            return 0
+        else:
+            return Photosynthetic_Biomass / (Photosynthetic_Biomass + NPhAboveBM)
+        
         
 
 
@@ -1024,18 +1060,18 @@ t1 = 100
 
 ## plot the interpolated time-series
 fig, axes = plt.subplots(3, 2, figsize=(12, 10))
-axes[0, 0].plot(Climate_solRadGrd_f(time), label='solRadGrd')
-axes[0,0].legend()
-axes[0, 1].plot(Climate_airTempC_f(time), label='airTempC')
-axes[0,1].legend()
-axes[1, 0].plot(Climate_dayLength_f(time), label='dayLength')
-axes[1,0].legend()
-axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label='dayLengthPrev')
-axes[1,1].legend()
-axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label='Bio_time')
-axes[2,0].legend()
-axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time), label='propPhAboveBM')
-axes[2,1].legend()
+axes[0, 0].plot(Climate_solRadGrd_f(time), label="solRadGrd")
+axes[0, 0].legend()
+axes[0, 1].plot(Climate_airTempC_f(time), label="airTempC")
+axes[0, 1].legend()
+axes[1, 0].plot(Climate_dayLength_f(time), label="dayLength")
+axes[1, 0].legend()
+axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label="dayLengthPrev")
+axes[1, 1].legend()
+axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label="Bio_time")
+axes[2, 0].legend()
+axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time), label="propPhAboveBM")
+axes[2, 1].legend()
 
 
 # %%

@@ -708,18 +708,6 @@ class PlantModuleCalculator:
             / (1 - self.maxPropPhAboveBM)
         )  ## initial biomass of photosynthetic tissue  (kgC/m^2).[]. calculated based on the available above ground non-photosynthetic tissue. PH/(PH+Ab_BM)=Max_Ph_to_Ab_BM. The introduction of the PhBio_evgrn_prop in this equation eliminates all leaves from deciduous trees.  Only coniferous trees are photosynthesizing!
 
-        #         rootBM = Non_photosynthetic_Biomass / (
-        #             propAboveBelowNPhBM + 1
-        #         )  ## NPHbelow=root biomass=nonphotobiomass*below/(above+below)= nonphoto/(above/below+1). kg/m2
-        #         NPhAboveBM = (
-        #             propAboveBelowNPhBM * rootBM
-        #         )  ## Above ground non-photosynthetic biomass; (kg/m2)/(kg/m3)=m
-
-        #         if NPhAboveBM == 0:
-        #             propPhAboveBM = 0
-        #         else:
-        #             propPhAboveBM = Photosynthetic_Biomass / (Photosynthetic_Biomass + NPhAboveBM)
-
         return {
             "iniPhBM": iniPhBM,
             "maxBM": maxBM,
@@ -779,11 +767,6 @@ class PlantModuleCalculator:
         WatStressHigh,
         WatStressLow,
     ):
-        ## Climate module variables:
-        # Climate_dayLength = Climate_dayLength
-        # Climate_dayLengthPrev = Climate_dayLengthPrev
-
-        ## Blue Stella variables - calculated within this module
 
         WaterCoeff = min(
             WatStressHigh, WatStressLow

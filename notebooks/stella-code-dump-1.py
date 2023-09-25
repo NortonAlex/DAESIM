@@ -618,7 +618,6 @@ class PlantModuleCalculator:
         dayLength,
         dayLengthPrev,
         Bio_time,
-        propPhAboveBM,
     ) -> Tuple[float]:
         PhBioPlanting = 0
         NPhBioPlanting = 0
@@ -971,7 +970,7 @@ print(
         _dayLength,
         _dayLengthPrev,
         _Bio_time,
-        _propPhAboveBM,
+        #         _propPhAboveBM,
     ),
 )
 
@@ -994,8 +993,15 @@ print("PhBioMort =", PhBioMort)
 print("Fall_litter =", Fall_litter)
 
 # %%
+rootBM = Plant1.calculate_rootBM(_NPhBM)
+print("rootBM =", rootBM)
+
+propPhAboveBM = Plant1.calculate_propPhAboveBM(_PhBM, rootBM)
+print("propPhAboveBM =", propPhAboveBM)
+
+# %%
 Transdown = Plant1.calculate_Transdown(
-    _PhBM, PhBioNPP, Fall_litter, _propPhAboveBM, _Bio_time
+    _PhBM, PhBioNPP, Fall_litter, propPhAboveBM, _Bio_time
 )
 print(
     "Transdown =",
@@ -1006,7 +1012,7 @@ print(
 Transup = Plant1.calculate_Transup(
     _NPhBM,
     _Bio_time,
-    _propPhAboveBM,
+    propPhAboveBM,
 )
 print(
     "Transup =",
@@ -1050,10 +1056,6 @@ PlantGrowth_dayLengthPrev_f = interp1d(
     time, df_forcing["PlantGrowth.dayLengthPrev"].values
 )
 PlantGrowth_Bio_time_f = interp1d(time, df_forcing["PlantGrowth.Bio time"].values)
-PlantGrowth_propPhAboveBM_f = interp1d(
-    time, df_forcing["PlantGrowth.propPhAboveBM"].values
-)
-
 
 ## Select any time within the time domain
 t1 = 100
@@ -1070,8 +1072,6 @@ axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label="dayLengthPrev")
 axes[1, 1].legend()
 axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label="Bio_time")
 axes[2, 0].legend()
-axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time), label="propPhAboveBM")
-axes[2, 1].legend()
 
 
 # %%
@@ -1124,9 +1124,6 @@ class SimplePlantModel:
         Bio_time: Callable[
             [float], float
         ],  ## TODO: Temporary driver (calculate internally at some point)
-        propPhAboveBM: Callable[
-            [float], float
-        ],  ## TODO: Temporary driver (calculate internally at some point)
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
@@ -1135,7 +1132,6 @@ class SimplePlantModel:
             dayLength,
             dayLengthPrev,
             Bio_time,
-            propPhAboveBM,
         )
 
         t_eval = time_axis
@@ -1164,8 +1160,7 @@ class SimplePlantModel:
         airTempC,
         dayLength,
         dayLengthPrev,
-        Bio_time,
-        propPhAboveBM: Callable[float, float],
+        Bio_time: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -1188,7 +1183,6 @@ class SimplePlantModel:
             dayLengthh = dayLength(t).squeeze()
             dayLengthPrevh = dayLengthPrev(t).squeeze()
             Bio_timeh = Bio_time(t).squeeze()
-            propPhAboveBMh = propPhAboveBM(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
@@ -1198,7 +1192,6 @@ class SimplePlantModel:
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
                 Bio_time=Bio_timeh,
-                propPhAboveBM=propPhAboveBMh,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt
@@ -1250,7 +1243,6 @@ res = Model.run(
     dayLength=Climate_dayLength_f,
     dayLengthPrev=PlantGrowth_dayLengthPrev_f,
     Bio_time=PlantGrowth_Bio_time_f,
-    propPhAboveBM=PlantGrowth_propPhAboveBM_f,
     time_axis=time_axis,
 )
 
@@ -1283,18 +1275,22 @@ PhBioMort, Fall_litter = PlantX.calculate_PhBioMortality(
     0.99,
 )
 
+rootBM = PlantX.calculate_rootBM(res.y[1])
+
+propPhAboveBM = PlantX.calculate_propPhAboveBM(res.y[0], rootBM)
+
 Transdown = PlantX.calculate_Transdown(
     res.y[0],
     PhBioNPP,
     Fall_litter,
     PlantGrowth_Bio_time_f(time_axis),
-    PlantGrowth_propPhAboveBM_f(time_axis),
+    propPhAboveBM,
 )
 
 Transup = PlantX.calculate_Transup(
     res.y[1],
     PlantGrowth_Bio_time_f(time_axis),
-    PlantGrowth_propPhAboveBM_f(time_axis),
+    propPhAboveBM,
 )
 
 

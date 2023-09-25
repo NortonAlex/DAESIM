@@ -604,6 +604,10 @@ class PlantModuleCalculator:
     )  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
         
     propNPhMortality: float = field(default=0.04)  # non-photo mortality rate [Question: Units?? ]
+    
+    bioStart: float = field(default=20)   # start of sprouting [Question: What does this mean physiologically?]
+    bioEnd: float = field(default=80)   # start of sprouting [Question: What does this mean physiologically?]
+    sproutRate: float = field(default=0.01)  # Sprouting rate. Rate of translocation of assimilates from non-photo to photo bimass during early growth period
 
     def calculate(
         self,
@@ -657,6 +661,8 @@ class PlantModuleCalculator:
             propPhAboveBM,
             Bio_time,
         )
+        
+        Transup = self.calculate_Transup(Non_Photosynthetic_Biomass,Bio_time,propPhAboveBM)
 
         # ODE for photosynthetic biomass
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
@@ -802,7 +808,7 @@ class PlantModuleCalculator:
 
         return (PhBioMort, Fall_litter)
 
-    def calculate_FallLitter(self, Photosynthetic_Biomass, dayLength, dayLengthPrev):
+    def calculate_FallLitter(self, Photosynthetic_Biomass, dayLength, dayLengthPrev):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
         if (dayLength > self.dayLengRequire) or (
             dayLength >= dayLengthPrev
         ):  ## Question: These two options define very different phenological periods. Why use this approach?
@@ -855,13 +861,30 @@ class PlantModuleCalculator:
 
         return Transdown
 
-    def calculate_TransdownRate(self, Bio_time, propPhAboveBM):
+    def calculate_TransdownRate(self, Bio_time, propPhAboveBM):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
         if Bio_time > self.BioRepro + 1:
             return 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
         elif propPhAboveBM < self.maxPropPhAboveBM:
             return 0
         else:
             return np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
+        
+    def calculate_Sprouting(self,Bio_time,propPhAboveBM):
+        # Stella code: IF  propPhAboveBM < maxPropPhAboveBM  AND Bio_time >bioStart AND Bio_time <  bioEnd THEN 1 ELSE 0
+        _vfunc = np.vectorize(self.calculate_Sprouting_conditional)
+        Sprouting = _vfunc(Bio_time,propPhAboveBM)
+        return Sprouting
+        
+    def calculate_Sprouting_conditional(self,Bio_time,propPhAboveBM):
+        if (propPhAboveBM < self.maxPropPhAboveBM) and (Bio_time > self.bioStart) and (Bio_time < self.bioEnd):
+            return 1
+        else:
+            return 0
+        
+    def calculate_Transup(self,Non_Photosynthetic_Biomass,Bio_time,propPhAboveBM):
+        Sprouting = self.calculate_Sprouting(Bio_time,propPhAboveBM)
+        
+        return Sprouting * self.sproutRate * Non_Photosynthetic_Biomass
         
     def calculate_NPhBioMort(self,Non_Photosynthetic_Biomass):
         return self.propNPhMortality * Non_Photosynthetic_Biomass
@@ -943,6 +966,17 @@ print(
     Transdown,
 )
 
+# %%
+Transup = Plant1.calculate_Transup(
+    _NPhBM,
+    _Bio_time,
+    _propPhAboveBM,
+)
+print(
+    "Transup =",
+    Transup,
+)
+
 # %% [markdown]
 # ## Create interpolation function for the forcing data
 #
@@ -990,12 +1024,18 @@ t1 = 100
 
 ## plot the interpolated time-series
 fig, axes = plt.subplots(3, 2, figsize=(12, 10))
-axes[0, 0].plot(Climate_solRadGrd_f(time))
-axes[0, 1].plot(Climate_airTempC_f(time))
-axes[1, 0].plot(Climate_dayLength_f(time))
-axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time))
-axes[2, 0].plot(PlantGrowth_Bio_time_f(time))
-axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time))
+axes[0, 0].plot(Climate_solRadGrd_f(time), label='solRadGrd')
+axes[0,0].legend()
+axes[0, 1].plot(Climate_airTempC_f(time), label='airTempC')
+axes[0,1].legend()
+axes[1, 0].plot(Climate_dayLength_f(time), label='dayLength')
+axes[1,0].legend()
+axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label='dayLengthPrev')
+axes[1,1].legend()
+axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label='Bio_time')
+axes[2,0].legend()
+axes[2, 1].plot(PlantGrowth_propPhAboveBM_f(time), label='propPhAboveBM')
+axes[2,1].legend()
 
 
 # %%
@@ -1215,6 +1255,11 @@ Transdown = PlantX.calculate_Transdown(
     PlantGrowth_propPhAboveBM_f(time_axis),
 )
 
+Transup = PlantX.calculate_Transup(
+    res.y[1],
+    PlantGrowth_Bio_time_f(time_axis),
+    PlantGrowth_propPhAboveBM_f(time_axis),
+)
 
 
 # %%
@@ -1236,7 +1281,8 @@ axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
 axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
 axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
 axes[1, 2].plot(time_axis, Transdown, c="C3", label="Transdown")
-axes[1, 2].set_ylabel("Diagnostic Flux: Transdown")
+axes[1, 2].plot(time_axis, Transup, c="C4", label="Transup")
+axes[1, 2].set_ylabel("Diagnostic Flux: Transdown, Transup")
 
 plt.tight_layout()
 

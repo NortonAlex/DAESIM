@@ -617,12 +617,24 @@ class PlantModuleCalculator:
     propPhtoNphReproduction: float = field(
         default=0.005
     )  ## fraction of photo biomass that may be transferred to non-photo when reproduction occurs
-        
-    propNPhMortality: float = field(default=0.04)  # non-photo mortality rate [Question: Units?? ]
-    
-    bioStart: float = field(default=20)   # start of sprouting [Question: What does this mean physiologically?]
-    bioEnd: float = field(default=80)   # start of sprouting [Question: What does this mean physiologically?]
-    sproutRate: float = field(default=0.01)  # Sprouting rate. Rate of translocation of assimilates from non-photo to photo bimass during early growth period
+
+    propNPhMortality: float = field(
+        default=0.04
+    )  # non-photo mortality rate [Question: Units?? ]
+
+    bioStart: float = field(
+        default=20
+    )  # start of sprouting [Question: What does this mean physiologically?]
+    bioEnd: float = field(
+        default=80
+    )  # start of sprouting [Question: What does this mean physiologically?]
+    sproutRate: float = field(
+        default=0.01
+    )  # Sprouting rate. Rate of translocation of assimilates from non-photo to photo bimass during early growth period
+
+    rhizodepositReleaseRate: float = field(
+        default=0.025
+    )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
 
     def calculate(
         self,
@@ -638,26 +650,26 @@ class PlantModuleCalculator:
         NPhBioPlanting = 0
         PhBioHarvest = 0
         NPhBioHarvest = 0
-        Transup = 0.1
-        # Transdown = 0.1
-        NPhBioMort = 0.0
-        exudation = 0.001
 
         WatStressHigh = 1
         WatStressLow = 0.99
 
         # Call the initialisation method
         PlantConditions = self._initialise(self.iniNPhAboveBM)
-        
+
         # Call "conditions for plant" methods (following Stella code naming convention for this)
         rootBM = self.calculate_rootBM(Non_Photosynthetic_Biomass)
         NPhAboveBM = self.calculate_NPhAboveBM(rootBM)
         calSoilDepth = 0.09  ## TODO: Add soil module variable for calSoilDepth
-        rootDensity = self.calculate_rootDensity(Non_Photosynthetic_Biomass,calSoilDepth)  ## TODO: Add soil module variable for calSoilDepth
+        rootDensity = self.calculate_rootDensity(
+            Non_Photosynthetic_Biomass, calSoilDepth
+        )  ## TODO: Add soil module variable for calSoilDepth
         Elevation = 70.74206543  ## TODO: Add elevation to climate module
-        RootDepth = self.calculate_RootDepth(rootBM,rootDensity,Elevation)  ## TODO: Add elevation to climate module
-        
-        propPhAboveBM = self.calculate_propPhAboveBM(Photosynthetic_Biomass,NPhAboveBM)
+        RootDepth = self.calculate_RootDepth(
+            rootBM, rootDensity, Elevation
+        )  ## TODO: Add elevation to climate module
+
+        propPhAboveBM = self.calculate_propPhAboveBM(Photosynthetic_Biomass, NPhAboveBM)
 
         # Call the calculate_PhBioNPP method
         PhNPP = self.calculate_PhBioNPP(
@@ -673,7 +685,7 @@ class PlantModuleCalculator:
             WatStressHigh,
             WatStressLow,
         )
-        
+
         # Call the calculated_NPhBioMort method
         NPhBioMort = self.calculate_NPhBioMort(Non_Photosynthetic_Biomass)
 
@@ -685,8 +697,12 @@ class PlantModuleCalculator:
             propPhAboveBM,
             Bio_time,
         )
-        
-        Transup = self.calculate_Transup(Non_Photosynthetic_Biomass,Bio_time,propPhAboveBM)
+
+        Transup = self.calculate_Transup(
+            Non_Photosynthetic_Biomass, Bio_time, propPhAboveBM
+        )
+
+        exudation = self.calculate_exudation(rootBM)
 
         # ODE for photosynthetic biomass
         dPhBMdt = PhNPP + PhBioPlanting + Transup - PhBioHarvest - Transdown - PhBioMort
@@ -782,7 +798,6 @@ class PlantModuleCalculator:
         WatStressHigh,
         WatStressLow,
     ):
-
         WaterCoeff = min(
             WatStressHigh, WatStressLow
         )  ## TODO: Modify the structure here as it is used a couple of times in the Plant module
@@ -815,7 +830,9 @@ class PlantModuleCalculator:
 
         return (PhBioMort, Fall_litter)
 
-    def calculate_FallLitter(self, Photosynthetic_Biomass, dayLength, dayLengthPrev):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
+    def calculate_FallLitter(
+        self, Photosynthetic_Biomass, dayLength, dayLengthPrev
+    ):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
         if (dayLength > self.dayLengRequire) or (
             dayLength >= dayLengthPrev
         ):  ## Question: These two options define very different phenological periods. Why use this approach?
@@ -868,59 +885,71 @@ class PlantModuleCalculator:
 
         return Transdown
 
-    def calculate_TransdownRate(self, Bio_time, propPhAboveBM):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
+    def calculate_TransdownRate(
+        self, Bio_time, propPhAboveBM
+    ):  ## TODO: change the naming convention for these sub-calculators to something like calculate_conditional_x(), as these are just convenient coding hacks that allow us to vectorize the if/elif/else statements.
         if Bio_time > self.BioRepro + 1:
             return 1 - 1 / (Bio_time - self.BioRepro) ** 0.5
         elif propPhAboveBM < self.maxPropPhAboveBM:
             return 0
         else:
             return np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
-        
-    def calculate_Sprouting(self,Bio_time,propPhAboveBM):
+
+    def calculate_Sprouting(self, Bio_time, propPhAboveBM):
         # Stella code: IF  propPhAboveBM < maxPropPhAboveBM  AND Bio_time >bioStart AND Bio_time <  bioEnd THEN 1 ELSE 0
         _vfunc = np.vectorize(self.calculate_Sprouting_conditional)
-        Sprouting = _vfunc(Bio_time,propPhAboveBM)
+        Sprouting = _vfunc(Bio_time, propPhAboveBM)
         return Sprouting
-        
-    def calculate_Sprouting_conditional(self,Bio_time,propPhAboveBM):
-        if (propPhAboveBM < self.maxPropPhAboveBM) and (Bio_time > self.bioStart) and (Bio_time < self.bioEnd):
+
+    def calculate_Sprouting_conditional(self, Bio_time, propPhAboveBM):
+        if (
+            (propPhAboveBM < self.maxPropPhAboveBM)
+            and (Bio_time > self.bioStart)
+            and (Bio_time < self.bioEnd)
+        ):
             return 1
         else:
             return 0
-        
-    def calculate_Transup(self,Non_Photosynthetic_Biomass,Bio_time,propPhAboveBM):
-        Sprouting = self.calculate_Sprouting(Bio_time,propPhAboveBM)
-        
+
+    def calculate_Transup(self, Non_Photosynthetic_Biomass, Bio_time, propPhAboveBM):
+        Sprouting = self.calculate_Sprouting(Bio_time, propPhAboveBM)
+
         return Sprouting * self.sproutRate * Non_Photosynthetic_Biomass
-        
-    def calculate_NPhBioMort(self,Non_Photosynthetic_Biomass):
+
+    def calculate_NPhBioMort(self, Non_Photosynthetic_Biomass):
         return self.propNPhMortality * Non_Photosynthetic_Biomass
-    
-    def calculate_rootBM(self,Non_Photosynthetic_Biomass):
-        return Non_Photosynthetic_Biomass/(self.propAboveBelowNPhBM+1)
-    
-    def calculate_NPhAboveBM(self,rootBM):
-        return self.propAboveBelowNPhBM*rootBM
-    
-    def calculate_rootDensity(self,Non_Photosynthetic_Biomass,calSoilDepth):
-        rootDensity = np.maximum(self.iniRootDensity, Non_Photosynthetic_Biomass*self.propNPhRoot*1/calSoilDepth)
+
+    def calculate_rootBM(self, Non_Photosynthetic_Biomass):
+        return Non_Photosynthetic_Biomass / (self.propAboveBelowNPhBM + 1)
+
+    def calculate_NPhAboveBM(self, rootBM):
+        return self.propAboveBelowNPhBM * rootBM
+
+    def calculate_rootDensity(self, Non_Photosynthetic_Biomass, calSoilDepth):
+        rootDensity = np.maximum(
+            self.iniRootDensity,
+            Non_Photosynthetic_Biomass * self.propNPhRoot * 1 / calSoilDepth,
+        )
         return rootDensity
-    
-    def calculate_RootDepth(self,rootBM,rootDensity,Elevation):
-        RootDepth = np.maximum((Elevation/100) - 1, rootBM/rootDensity)
+
+    def calculate_RootDepth(self, rootBM, rootDensity, Elevation):
+        RootDepth = np.maximum((Elevation / 100) - 1, rootBM / rootDensity)
         return RootDepth
-            
-    def calculate_propPhAboveBM(self,Photosynthetic_Biomass,NPhAboveBM):
+
+    def calculate_propPhAboveBM(self, Photosynthetic_Biomass, NPhAboveBM):
         _vfunc = np.vectorize(self.calculate_propPhAboveBM_conditional)
-        propPhAboveBM = _vfunc(Photosynthetic_Biomass,NPhAboveBM)
+        propPhAboveBM = _vfunc(Photosynthetic_Biomass, NPhAboveBM)
         return propPhAboveBM
-        
-    def calculate_propPhAboveBM_conditional(self,Photosynthetic_Biomass,NPhAboveBM):
+
+    def calculate_propPhAboveBM_conditional(self, Photosynthetic_Biomass, NPhAboveBM):
         if NPhAboveBM == 0:
             return 0
         else:
             return Photosynthetic_Biomass / (Photosynthetic_Biomass + NPhAboveBM)
 
+    def calculate_exudation(self, rootBM):
+        exudation = rootBM * self.rhizodepositReleaseRate
+        return exudation
 
 
 # %% [markdown]
@@ -1290,6 +1319,8 @@ Transup = PlantX.calculate_Transup(
     propPhAboveBM,
 )
 
+exudation = PlantX.calculate_exudation(rootBM)
+
 
 # %%
 fig, axes = plt.subplots(2, 3, figsize=(14, 10))
@@ -1311,7 +1342,9 @@ axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
 axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
 axes[1, 2].plot(time_axis, Transdown, c="C3", label="Transdown")
 axes[1, 2].plot(time_axis, Transup, c="C4", label="Transup")
-axes[1, 2].set_ylabel("Diagnostic Flux: Transdown, Transup")
+axes[1, 2].plot(time_axis, exudation, c="C5", label="exudation")
+axes[1, 2].set_ylabel("Diagnostic Fluxes:\nTransdown, Transup, exudation")
+axes[1, 2].legend()
 
 plt.tight_layout()
 

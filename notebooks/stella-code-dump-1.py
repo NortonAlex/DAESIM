@@ -527,6 +527,21 @@ iniPhBM
 # ErrorCheck: Why is this maxNPhAboveBM? Shouldn't it just be an initial value of total non-photosynthetic biomass, not just the above-ground portion? It seems inconsistent with the rest of hte model structure e.g. how does rootBM, propAboveBelowNPhBM, etc play into this?
 maxNPhAboveBM
 
+# %% [markdown]
+# ## State: Bio time
+
+# %%
+## ODE
+# Bio_time(t) = Bio_time(t-dt) + (cf_Air_Temp)*dt
+
+## Initial value
+# Bio_time = 0
+
+## Modification: This ODE has discrete step-changes which cannot be handled with solvers like solve_ivp. 
+## - the issue arises in calculating cf_Air_Temp, as it depends on plantingDay and must be reset to zero at pre-defined time-steps (i.e. a day-of-year)
+## - Solution: We would have to create a special case for handling of this that did the following: stop the integration at the triggering of plantingDay, change the state vector, and restart the integration. Then join the results. 
+## - Alternative solution: Convert the discrete plantingDay event into a smooth, differentiable function (similar to Knorr et al., 2010)
+
 
 # %% [markdown]
 # # Plant Module Calculator
@@ -905,8 +920,7 @@ class PlantModuleCalculator:
             return 0
         else:
             return Photosynthetic_Biomass / (Photosynthetic_Biomass + NPhAboveBM)
-        
-        
+
 
 
 # %% [markdown]

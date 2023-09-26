@@ -31,6 +31,7 @@ from daesim.climate_funcs import *
 
 # %%
 from daesim.plant import PlantModuleCalculator, PlantModelSolver
+from daesim.climate import ClimateModule
 
 # %% [markdown]
 # ### Notes for translating code
@@ -101,6 +102,34 @@ Climate_dayLengthPrev = sunlight_duration(Climate_CLatDeg, Climate_DayJulPrev - 
 Climate_solRadGrd = 20.99843025  ## correction for cloudy days
 Climate_airTempC = 21.43692112  ## Including the F to C conversion. May need be changed if data are in C already; So as the data are already in C we have changed this
 
+
+# %% [markdown]
+# #### - Initialise the Climate module (details about meteorology, solar, location)
+#
+# You can initialise it simply with the default parameters or you can initialise it and assign different parameters. 
+
+# %%
+SiteX = ClimateModule()
+
+DayJul_X, DayJulPrev_X, dayLength_X, dayLengthPrev_X = SiteX.time_discretisation(time)
+
+# %% [markdown]
+# To initialise with a different site, you can specify a different latitude and/or elevation
+
+# %%
+SiteY = ClimateModule(CLatDeg=45.0, Elevation=100)
+
+DayJul_Y, DayJulPrev_Y, dayLength_Y, dayLengthPrev_Y = SiteY.time_discretisation(time)
+
+# %% [markdown]
+# Compare the two sites
+
+# %%
+plt.plot(DayJul_X[0:365], dayLength_X[0:365], label="Site lat = %1.1f" % SiteX.CLatDeg)
+plt.plot(DayJul_Y[0:365], dayLength_Y[0:365], label="Site lat = %1.1f" % SiteY.CLatDeg)
+plt.legend()
+plt.xlabel("Day of Year")
+plt.ylabel("Day length (sunlight hours)")
 
 # %% [markdown]
 # ## Conditions for plant

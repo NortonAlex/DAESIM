@@ -64,14 +64,17 @@ class ClimateModule:
         relativeHumidity = RH = relative humidity (%)
         e_s = saturation vapor pressure (Pa)
         R_w = specific gas constant for water vapor (J g-1 K-1)
+
+        returns
+        AH = absolute humidity (g m-3)
         """
 
-        e_s = compute_sat_vapor_pressure(airTempC)
+        e_s = self.compute_sat_vapor_pressure(airTempC)
         airTempK = airTempC + self.T_K0
-        AH = relativeHumidity*e_s/(self.R_w*airTempK*100)
+        AH = relativeHumidity*e_s/(self.R_w_mass*airTempK*100)
         return AH
 
-    def compute_sat_vapor_pressure(T):
+    def compute_sat_vapor_pressure(self,T):
         """
         Computes the saturation vapor pressure using Tetens' formula
 

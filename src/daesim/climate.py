@@ -22,12 +22,18 @@ class ClimateModule:
     cellArea = 1  ## area of the unit considered m2
 
     ## Unit conversion factors
-    rainConv: float = 0.001  ## Conversion factor for mm/day to m/day
+    rainConv: float = 0.001  ## conversion factor for mm/day to m/day
+    T_K0: float = 273.15 ## conversion factor for degrees Celcius to Kelvin
+
+    ## Constants
+    L: float = 2.25e6 ## latent heat of vaporization (approx. 2250 kJ kg-1, temperature-dependent!)
+    R_w_mol: float = 8.31446 ## specific gas constant for water vapor, J mol-1 K-1
+    R_w_mass: float = 0.4615 ## specific gas constant for water vapor, J g-1 K-1 (=>R_w_mol * M_H2O = 8.31446/18.01)
 
     def time_discretisation(self, t, dt=1):
         """
-        t  = array of consecutive time steps (in days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
-        dt = time step size (default is dt=1 day, TODO: Convert all time dimension units to seconds (t, dt))
+        t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
+        dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
 
         """
 
@@ -45,3 +51,54 @@ class ClimateModule:
         dayLengthPrev = sunlight_duration(self.CLatDeg, DayJulPrev - 1)
 
         return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
+
+    def compute_absolute_humidity(self,airTempC,relativeHumidity):
+        """
+        Computes the absolute humidity. That is the actual mass of water vapor in a specified volume of air.
+
+        $AH = \frac{RH \times e_s}{R_w \times T \times 100}$
+
+        where: $RH$ is relative humidity (%), $e_s$ is the saturation vapor pressure of water (Pa), $R_w$ is the specific gas constant for water vapor, $T$ is the temperature (K) and $AH$ is the absolute humidity (g/m3)
+
+        T = temperature (K)
+        relativeHumidity = RH = relative humidity (%)
+        e_s = saturation vapor pressure (Pa)
+        R_w = specific gas constant for water vapor (J g-1 K-1)
+        """
+
+        e_s = compute_sat_vapor_pressure(airTempC)
+        airTempK = airTempC + self.T_K0
+        AH = relativeHumidity*e_s/(self.R_w*airTempK*100)
+        return AH
+
+    def compute_sat_vapor_pressure(T):
+        """
+        Computes the saturation vapor pressure using Tetens' formula
+
+        T = air temperature (degC)
+        e_s = saturation vapor pressure of water (Pa)
+        """
+        e_s = 1000 * 0.61078 * np.exp( (17.269*T) / (237.3+T) )
+        return e_s
+
+    def compute_relative_humidity(self,e_a,e_s):
+        """
+        Computes the relative humidity (RH) in units of percent (%).
+
+        e_a = actual vapor pressure or density (units must be same as e_s, e.g. kPa)
+        e_s = saturation vapor pressure or density (units must be same as e_a, e.g. kPa)
+
+        """
+        RH = e_a/e_s * 100
+        return RH
+
+    def compute_VPD(self,relativeHumidity,e_s):
+        """
+        Computes the vapor pressure deficit.
+
+        relativeHumidity = RH = relative humidity (%)
+        e_s = saturation vapor pressure (Pa)
+
+        """
+        VPD = e_s - (RH*e_s/100)
+        return VPD

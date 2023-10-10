@@ -449,7 +449,8 @@ plt.tight_layout()
 
 # %%
 
-# %%
+# %% [markdown]
+# ## Soil Module Calculator
 
 # %%
 

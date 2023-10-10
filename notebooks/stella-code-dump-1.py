@@ -131,6 +131,7 @@ plt.ylabel("Absolute Humidity (g m-3)")
 
 # %%
 ## Original Stella equation for vapor pressure (I assume "actual vapor pressure", not "saturation vapor pressure")
+## Stella notes: Daily vapor pressure (Pa) (Nikolov and Zeller) ## Question: What is the reference? The only thing I can find online that matches it is a climate denialism website...
 _vapPress_Stella = (
     _AH_Stella * 6.1078 * np.exp(17.269 * _airTempC / (_airTempC + 237.3))
 )  ## Question: Where does this equation come from? What are the units supposed to be? It does not align with how I would calculate actual vapor pressure.
@@ -173,6 +174,23 @@ plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("VPD (kPa)")
 plt.show()
+
+# %%
+_precipM = SiteX.rainConv * df_forcing["Climate.Precipitation"].values  ## TODO: change units to mm day-1 i.e. remove use of "precipM" everywhere
+_vapPress = SiteX.compute_actual_vapor_pressure(
+    _airTempC,
+    _relativeHumidity,
+)
+
+# _Cloudy_test = [compute_Cloudy(p, v) for p, v in zip(_precipM, _vapPress)]
+_Cloudy = SiteX.compute_Cloudy(_precipM, _vapPress)
+
+plt.plot(DayJul_X[0:365], _Cloudy[0:365])
+plt.ylabel("Cloudy")
+
+## Question: What does this "Cloudy" variable represent??
+
+# %%
 
 # %% [markdown]
 # ## Plant Module Calculator

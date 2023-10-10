@@ -135,3 +135,30 @@ class ClimateModule:
         e_a = e_s * RH/100
         VPD = e_s - e_a
         return VPD
+
+    def compute_Cloudy(self,precipM,vapPress):
+        """
+        Computes a cloudy factor. 
+        Question: Unclear what this variable means and where the equation comes from. 
+
+        Parameters
+        ----------
+        precipM : scalar or ndarray
+            Array containing precipitation rate (m day-1).  ## TODO: change units to mm day-1 i.e. remove use of "precipM" everywhere
+        vapPress : scalar or ndarray
+            Array containing actual vapor pressure (Pa).
+
+        Returns
+        -------
+        Cloudy : scalar or ndarray
+            Array of cloudy factor (-)
+        """
+        def _func(p,v):
+            if p > 0:
+                return max(0, 10 - 1.155 * (v / (p * 1000 * 30)) ** 0.5)
+            else:
+                return 0
+
+        _vfunc = np.vectorize(_func)
+        Cloudy = _vfunc(precipM,vapPress)  ## TODO: change units to mm day-1 i.e. remove use of "precipM" everywhere
+        return Cloudy

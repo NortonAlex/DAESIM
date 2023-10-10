@@ -71,7 +71,7 @@ class ClimateModule:
 
         e_s = self.compute_sat_vapor_pressure(airTempC)
         airTempK = airTempC + self.T_K0
-        AH = relativeHumidity*e_s/(self.R_w_mass*airTempK*100)
+        AH = relativeHumidity*e_s/(self.R_w_mass*airTempK*100)  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
         return AH
 
     def compute_sat_vapor_pressure(self,T):
@@ -81,7 +81,7 @@ class ClimateModule:
         T = air temperature (degC)
         e_s = saturation vapor pressure of water (Pa)
         """
-        e_s = 1000 * 0.61078 * np.exp( (17.269*T) / (237.3+T) )
+        e_s = 1000 * 0.61078 * np.exp( (17.269*T) / (237.3+T) )  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
         return e_s
 
     def compute_relative_humidity(self,e_a,e_s):
@@ -95,13 +95,43 @@ class ClimateModule:
         RH = e_a/e_s * 100
         return RH
 
-    def compute_VPD(self,relativeHumidity,e_s):
+    def compute_actual_vapor_pressure(self,T,RH):
+        """
+        Computes the actual vapor pressure from relative humidity and temperature.
+
+        Parameters
+        ----------
+        T : scalar or ndarray
+            Array containing air temperature (degC).
+        RH : scalar or ndarray
+            Array containing relative humidity (%).
+
+        Returns
+        -------
+        e_a : scalar or ndarray (see dtype of parameters)
+            Array of actual vapor pressure (Pa)
+        """
+        e_s = self.compute_sat_vapor_pressure(T)
+        e_a = e_s * RH/100
+        return e_a
+
+    def compute_VPD(self,T,RH):
         """
         Computes the vapor pressure deficit.
 
-        relativeHumidity = RH = relative humidity (%)
-        e_s = saturation vapor pressure (Pa)
+        Parameters
+        ----------
+        T : scalar or ndarray
+            Array containing air temperature (degC).
+        RH : scalar or ndarray
+            Array containing relative humidity (%).
 
+        Returns
+        -------
+        VPD : scalar or ndarray (see dtype of parameters)
+            Array of vapor pressure deficit (Pa)
         """
-        VPD = e_s - (RH*e_s/100)
+        e_s = self.compute_sat_vapor_pressure(T)
+        e_a = e_s * RH/100
+        VPD = e_s - e_a
         return VPD

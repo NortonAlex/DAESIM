@@ -92,18 +92,87 @@ plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Day length (sunlight hours)")
 
+# %%
+_airTempC = df_forcing["Climate.airTempC"].values
+_relativeHumidity = df_forcing["Climate.relativeHumidity"].values
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+
+axes[0].plot(_airTempC)
+axes[0].set_ylabel("airTempC (oC)")
+axes[1].plot(_relativeHumidity)
+axes[1].set_ylabel("relativeHumidity (%)")
+
+## Question: The relativeHumidity forcing data is shockingly low. It is always < 23%!! Where does this forcing data come from?
+
 # %% [markdown]
 # There are methods (functions) in the climate module that help calculate various meteorological variables like absolute humidity
 
 # %%
+## Original Stella equation for absolute humidity
+_AH_Stella = (
+    6.112
+    * _relativeHumidity
+    * 2.1674
+    * np.exp((17.67 * _airTempC) / (_airTempC + 243.5))
+    / (273.15 + _airTempC)
+)
+
+## New method in Python code for absolute humidity
 AH = SiteX.compute_absolute_humidity(
     df_forcing["Climate.airTempC"].values, df_forcing["Climate.relativeHumidity"].values
 )
 
 plt.plot(DayJul_X[0:365], AH[0:365])
+plt.plot(DayJul_X[0:365], _AH_Stella[0:365])
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Absolute Humidity (g m-3)")
+
+# %%
+## Original Stella equation for vapor pressure (I assume "actual vapor pressure", not "saturation vapor pressure")
+_vapPress_Stella = (
+    _AH_Stella * 6.1078 * np.exp(17.269 * _airTempC / (_airTempC + 237.3))
+)  ## Question: Where does this equation come from? What are the units supposed to be? It does not align with how I would calculate actual vapor pressure.
+
+## New method in Python code for actual vapor pressure
+_vapPress_py = SiteX.compute_actual_vapor_pressure(
+    _airTempC, _relativeHumidity,
+)  # Units: Pa
+
+# plt.plot(
+#     DayJul_X[0:365],
+#     df_forcing["Climate.vapPress"].values[0:365],
+#     c="r",
+#     linestyle=":",
+#     label=r"$E_a (output)$ (units?)",
+# )
+plt.plot(DayJul_X[0:365], 1e-2 * _vapPress_Stella[0:365], label=r"$E_a (Stella)$ (unit?)")
+plt.plot(DayJul_X[0:365], 1e-3 * _vapPress_py[0:365], c="r", label=r"$E_a (new)$ (kPa)")
+
+_satvapPress_py = SiteX.compute_sat_vapor_pressure(_airTempC)
+plt.plot(DayJul_X[0:365], 1e-3 * _satvapPress_py[0:365], c="0.5", label=r"$E_s (new)$ (kPa)")
+
+plt.legend()
+plt.xlabel("Day of Year")
+plt.ylabel("Vapor Pressure (units?)")
+plt.show()
+
+plt.scatter(_airTempC, 1e-3*_satvapPress_py, s=2, c="0.5")
+plt.scatter(_airTempC, 1e-3*_vapPress_py, s=5)
+plt.xlabel("Air Temperature (oC)")
+plt.ylabel("Vapor Pressure (kPa)")
+plt.show()
+
+
+# %%
+_VPD = SiteX.compute_VPD(_airTempC, _relativeHumidity)
+
+plt.plot(DayJul_X[0:365], 1e-3 * _VPD[0:365])
+plt.legend()
+plt.xlabel("Day of Year")
+plt.ylabel("VPD (kPa)")
+plt.show()
 
 # %% [markdown]
 # ## Plant Module Calculator

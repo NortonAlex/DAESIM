@@ -176,7 +176,9 @@ plt.ylabel("VPD (kPa)")
 plt.show()
 
 # %%
-_precipM = SiteX.rainConv * df_forcing["Climate.Precipitation"].values  ## TODO: change units to mm day-1 i.e. remove use of "precipM" everywhere
+_precipM = (
+    SiteX.rainConv * df_forcing["Climate.Precipitation"].values
+)  ## TODO: change units to mm day-1 i.e. remove use of "precipM" everywhere
 _vapPress = SiteX.compute_actual_vapor_pressure(
     _airTempC,
     _relativeHumidity,
@@ -190,7 +192,29 @@ plt.ylabel("Cloudy")
 
 ## Question: What does this "Cloudy" variable represent??
 
+# %% [markdown]
+# Below outlines what Stella takes as actual forcing data and what climate/meteorology/radiation variables are calculated within the model.
+#
+
 # %%
+## Forcing data variables
+_solRadAtm = df_forcing["Climate.solRadAtm"].values  ## solar radiation in the atmosphere  ## Question: What does this really represent? How is it calculated?
+_solRadAtm = df_forcing["Climate.solRadGrd"].values  ## correction for cloudy days ## Question: What does this really represent (e.g. downward shortwave radiation at the surface, PAR, something else)? How is it calculated?
+_Precipitation = df_forcing["Climate.Precipitation"].values  ## rainfall from Beltsville, MD 1991. (in/d). Based on GIS data it is now mm/day
+_Humidity = df_forcing["Climate.Humidity"].values ## relative humidity data used Baltimore Airport, 1991 - Beltsville has no humidity measurements  ## Question: Is the relative humidity or humidity? What are the units??
+_relativeHumidity = df_forcing["Climate.relativeHumidity"].values  ## Question: No documentation here. What are the units?
+_airTempMax = df_forcing["Climate.airTempMax"].values  ## Beltsville, 1991 daily maximum values (deg. F). New data in C
+_airTempMin = df_forcing["Climate.airTempMax"].values  ## Beltsville, 1991 daily minimum values (deg. F). New data in C
+_windSpeed = df_forcing["Climate.windSpeed"].values  ## used Baltimore Airport, 1991 - Beltsville has no wind measurements. units = nautical miles over one day. ## Errorcheck: The Stella docs say the units are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same?? 
+
+## Calculated forcing data variables
+_Wind = _windSpeed   ## Errorcheck: The Stella docs say the units for windSpeed are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same?? 
+_airTempC = SiteX.compute_mean_daily_air_temp(_airTempMin,_airTempMax)
+_absoluteHumidity = SiteX.compute_absolute_humidity(_airTempC,_relativeHumidity)  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
+_vapPress = SiteX.compute_actual_vapor_pressure(_airTempC,_relativeHumidity)  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
+_precipM = SiteX.rainConv * _Precipitation
+_Cloudy = SiteX.compute_Cloudy(_precipM,_vapPress)
+
 
 # %% [markdown]
 # ## Plant Module Calculator

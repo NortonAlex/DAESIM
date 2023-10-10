@@ -52,6 +52,24 @@ class ClimateModule:
 
         return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
 
+    def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
+        """
+        Computes the actual vapor pressure from relative humidity and temperature.
+
+        Parameters
+        ----------
+        airTempMin : scalar or ndarray
+            Array containing daily minimum air temperature (degC).
+        airTempMax : scalar or ndarray
+            Array containing daily maximum air temperature (degC).
+
+        Returns
+        -------
+        airTempC : scalar or ndarray (see dtype of parameters)
+            Array of daily mean air temperature (degC)
+        """
+        return (airTempMax+airTempMin)/2
+
     def compute_absolute_humidity(self,airTempC,relativeHumidity):
         """
         Computes the absolute humidity. That is the actual mass of water vapor in a specified volume of air.
@@ -112,7 +130,7 @@ class ClimateModule:
             Array of actual vapor pressure (Pa)
         """
         e_s = self.compute_sat_vapor_pressure(T)
-        e_a = e_s * RH/100
+        e_a = e_s * RH/100  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
         return e_a
 
     def compute_VPD(self,T,RH):

@@ -556,12 +556,13 @@ Soil1
 # #### - Use the `calculate` method to compute the RHS for the state
 
 # %%
-_LabileDetritus = 4.0
-_PhBM = 2.0
-_NPhBM = 1.0
+_LabileDetritus = 0.3956
+_PhBM = 0.036
+_NPhBM = 0.0870588235294
 _PhBioHarvest = 0.0
 _NPhBioHarvest = 0.0
 _airTempC = 21.43692112
+_Water_calPropUnsat_WatMoist = 0.26
 
 
 dydt = Soil1.calculate(
@@ -570,6 +571,7 @@ dydt = Soil1.calculate(
     _NPhBM,
     _PhBioHarvest,
     _NPhBioHarvest,
+    _Water_calPropUnsat_WatMoist,
     _airTempC,
 )
 print("dy/dt =", dydt)
@@ -584,8 +586,12 @@ LDin = Soil1.calculate_LDin(_PhBM, _NPhBM, _PhBioHarvest, _NPhBioHarvest)
 print("LDin =", LDin)
 
 # %%
+_Decomposing_Microbes = 0.03
+
 TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
-LDDecomp = Soil1.calculate_LDDecomp(_LabileDetritus, TempCoeff)
+LDDecomp = Soil1.calculate_LDDecomp(
+    _LabileDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, TempCoeff
+)
 print("LDDecomp =", LDDecomp)
 
 

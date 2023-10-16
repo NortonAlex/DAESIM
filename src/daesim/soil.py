@@ -30,6 +30,9 @@ class SoilModuleCalculator:
     propHarvNPhLeft: float = field(
         default=0.8
     )  ## the percentage of non-photosynthetic biomass left after harvesting
+    thresholdWater: float = field(
+        default=0.05
+    )  ## the moisture threshold above which microbes can continue to accelerate the biological decomposition process
 
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
@@ -47,23 +50,24 @@ class SoilModuleCalculator:
         _NPhBioMort,
         _PhBioHarvest,
         _NPhBioHarvest,
+        Water_calPropUnsat_WatMoist,
         airTempC,
     ) -> Tuple[float]:
         Cin = 2.0
         Cout = 2.0
+        Decomposing_Microbes = 0.03
 
         # Call the initialisation method
         # SoilConditions = self._initialise(self.iniSoilConditions)
 
         TempCoeff = func_TempCoeff(airTempC,optTemperature=self.optTemperature)
 
-        LDDecomp = self.calculate_LDDecomp(LabileDetritus, TempCoeff)
-
         LDin = self.calculate_LDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
-        LDout = LDDecomp
+
+        LDDecomp = self.calculate_LDDecomp(LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff)
 
         # ODE for labile detritus
-        dCdt = LDin - LDout #+ SDDecompLD - MicUptakeLD - OxidationLabile - LDDecomp - LDErosion
+        dCdt = LDin - LDDecomp #+ SDDecompLD - MicUptakeLD - OxidationLabile - LDErosion
 
         return dCdt
 
@@ -84,11 +88,15 @@ class SoilModuleCalculator:
 
     	return LDin
 
-    def calculate_LDDecomp(self, LabileDetritus, TempCoeff):
-        # if Water.calPropUnsat_WatMoist>thresholdWater:
-        #  LDDecomp = Labile_Detritus*labilelDecompositionRate*CropGrowth.TempCoeff*Decomposing_Microbes
-        # else:
-        #  LDDecomp = 0.01
-        LDDecomp = LabileDetritus * self.labileDecompositionRate * TempCoeff
+    def calculate_LDDecomp(self, LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff):
+        _vfunc = np.vectorize(self.calculate_LDDecomp_conditional)
+        LDDecomp = _vfunc(LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff)
 
         return LDDecomp
+
+    def calculate_LDDecomp_conditional(self, Labile_Detritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff):
+    	if Water_calPropUnsat_WatMoist > self.thresholdWater:
+    		return Labile_Detritus * self.labileDecompositionRate * TempCoeff * Decomposing_Microbes
+    	else:
+    		return 0.01
+

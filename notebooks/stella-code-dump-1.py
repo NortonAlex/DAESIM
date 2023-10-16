@@ -340,6 +340,45 @@ print(
 )
 
 # %% [markdown]
+# #### - Test the TempCoeff function
+#
+# Errorcheck: This function seems okay for temperatures below 40 degC but it goes whacky above 40 degC. This is a problem that we'll have to correct.
+#
+# TODO: Correct the whacky values from the calculate_TempCoeff functiono when airTempC > 40 degC.
+
+# %%
+Plant1.optTemperature
+
+# %%
+n = 100
+_airTempC = np.linspace(-25, 60, n)
+
+# Plant1
+plt.plot(
+    _airTempC,
+    Plant1.calculate_TempCoeff(airTempC=_airTempC),
+    label="optTemperature=%d" % Plant1.optTemperature,
+)
+# Plant2
+Plant2 = PlantModuleCalculator(optTemperature=25)
+plt.plot(
+    _airTempC,
+    Plant2.calculate_TempCoeff(airTempC=_airTempC),
+    label="optTemperature=%d" % Plant2.optTemperature,
+)
+# Plant3
+Plant3 = PlantModuleCalculator(optTemperature=30)
+plt.plot(
+    _airTempC,
+    Plant3.calculate_TempCoeff(airTempC=_airTempC),
+    label="optTemperature=%d" % Plant3.optTemperature,
+)
+plt.ylim([0, 3])
+plt.xlabel("airTempC\n(oC)")
+plt.ylabel("Temperature Coefficient")
+plt.legend()
+
+# %% [markdown]
 # ## Interpolation function for the forcing data
 #
 # We'll be using the solve_ivp ODE solver. It does the time-stepping by itself (rather than pre-defined time-points like in odeint).

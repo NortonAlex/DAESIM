@@ -594,6 +594,10 @@ LDDecomp = Soil1.calculate_LDDecomp(
 )
 print("LDDecomp =", LDDecomp)
 
+# %%
+OxidationLabile = Soil1.calculate_oxidation_labile(_LabileDetritus)
+print("OxidationLabile =", OxidationLabile)
+
 
 # %%
 

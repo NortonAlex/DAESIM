@@ -33,13 +33,16 @@ class SoilModuleCalculator:
     thresholdWater: float = field(
         default=0.05
     )  ## the moisture threshold above which microbes can continue to accelerate the biological decomposition process
+    iniLabileOxi: float = field(
+        default=0.04
+    )  ## Question: What does this represent biophysically and what are the units?
 
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
 
     ## TODO: These are temporary parameters that really belong in a separate "Management" module
     propTillage: float = field(
-        default=0.025
+        default=0.5
     )  ## Management module: propTillage=intensityTillage/10 (ErrorCheck: in the Stella code propTillage=intensityTillage/10 but in the documentation propTillage=(intensityTillage*9)/(5*10), why?)
 
 
@@ -66,8 +69,10 @@ class SoilModuleCalculator:
 
         LDDecomp = self.calculate_LDDecomp(LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff)
 
+        OxidationLabile = self.calculate_oxidation_labile(LabileDetritus)
+
         # ODE for labile detritus
-        dCdt = LDin - LDDecomp #+ SDDecompLD - MicUptakeLD - OxidationLabile - LDErosion
+        dCdt = LDin - LDDecomp - OxidationLabile #+ SDDecompLD - MicUptakeLD  - LDErosion
 
         return dCdt
 
@@ -99,4 +104,11 @@ class SoilModuleCalculator:
     		return Labile_Detritus * self.labileDecompositionRate * TempCoeff * Decomposing_Microbes
     	else:
     		return 0.01
+
+    def calculate_oxidation_labile(self, Labile_Detritus):
+    	"""
+    	Question: What does this flux represent biophysically? How does it differ from LDDecomp?
+    	"""
+    	labileOxi = (1+self.iniLabileOxi-(1-self.propTillage)/10)*self.iniLabileOxi
+    	return labileOxi * Labile_Detritus
 

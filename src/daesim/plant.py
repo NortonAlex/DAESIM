@@ -7,7 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import *
+from daesim.biophysics_funcs import func_TempCoeff
 
 
 @define
@@ -229,7 +229,7 @@ class PlantModuleCalculator:
 
         WaterCoeff = min(WatStressHigh, WatStressLow)
 
-        TempCoeff = biophysics_funcs.TempCoeff(airTempC)
+        TempCoeff = func_TempCoeff(airTempC,optTemperature=self.optTemperature)
 
         NPPControlCoeff = (
             np.minimum(LightCoeff, TempCoeff) * WaterCoeff * NutrCoeff

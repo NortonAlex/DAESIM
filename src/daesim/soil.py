@@ -7,7 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import *
+from daesim.biophysics_funcs import func_TempCoeff
 
 
 @define
@@ -55,7 +55,7 @@ class SoilModuleCalculator:
         # Call the initialisation method
         # SoilConditions = self._initialise(self.iniSoilConditions)
 
-        TempCoeff = biophysics_funcs(airTempC,optTemperature=self.optTemperature)
+        TempCoeff = func_TempCoeff(airTempC,optTemperature=self.optTemperature)
 
         LDDecomp = self.calculate_LDDecomp(LabileDetritus, TempCoeff)
 

@@ -4,7 +4,7 @@ Biophysics helper functions used across more than one DAESim module
 
 import numpy as np
 
-def TempCoeff(airTempC,optTemperature=20):
+def func_TempCoeff(airTempC,optTemperature=20):
         """
         Function to calculate the temperature coefficient.
 

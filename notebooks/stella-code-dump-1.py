@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 
 # %%
 from daesim.climate_funcs import *
+from daesim.biophysics_funcs import func_TempCoeff
 from daesim.plant import PlantModuleCalculator, PlantModelSolver
 from daesim.climate import ClimateModule
 from daesim.soil import SoilModuleCalculator
@@ -356,21 +357,21 @@ _airTempC = np.linspace(-25, 60, n)
 # Plant1
 plt.plot(
     _airTempC,
-    Plant1.calculate_TempCoeff(airTempC=_airTempC),
+    func_TempCoeff(_airTempC, optTemperature=Plant1.optTemperature),
     label="optTemperature=%d" % Plant1.optTemperature,
 )
 # Plant2
 Plant2 = PlantModuleCalculator(optTemperature=25)
 plt.plot(
     _airTempC,
-    Plant2.calculate_TempCoeff(airTempC=_airTempC),
+    func_TempCoeff(_airTempC, optTemperature=Plant2.optTemperature),
     label="optTemperature=%d" % Plant2.optTemperature,
 )
 # Plant3
 Plant3 = PlantModuleCalculator(optTemperature=30)
 plt.plot(
     _airTempC,
-    Plant3.calculate_TempCoeff(airTempC=_airTempC),
+    func_TempCoeff(_airTempC, optTemperature=Plant3.optTemperature),
     label="optTemperature=%d" % Plant3.optTemperature,
 )
 plt.ylim([0, 3])
@@ -582,12 +583,11 @@ print("  dCdt = %1.4f" % dydt)
 LDin = Soil1.calculate_LDin(_PhBM, _NPhBM, _PhBioHarvest, _NPhBioHarvest)
 print("LDin =", LDin)
 
-
 # %%
+TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
+LDDecomp = Soil1.calculate_LDDecomp(_LabileDetritus, TempCoeff)
+print("LDDecomp =", LDDecomp)
 
-# %%
-
-# %%
 
 # %%
 

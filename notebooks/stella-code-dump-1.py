@@ -472,3 +472,272 @@ axes[2, 1].set_ylabel("Diagnostic Flux: exudation")
 axes[2, 1].legend()
 
 plt.tight_layout()
+
+# %%
+
+# %% [markdown]
+# ## Soil Module Calculator
+
+# %%
+# ## ODE
+# Decomposing_Microbes(t) = Decomposing_Microbes(t - dt) + (MicUptakeLD + MicUptakeSD - MicDeath) * dt
+# # Initial condition: iniMicrobe  ## kg/m2
+
+# ## ODE
+# Labile_Detritus(t) = Labile_Detritus(t - dt) + (LDin + SDDecompLD - MicUptakeLD - OxidationLabile - LDDecomp - LDErosion) * dt
+# # Initial condition: iniLabileDetritus ## kg/m2
+
+# ## ODE
+# Stable_Detritus(t) = Stable_Detritus(t - dt) + (SDin - SDDecompLD - SDDecompMine - MicUptakeSD - OxidationStable - SDErosion) * dt
+# # Initial condition: iniStableDetritus  ## Aggregates carbon. kg/m2
+
+# ## ODE
+# Mineral(t) = Mineral(t - dt) + (SDDecompMine - MineralDecomp) * dt
+# # Initial condition: iniMineralDetritus  ## 53
+
+## Diagnostic ODE
+# Soil_Loss(t) = Soil_Loss(t - dt) + (ErosionRate) * dt
+
+# ## Diagnostic ODE
+# Soil_Mass(t) = Soil_Mass(t - dt) + ( - ErosionRate) * dt
+
+# ## Diagnostic ODE
+# carbonLoss(t) = carbonLoss(t - dt) + (carbonOut) * dt
+
+# ## Diagnostic ODE
+# carbonStored(t) = carbonStored(t - dt) + (ResidueIn) * dt
+
+# %%
+S = SoilModuleCalculator()
+
+S
+
+
+# %% [markdown]
+# ## Coupled Plant-Soil Model
+
+# %%
+@define
+class PlantSoilModel:
+    plant_calculator: PlantModuleCalculator
+    """Calculator of plant model"""
+
+    soil_calculator: SoilModuleCalculator
+    """Calculator of plant model"""
+
+    def calculate(
+        self,
+        Photosynthetic_Biomass,
+        Non_Photosynthetic_Biomass,
+        LabileDetritus,
+        solRadGrd,
+        airTempC,
+        dayLength,
+        dayLengthPrev,
+        Bio_time,
+    ) -> Tuple[float]:
+        dPhBMdt, dNPhBMdt = self.plant_calculator.calculate(
+            Photosynthetic_Biomass,
+            Non_Photosynthetic_Biomass,
+            solRadGrd,
+            airTempC,
+            dayLength,
+            dayLengthPrev,
+            Bio_time,
+        )
+
+        _PhBioMort = self.plant_calculator.calculate_PhBioMort(Photosynthetic_Biomass)
+        _NPhBioMort = self.plant_calculator.calculate_PhBioMort(
+            Non_Photosynthetic_Biomass
+        )
+
+        dCdt = self.soil_calculator.calculate(
+            LabileDetritus, _PhBioMort, _NPhBioMort, airTempC
+        )
+
+        return (dPhBMdt, dNPhBMdt, dCdt)
+    
+"""
+Differential equation solver implementation for plant model
+"""
+
+@define
+class PlantSoilModelSolver:
+
+    """
+    Plant and Soil model solver implementation
+    """
+
+    calculator: PlantSoilModel
+    """Calculator of plant-soil model"""
+    
+    state1_init: float
+    """
+    Initial value for state 1
+    """
+
+    state2_init: float
+    """
+    Initial value for state 2
+    """
+    
+    state3_init: float
+    """
+    Initial value for state 3
+    """
+
+    time_start: float
+    """
+    Time at which the initialisation values apply.
+    """
+
+    def run(
+        self,
+        airTempC: Callable[[float], float],
+        solRadGrd: Callable[[float], float],
+        dayLength: Callable[[float], float],
+        dayLengthPrev: Callable[[float], float],
+        Bio_time: Callable[
+            [float], float
+        ],  ## TODO: Temporary driver (calculate internally at some point)
+        time_axis: float,
+    ) -> Tuple[float]:
+        func_to_solve = self._get_func_to_solve(
+            airTempC,
+            solRadGrd,
+            dayLength,
+            dayLengthPrev,
+            Bio_time,
+        )
+
+        t_eval = time_axis
+        t_span = (self.time_start, t_eval[-1])
+        start_state = (
+            self.state1_init,
+            self.state2_init,
+            self.state3_init,
+        )
+
+        solve_kwargs = {
+            "t_span": t_span,
+            "t_eval": t_eval,
+            "y0": start_state,
+        }
+
+        res_raw = self._solve_ivp(
+            func_to_solve,
+            **solve_kwargs,
+        )
+
+        return res_raw
+
+    def _get_func_to_solve(
+        self,
+        solRadGrd,
+        airTempC,
+        dayLength,
+        dayLengthPrev,
+        Bio_time: Callable[float, float],
+    ) -> Callable[float, float]:
+        def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
+            """
+            Function to solve i.e. f(t, y) that goes on the RHS of dy/dt = f(t, y)
+
+            Parameters
+            ----------
+            t
+                time
+
+            y
+                State vector
+
+            Returns
+            -------
+                dy / dt (also as a vector)
+            """
+            airTempCh = airTempC(t).squeeze()
+            solRadGrdh = solRadGrd(t).squeeze()
+            dayLengthh = dayLength(t).squeeze()
+            dayLengthPrevh = dayLengthPrev(t).squeeze()
+            Bio_timeh = Bio_time(t).squeeze()
+
+            dydt = self.calculator.calculate(
+                Photosynthetic_Biomass=y[0],
+                Non_Photosynthetic_Biomass=y[1],
+                LabileDetritus=y[2],
+                solRadGrd=solRadGrdh,
+                airTempC=airTempCh,
+                dayLength=dayLengthh,
+                dayLengthPrev=dayLengthPrevh,
+                Bio_time=Bio_timeh,
+            )
+
+            # TODO: Use this python magic when we have more than one state variable in dydt
+            # dydt = [v for v in dydt]
+
+            return dydt
+
+        return func_to_solve
+
+    def _solve_ivp(
+        self, func_to_solve, t_span, t_eval, y0, rtol=1e-6, atol=1e-6, **kwargs
+    ) -> OptimizeResult:
+        raw = solve_ivp(
+            func_to_solve,
+            t_span=t_span,
+            t_eval=t_eval,
+            y0=y0,
+            atol=atol,
+            rtol=rtol,
+            **kwargs,
+        )
+        if not raw.success:
+            info = "Your model failed to solve, perhaps there was a runaway feedback?"
+            error_msg = f"{info}\n{raw}"
+            raise SolveError(error_msg)
+
+        return raw
+
+
+
+# %%
+Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
+Soil1 = SoilModuleCalculator()
+
+PSModel = PlantSoilModel(plant_calculator=Plant1, soil_calculator=Soil1)
+
+Model = PlantSoilModelSolver(
+    calculator=PSModel,
+    state1_init=0.036,
+    state2_init=0.0870588,
+    state3_init=0.3956,
+    time_start=1,
+)
+
+# %%
+time_axis = np.arange(1, 1001, 1)
+
+res = Model.run(
+    airTempC=Climate_airTempC_f,
+    solRadGrd=Climate_solRadGrd_f,
+    dayLength=Climate_dayLength_f,
+    dayLengthPrev=PlantGrowth_dayLengthPrev_f,
+    Bio_time=PlantGrowth_Bio_time_f,
+    time_axis=time_axis,
+)
+
+# %%
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+axes[0].plot(res.t, res.y[0], c="C0")
+axes[0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
+axes[1].plot(res.t, res.y[1], c="C1")
+axes[1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
+axes[2].plot(res.t, res.y[2], c="C1")
+axes[2].set_ylabel("State variable 3\nLabileDetritus")
+
+plt.tight_layout()
+
+# %%
+
+# %%

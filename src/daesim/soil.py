@@ -7,6 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
+from daesim.biophysics_funcs import *
 
 
 @define
@@ -54,13 +55,9 @@ class SoilModuleCalculator:
         # Call the initialisation method
         # SoilConditions = self._initialise(self.iniSoilConditions)
 
-        _TempCoeff = np.exp(0.20 * (airTempC - self.optTemperature)) * np.abs(
-            ((40 - airTempC) / (40 - self.optTemperature))
-        ) ** (
-            0.2 * (40 - self.optTemperature)
-        )  ## TODO: This is actually a variable calculated from the plant module. Make sure we're not duplicating these calculations.
+        TempCoeff = biophysics_funcs(airTempC,optTemperature=self.optTemperature)
 
-        LDDecomp = self.calculate_LDDecomp(LabileDetritus, _TempCoeff)
+        LDDecomp = self.calculate_LDDecomp(LabileDetritus, TempCoeff)
 
         LDin = self.calculate_LDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
         LDout = LDDecomp
@@ -87,11 +84,11 @@ class SoilModuleCalculator:
 
     	return LDin
 
-    def calculate_LDDecomp(self, LabileDetritus, _TempCoeff):
+    def calculate_LDDecomp(self, LabileDetritus, TempCoeff):
         # if Water.calPropUnsat_WatMoist>thresholdWater:
         #  LDDecomp = Labile_Detritus*labilelDecompositionRate*CropGrowth.TempCoeff*Decomposing_Microbes
         # else:
         #  LDDecomp = 0.01
-        LDDecomp = LabileDetritus * self.labileDecompositionRate * _TempCoeff
+        LDDecomp = LabileDetritus * self.labileDecompositionRate * TempCoeff
 
         return LDDecomp

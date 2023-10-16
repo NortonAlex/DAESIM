@@ -7,6 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
+from daesim.biophysics_funcs import *
 
 
 @define
@@ -228,7 +229,7 @@ class PlantModuleCalculator:
 
         WaterCoeff = min(WatStressHigh, WatStressLow)
 
-        TempCoeff = self.calculate_TempCoeff(airTempC)
+        TempCoeff = biophysics_funcs.TempCoeff(airTempC)
 
         NPPControlCoeff = (
             np.minimum(LightCoeff, TempCoeff) * WaterCoeff * NutrCoeff
@@ -408,20 +409,6 @@ class PlantModuleCalculator:
     def calculate_exudation(self, rootBM):
         exudation = rootBM * self.rhizodepositReleaseRate
         return exudation
-
-    def calculate_TempCoeff(self,airTempC):
-        """
-        Function to calculate the temperature coefficient.
-
-        Errorcheck: This function seems okay for temperatures below 40 degC but it goes whacky above 40 degC. This is a problem that we'll have to correct.
-        TODO: Correct the whacky values from the calculate_TempCoeff functiono when airTempC > 40 degC.
-        """
-        TempCoeff = np.exp(0.20 * (airTempC - self.optTemperature)) * np.abs(
-            ((40 - airTempC) / (40 - self.optTemperature))
-        ) ** (
-            0.2 * (40 - self.optTemperature)
-        )  ## See Stella docs
-        return TempCoeff
 
 
 """

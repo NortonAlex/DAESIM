@@ -547,10 +547,49 @@ plt.tight_layout()
 # carbonStored(t) = carbonStored(t - dt) + (ResidueIn) * dt
 
 # %%
-S = SoilModuleCalculator()
+Soil1 = SoilModuleCalculator()
 
-S
+Soil1
 
+# %% [markdown]
+# #### - Use the `calculate` method to compute the RHS for the state
+
+# %%
+_LabileDetritus = 4.0
+_PhBM = 2.0
+_NPhBM = 1.0
+_PhBioHarvest = 0.0
+_NPhBioHarvest = 0.0
+_airTempC = 21.43692112
+
+
+dydt = Soil1.calculate(
+    _LabileDetritus,
+    _PhBM,
+    _NPhBM,
+    _PhBioHarvest,
+    _NPhBioHarvest,
+    _airTempC,
+)
+print("dy/dt =", dydt)
+print()
+print("  dCdt = %1.4f" % dydt)
+
+# %% [markdown]
+# #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
+
+# %%
+LDin = Soil1.calculate_LDin(_PhBM, _NPhBM, _PhBioHarvest, _NPhBioHarvest)
+print("LDin =", LDin)
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ## Coupled Plant-Soil Model

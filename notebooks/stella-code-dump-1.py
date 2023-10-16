@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 from daesim.climate_funcs import *
 from daesim.plant import PlantModuleCalculator, PlantModelSolver
 from daesim.climate import ClimateModule
+from daesim.soil import SoilModuleCalculator
 
 # %% [markdown]
 # ### Notes for translating code
@@ -138,7 +139,8 @@ _vapPress_Stella = (
 
 ## New method in Python code for actual vapor pressure
 _vapPress_py = SiteX.compute_actual_vapor_pressure(
-    _airTempC, _relativeHumidity,
+    _airTempC,
+    _relativeHumidity,
 )  # Units: Pa
 
 # plt.plot(
@@ -148,19 +150,23 @@ _vapPress_py = SiteX.compute_actual_vapor_pressure(
 #     linestyle=":",
 #     label=r"$E_a (output)$ (units?)",
 # )
-plt.plot(DayJul_X[0:365], 1e-2 * _vapPress_Stella[0:365], label=r"$E_a (Stella)$ (unit?)")
+plt.plot(
+    DayJul_X[0:365], 1e-2 * _vapPress_Stella[0:365], label=r"$E_a (Stella)$ (unit?)"
+)
 plt.plot(DayJul_X[0:365], 1e-3 * _vapPress_py[0:365], c="r", label=r"$E_a (new)$ (kPa)")
 
 _satvapPress_py = SiteX.compute_sat_vapor_pressure(_airTempC)
-plt.plot(DayJul_X[0:365], 1e-3 * _satvapPress_py[0:365], c="0.5", label=r"$E_s (new)$ (kPa)")
+plt.plot(
+    DayJul_X[0:365], 1e-3 * _satvapPress_py[0:365], c="0.5", label=r"$E_s (new)$ (kPa)"
+)
 
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Vapor Pressure (units?)")
 plt.show()
 
-plt.scatter(_airTempC, 1e-3*_satvapPress_py, s=2, c="0.5")
-plt.scatter(_airTempC, 1e-3*_vapPress_py, s=5)
+plt.scatter(_airTempC, 1e-3 * _satvapPress_py, s=2, c="0.5")
+plt.scatter(_airTempC, 1e-3 * _vapPress_py, s=5)
 plt.xlabel("Air Temperature (oC)")
 plt.ylabel("Vapor Pressure (kPa)")
 plt.show()
@@ -198,22 +204,42 @@ plt.ylabel("Cloudy")
 
 # %%
 ## Forcing data variables
-_solRadAtm = df_forcing["Climate.solRadAtm"].values  ## solar radiation in the atmosphere  ## Question: What does this really represent? How is it calculated?
-_solRadAtm = df_forcing["Climate.solRadGrd"].values  ## correction for cloudy days ## Question: What does this really represent (e.g. downward shortwave radiation at the surface, PAR, something else)? How is it calculated?
-_Precipitation = df_forcing["Climate.Precipitation"].values  ## rainfall from Beltsville, MD 1991. (in/d). Based on GIS data it is now mm/day
-_Humidity = df_forcing["Climate.Humidity"].values ## relative humidity data used Baltimore Airport, 1991 - Beltsville has no humidity measurements  ## Question: Is the relative humidity or humidity? What are the units??
-_relativeHumidity = df_forcing["Climate.relativeHumidity"].values  ## Question: No documentation here. What are the units?
-_airTempMax = df_forcing["Climate.airTempMax"].values  ## Beltsville, 1991 daily maximum values (deg. F). New data in C
-_airTempMin = df_forcing["Climate.airTempMax"].values  ## Beltsville, 1991 daily minimum values (deg. F). New data in C
-_windSpeed = df_forcing["Climate.windSpeed"].values  ## used Baltimore Airport, 1991 - Beltsville has no wind measurements. units = nautical miles over one day. ## Errorcheck: The Stella docs say the units are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same?? 
+_solRadAtm = df_forcing[
+    "Climate.solRadAtm"
+].values  ## solar radiation in the atmosphere  ## Question: What does this really represent? How is it calculated?
+_solRadAtm = df_forcing[
+    "Climate.solRadGrd"
+].values  ## correction for cloudy days ## Question: What does this really represent (e.g. downward shortwave radiation at the surface, PAR, something else)? How is it calculated?
+_Precipitation = df_forcing[
+    "Climate.Precipitation"
+].values  ## rainfall from Beltsville, MD 1991. (in/d). Based on GIS data it is now mm/day
+_Humidity = df_forcing[
+    "Climate.Humidity"
+].values  ## relative humidity data used Baltimore Airport, 1991 - Beltsville has no humidity measurements  ## Question: Is the relative humidity or humidity? What are the units??
+_relativeHumidity = df_forcing[
+    "Climate.relativeHumidity"
+].values  ## Question: No documentation here. What are the units?
+_airTempMax = df_forcing[
+    "Climate.airTempMax"
+].values  ## Beltsville, 1991 daily maximum values (deg. F). New data in C
+_airTempMin = df_forcing[
+    "Climate.airTempMax"
+].values  ## Beltsville, 1991 daily minimum values (deg. F). New data in C
+_windSpeed = df_forcing[
+    "Climate.windSpeed"
+].values  ## used Baltimore Airport, 1991 - Beltsville has no wind measurements. units = nautical miles over one day. ## Errorcheck: The Stella docs say the units are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same??
 
 ## Calculated forcing data variables
-_Wind = _windSpeed   ## Errorcheck: The Stella docs say the units for windSpeed are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same?? 
-_airTempC = SiteX.compute_mean_daily_air_temp(_airTempMin,_airTempMax)
-_absoluteHumidity = SiteX.compute_absolute_humidity(_airTempC,_relativeHumidity)  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
-_vapPress = SiteX.compute_actual_vapor_pressure(_airTempC,_relativeHumidity)  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
+_Wind = _windSpeed  ## Errorcheck: The Stella docs say the units for windSpeed are "nautical miles over one day" but then the next variable "Wind" is in km/hr but it is the same??
+_airTempC = SiteX.compute_mean_daily_air_temp(_airTempMin, _airTempMax)
+_absoluteHumidity = SiteX.compute_absolute_humidity(
+    _airTempC, _relativeHumidity
+)  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
+_vapPress = SiteX.compute_actual_vapor_pressure(
+    _airTempC, _relativeHumidity
+)  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
 _precipM = SiteX.rainConv * _Precipitation
-_Cloudy = SiteX.compute_Cloudy(_precipM,_vapPress)
+_Cloudy = SiteX.compute_Cloudy(_precipM, _vapPress)
 
 
 # %% [markdown]
@@ -446,12 +472,3 @@ axes[2, 1].set_ylabel("Diagnostic Flux: exudation")
 axes[2, 1].legend()
 
 plt.tight_layout()
-
-# %%
-
-# %% [markdown]
-# ## Soil Module Calculator
-
-# %%
-
-# %%

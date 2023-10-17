@@ -36,6 +36,9 @@ class SoilModuleCalculator:
     iniLabileOxi: float = field(
         default=0.04
     )  ## Question: What does this represent biophysically and what are the units?
+    coeffLabile: float = field(
+        default=0.0002
+    )  ## the microbe consumption rate of labile detritus as fuels for growth
 
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
@@ -71,8 +74,10 @@ class SoilModuleCalculator:
 
         OxidationLabile = self.calculate_oxidation_labile(LabileDetritus)
 
+        MicUptakeLD = self.calculate_MicUptakeLD(LabileDetritus)
+
         # ODE for labile detritus
-        dCdt = LDin - LDDecomp - OxidationLabile #+ SDDecompLD - MicUptakeLD  - LDErosion
+        dCdt = LDin - LDDecomp - OxidationLabile - MicUptakeLD #+ SDDecompLD - LDErosion
 
         return dCdt
 
@@ -111,4 +116,7 @@ class SoilModuleCalculator:
     	"""
     	labileOxi = (1+self.iniLabileOxi-(1-self.propTillage)/10)*self.iniLabileOxi
     	return labileOxi * Labile_Detritus
+
+    def calculate_MicUptakeLD(self, Labile_Detritus):
+    	return self.coeffLabile * Labile_Detritus
 

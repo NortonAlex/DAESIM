@@ -598,8 +598,10 @@ print("LDDecomp =", LDDecomp)
 OxidationLabile = Soil1.calculate_oxidation_labile(_LabileDetritus)
 print("OxidationLabile =", OxidationLabile)
 
-
 # %%
+MicUptakeLD = Soil1.calculate_MicUptakeLD(_LabileDetritus)
+print("MicUptakeLD =", MicUptakeLD)
+
 
 # %% [markdown]
 # ## Coupled Plant-Soil Model

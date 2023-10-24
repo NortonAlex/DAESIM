@@ -39,6 +39,17 @@ class SoilModuleCalculator:
     coeffLabile: float = field(
         default=0.0002
     )  ## the microbe consumption rate of labile detritus as fuels for growth
+    labileErodible: float = field(
+        default=0.165
+    )  ## the proportion of labile detritus that can be eroded
+    
+    RainfallErosivityFactor: float = field(
+        default=1430
+    )  ## R, rainfall erosivity factor. Energy release of rainfall / kinetic energy of rainfall. Question: Are the units MJ mm ha− 1 h− 1 y− 1 (see https://doi.org/10.1016/j.geoderma.2017.08.006)?
+    ErodibilityFactor: float = field(default=0.0277) # K or K-factor, soil erodibility factor (e.g. Okorafor and Adeyemo, 2018, doi:10.5923/j.re.20180801.02; Panagos et al., 2014, doi:10.1016/j.scitotenv.2014.02.010). TODO: This is either prescribed as a fixed parameter or calculated dynamically (see Stella for equation), for now I only prescribe it. 
+    empiricalC: float = field(default=0.08) # C or C-factor, cover management factor on soil erosion. TODO: This is either prescribed as a fixed parameter or calculated dynamically (see Stella for equation), for now I only prescribe it. 
+    P: float = field(default = 1) # Support practices factor
+
 
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
@@ -52,12 +63,15 @@ class SoilModuleCalculator:
     def calculate(
         self,
         LabileDetritus,
+        SoilMass,
         _PhBioMort,
         _NPhBioMort,
         _PhBioHarvest,
         _NPhBioHarvest,
         Water_calPropUnsat_WatMoist,
+        Water_SurfWatOutflux,
         airTempC,
+        Site,
     ) -> Tuple[float]:
         Cin = 2.0
         Cout = 2.0
@@ -76,10 +90,17 @@ class SoilModuleCalculator:
 
         MicUptakeLD = self.calculate_MicUptakeLD(LabileDetritus)
 
-        # ODE for labile detritus
-        dCdt = LDin - LDDecomp - OxidationLabile - MicUptakeLD #+ SDDecompLD - LDErosion
+        ErosionRate = self.calculate_ErosionRate(SoilMass,Water_SurfWatOutflux,Site.degSlope,Site.slopeLength)
 
-        return dCdt
+        LDErosion = self.calculate_LDErosion(LabileDetritus,ErosionRate)
+
+        # ODE for labile detritus
+        dCdt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion #+ SDDecompLD
+
+        # ODE for soil mass
+        dSoilMassdt = - ErosionRate
+
+        return (dCdt,dSoilMassdt)
 
     def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
 
@@ -119,4 +140,46 @@ class SoilModuleCalculator:
 
     def calculate_MicUptakeLD(self, Labile_Detritus):
     	return self.coeffLabile * Labile_Detritus
+
+    def calculate_LDErosion(self, Labile_Detritus, ErosionRate):
+    	return ErosionRate * Labile_Detritus * self.labileErodible
+
+    def calculate_ErosionRate(self,SoilMass,Water_SurfWatOutflux,degSlope,slopeLength):
+    	"""
+    	Question: Is the Stella code using the USLE or RUSLE or CSLE equation for estimating soil erosion rate?
+    	I think its a form of the RUSLE equation as described in Zhang et al., 2017, doi:10.1016/j.geoderma.2017.08.006
+
+    	The validity is limited to slope gradients less than 50%, due to empirical nature of the S factor
+
+    	TODO: Update the ErosionRate calculation to be better suited to landscape modeling, following Desmet and Govers (1997).
+
+    	This is the Revised Universal Soil Loss Equation (RUSLE) as described in:
+    	 - McCool et al. (1987) Transactions of the ASAE 30.5 (1987): 1387-1396, and
+    	 - Renard et al. (1997) Predicting soil erosion by water: A guide to conservation planning with the Revised Universal Soil Loss Equation (RUSLE). Agricultural Handbook No. 703, U. S. Dept. of Agr, Washington DC (1997), p. 384
+
+    	"""
+    	R = self.RainfallErosivityFactor
+    	K = self.ErodibilityFactor
+    	
+    	perSlope = 100*np.tan(np.deg2rad(degSlope))  ## angle of the slope (%) ; ErrorCheck: Modification: I have corrected an error in the Stella code in this calculation. Errorcheck: In the Stella code perSlope=tan(degSlope), but this is missing the x100, the slope as a percentage should be 100 * tan(degSlope).
+    	beta = (np.sin(np.deg2rad(degSlope))/0.086) / (3*np.sin(np.deg2rad(degSlope))**0.8 + 0.56)  ## Modification: This equation is not included in the Stella code but its needed for the calculation of "m" below. Equation from Foster et al. (1977) and McCool et al. (1989)
+    	m = beta/(beta+1)   ## the exponent on the length slope, its value depends on slope or slope and rill/interrill ratio. Called "MLS" in the Stella code. Modification: I have changed this from a conditional calculation (if/elseif/else) to a smooth function, following Foster et al. (1977) and McCool et al. (1989)
+    	L = (slopeLength/22.13)**m
+
+    	## S factor
+    	## Modification: This empirical calculation of L, S and LS differs from that in Stella code, the origin of the Stella S-factor equation is apparently from Goldman (1986) yet the equations produces oddly large magnitudes.
+    	S_i = 10.8 * np.sin(np.deg2rad(degSlope)) + 0.03  ## if perSlope < 9%
+    	S_j = 16.8 * np.sin(np.deg2rad(degSlope)) - 0.5  ## if perSlope >= 9%
+    	S_k = 3.0*np.sin(np.deg2rad(degSlope))**0.8 + 0.56  ## if slopeLength < 4.57 m (15 ft)
+    	S = (S_i*(perSlope < 9) + S_j*(perSlope >= 9))*(slopeLength>4.57) + S_k*(slopeLength<=4.57)  ## Modification: Differs to Stella code. See McCool et al. (1987). S = S_i if perSlope >= 9%, S = S_j if perSlope < 9%, S = S_k if slopeLength < 4.57 m (and see Renard et al., 1997)
+
+    	LS = L * S  # slope length and steepness factor (LS), representing the effect of the topography on erosion rate
+
+    	## TODO: The Cfactor is either prescribed fixed or calculated dynamically, I am only using the prescribed option here.
+    	Cfactor = self.empiricalC  ## Cover management factor "represents the ratio of soil loss from land cropped under specific conditions to the corresponding loss from a tilled, continuous fallow condition. This factor can be estimated in various ways depending on the level of information available. It is an estimate of the combined effects of canopy cover, surface vegetation, surface roughness, prior land use, mulch cover and organic material below the soil surface (Mhangara et al., 2012)." (Teng et al., 2017, doi:10.1016/j.envsoft.2015.11.024)
+
+    	ErosionRate = R * SoilMass * Water_SurfWatOutflux * K * LS * Cfactor * self.P / 365   # divide by 365 to convert from annual to daily rate
+
+    	return ErosionRate
+
 

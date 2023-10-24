@@ -557,26 +557,32 @@ Soil1
 
 # %%
 _LabileDetritus = 0.3956
+_SoilMass = 23736    ## Question: What are the units for Soil_Mass/SoilMass?
 _PhBM = 0.036
 _NPhBM = 0.0870588235294
 _PhBioHarvest = 0.0
 _NPhBioHarvest = 0.0
 _airTempC = 21.43692112
 _Water_calPropUnsat_WatMoist = 0.26
+_Water_SurfWatOutflux = 0.0002
 
 
 dydt = Soil1.calculate(
     _LabileDetritus,
+    _SoilMass,
     _PhBM,
     _NPhBM,
     _PhBioHarvest,
     _NPhBioHarvest,
     _Water_calPropUnsat_WatMoist,
+    _Water_SurfWatOutflux,
     _airTempC,
+    SiteX,
 )
 print("dy/dt =", dydt)
 print()
-print("  dCdt = %1.4f" % dydt)
+print("  dCdt =", dydt[0])
+print("  dSoilMassdt =", dydt[1])
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
@@ -602,6 +608,12 @@ print("OxidationLabile =", OxidationLabile)
 MicUptakeLD = Soil1.calculate_MicUptakeLD(_LabileDetritus)
 print("MicUptakeLD =", MicUptakeLD)
 
+# %%
+ErosionRate = Soil1.calculate_ErosionRate(
+    _SoilMass, _Water_SurfWatOutflux, SiteX.degSlope, SiteX.slopeLength
+)
+print("ErosionRate =", ErosionRate)
+
 
 # %% [markdown]
 # ## Coupled Plant-Soil Model
@@ -620,11 +632,13 @@ class PlantSoilModel:
         Photosynthetic_Biomass,
         Non_Photosynthetic_Biomass,
         LabileDetritus,
+        SoilMass,
         solRadGrd,
         airTempC,
         dayLength,
         dayLengthPrev,
         Bio_time,
+        Site,
     ) -> Tuple[float]:
         dPhBMdt, dNPhBMdt = self.plant_calculator.calculate(
             Photosynthetic_Biomass,
@@ -635,6 +649,11 @@ class PlantSoilModel:
             dayLengthPrev,
             Bio_time,
         )
+        
+        _PhBioHarvest = 0
+        _NPhBioHarvest = 0
+        _Water_calPropUnsat_WatMoist = 0.24
+        _Water_SurfWatOutflux = 0.0001
 
         _PhBioMort = self.plant_calculator.calculate_PhBioMort(Photosynthetic_Biomass)
         _NPhBioMort = self.plant_calculator.calculate_PhBioMort(
@@ -642,10 +661,19 @@ class PlantSoilModel:
         )
 
         dCdt = self.soil_calculator.calculate(
-            LabileDetritus, _PhBioMort, _NPhBioMort, airTempC
+            LabileDetritus,
+            SoilMass,
+            _PhBioMort,
+            _NPhBioMort,
+            _PhBioHarvest,
+            _NPhBioHarvest,
+            _Water_calPropUnsat_WatMoist,
+            _Water_SurfWatOutflux,
+            airTempC,
+            Site,
         )
 
-        return (dPhBMdt, dNPhBMdt, dCdt)
+        return (dPhBMdt, dNPhBMdt, dCdt[0], dCdt[1])
     
 """
 Differential equation solver implementation for plant model
@@ -661,6 +689,9 @@ class PlantSoilModelSolver:
     calculator: PlantSoilModel
     """Calculator of plant-soil model"""
     
+    site: ClimateModule
+    """Site details"""
+    
     state1_init: float
     """
     Initial value for state 1
@@ -674,6 +705,11 @@ class PlantSoilModelSolver:
     state3_init: float
     """
     Initial value for state 3
+    """
+    
+    state4_init: float
+    """
+    Initial value for state 4
     """
 
     time_start: float
@@ -698,6 +734,7 @@ class PlantSoilModelSolver:
             dayLength,
             dayLengthPrev,
             Bio_time,
+            self.site,
         )
 
         t_eval = time_axis
@@ -706,6 +743,7 @@ class PlantSoilModelSolver:
             self.state1_init,
             self.state2_init,
             self.state3_init,
+            self.state4_init,
         )
 
         solve_kwargs = {
@@ -727,7 +765,8 @@ class PlantSoilModelSolver:
         airTempC,
         dayLength,
         dayLengthPrev,
-        Bio_time: Callable[float, float],
+        Bio_time,
+        Site: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -755,11 +794,13 @@ class PlantSoilModelSolver:
                 Photosynthetic_Biomass=y[0],
                 Non_Photosynthetic_Biomass=y[1],
                 LabileDetritus=y[2],
+                SoilMass=y[3],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
                 Bio_time=Bio_timeh,
+                Site=Site,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt
@@ -791,6 +832,7 @@ class PlantSoilModelSolver:
 
 
 # %%
+Site1 = ClimateModule()
 Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
 Soil1 = SoilModuleCalculator()
 
@@ -798,9 +840,11 @@ PSModel = PlantSoilModel(plant_calculator=Plant1, soil_calculator=Soil1)
 
 Model = PlantSoilModelSolver(
     calculator=PSModel,
+    site=Site1,
     state1_init=0.036,
     state2_init=0.0870588,
     state3_init=0.3956,
+    state4_init=23736,
     time_start=1,
 )
 
@@ -817,7 +861,7 @@ res = Model.run(
 )
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+fig, axes = plt.subplots(1, 4, figsize=(16, 4))
 
 axes[0].plot(res.t, res.y[0], c="C0")
 axes[0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
@@ -825,6 +869,8 @@ axes[1].plot(res.t, res.y[1], c="C1")
 axes[1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
 axes[2].plot(res.t, res.y[2], c="C1")
 axes[2].set_ylabel("State variable 3\nLabileDetritus")
+axes[3].plot(res.t, res.y[3], c="C3")
+axes[3].set_ylabel("State variable 4\nSoilMass")
 
 plt.tight_layout()
 

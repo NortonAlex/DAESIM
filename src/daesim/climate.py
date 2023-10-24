@@ -19,7 +19,14 @@ class ClimateModule:
     Elevation: float = field(
         default=70.74206543
     )  ## IF there is sediment surface BELOW MSL (e.g., tidal creeks) then use the bathimetry data (depth below MSL) to determine elevation of sediments above the base datum.; ELSE use the land elevation data above MSL (indicating distance from MSL to the soil surface) plus the distance from the datum to mean sea level; ALL VALUES ARE POSITIVE (m) above base datum.
+    degSlope: float = field(
+        default=4.62
+    )  ## angle of the slope of the site (degrees)
+    slopeLength: float = field(
+        default=97.2
+    )  ## slope length, the distance from the point of origin of overland flow to the point where either the slope gradient decreases enough for deposition to start, or runoff waters are streamed into a channel
     cellArea = 1  ## area of the unit considered m2
+
 
     ## Unit conversion factors
     rainConv: float = 0.001  ## conversion factor for mm/day to m/day

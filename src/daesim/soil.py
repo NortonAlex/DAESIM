@@ -20,6 +20,7 @@ class SoilModuleCalculator:
     labileDecompositionRate: float = field(default=0.01)  ## Question: Where does this value come from? What are the units?
     stableLabile_DecompositionRate: float = field(default=0.00001)  ## Question: Where does this value come from? What are the units?
     stableMineral_DecompositionRate: float = field(default=0.00007)  ## Question: What does this represent? How come it is used for both SDDecompLD and SDDecompMine? Why 
+    mineralDecompositionRate: float = field(default=0.00028)  ## Question: Where does this value come from? What are the units?
     propPHLigninContent: float = field(
         default=0.025
     )  ## the proportion of the lignin content in photosynthetic biomass. Table 1 in Martin and Aber, 1997, Ecological Applications
@@ -75,6 +76,7 @@ class SoilModuleCalculator:
         self,
         LabileDetritus,
         StableDetritus,
+        Mineral,
         SoilMass,
         _PhBioMort,
         _NPhBioMort,
@@ -113,16 +115,21 @@ class SoilModuleCalculator:
         SDDecompLD = self.calculate_SDDecompLD(StableDetritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff)
         SDDecompMine = self.calculate_SDDecompMine(StableDetritus)
 
+        MineralDecomp = self.calculate_MineralDecomp(Mineral,TempCoeff)
+
         # ODE for labile detritus
         dLabiledt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion + SDDecompLD
 
         # ODE for stable detritus
         dStabledt = SDin - SDDecompLD - SDDecompMine - MicUptakeSD - OxidationStable - SDErosion
 
+        # ODE for mineral
+        dMineraldt = SDDecompMine - MineralDecomp
+
         # ODE for soil mass
         dSoilMassdt = - ErosionRate
 
-        return (dLabiledt,dStabledt,dSoilMassdt)
+        return (dLabiledt,dStabledt,dMineraldt,dSoilMassdt)
 
     def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
 
@@ -248,3 +255,7 @@ class SoilModuleCalculator:
     def calculate_SDDecompMine(self,Stable_Detritus):
         SDDecompMine = self.stableMineral_DecompositionRate*Stable_Detritus
         return SDDecompMine
+
+    def calculate_MineralDecomp(self,Mineral,TempCoeff):
+        MineralDecomp = Mineral*TempCoeff*self.mineralDecompositionRate
+        return MineralDecomp

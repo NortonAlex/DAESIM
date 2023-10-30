@@ -558,6 +558,7 @@ Soil1
 # %%
 _LabileDetritus = 0.3956
 _StableDetritus = 5.1428
+_Mineral = 2.3736
 _SoilMass = 23736  ## Question: What are the units for Soil_Mass/SoilMass?
 _PhBioMort = 0.000568811551452
 _NPhBioMort = 0.00348235294118
@@ -573,6 +574,7 @@ _Decomposing_Microbes = 0.03
 dydt = Soil1.calculate(
     _LabileDetritus,
     _StableDetritus,
+    _Mineral,
     _SoilMass,
     _PhBioMort,
     _NPhBioMort,
@@ -587,7 +589,8 @@ print("dy/dt =", dydt)
 print()
 print("  dLabiledt =", dydt[0])
 print("  dStabledt =", dydt[1])
-print("  dSoilMassdt =", dydt[2])
+print("  dMineraldt =", dydt[2])
+print("  dSoilMassdt =", dydt[3])
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
@@ -648,6 +651,7 @@ class PlantSoilModel:
         Non_Photosynthetic_Biomass,
         LabileDetritus,
         StableDetritus,
+        Mineral,
         SoilMass,
         solRadGrd,
         airTempC,
@@ -676,9 +680,10 @@ class PlantSoilModel:
             Non_Photosynthetic_Biomass
         )
 
-        dLabileSoilCdt,dStableSoilCdt,dSoilMassdt = self.soil_calculator.calculate(
+        dLabileSoilCdt,dStableSoilCdt,dMineralSoilCdt,dSoilMassdt = self.soil_calculator.calculate(
             LabileDetritus,
             StableDetritus,
+            Mineral,
             SoilMass,
             _PhBioMort,
             _NPhBioMort,
@@ -690,7 +695,7 @@ class PlantSoilModel:
             Site,
         )
 
-        return (dPhBMdt, dNPhBMdt, dLabileSoilCdt,dStableSoilCdt,dSoilMassdt)
+        return (dPhBMdt, dNPhBMdt, dLabileSoilCdt, dStableSoilCdt, dMineralSoilCdt, dSoilMassdt)
     
 """
 Differential equation solver implementation for plant model
@@ -733,6 +738,11 @@ class PlantSoilModelSolver:
     """
     Initial value for state 5
     """
+    
+    state6_init: float
+    """
+    Initial value for state 6
+    """
 
     time_start: float
     """
@@ -767,6 +777,7 @@ class PlantSoilModelSolver:
             self.state3_init,
             self.state4_init,
             self.state5_init,
+            self.state6_init,
         )
 
         solve_kwargs = {
@@ -818,7 +829,8 @@ class PlantSoilModelSolver:
                 Non_Photosynthetic_Biomass=y[1],
                 LabileDetritus=y[2],
                 StableDetritus=y[3],
-                SoilMass=y[4],
+                Mineral=y[4],
+                SoilMass=y[5],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
@@ -869,7 +881,8 @@ Model = PlantSoilModelSolver(
     state2_init=0.0870588,
     state3_init=0.3956,
     state4_init=5.1428,
-    state5_init=23736,
+    state5_init=2.3736,
+    state6_init=23736,
     time_start=1,
 )
 
@@ -886,18 +899,20 @@ res = Model.run(
 )
 
 # %%
-fig, axes = plt.subplots(1, 5, figsize=(18, 4))
+fig, axes = plt.subplots(2, 3, figsize=(16, 8))
 
-axes[0].plot(res.t, res.y[0], c="C0")
-axes[0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
-axes[1].plot(res.t, res.y[1], c="C1")
-axes[1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
-axes[2].plot(res.t, res.y[2], c="C1")
-axes[2].set_ylabel("State variable 3\nLabile Soil Detritus")
-axes[3].plot(res.t, res.y[3], c="C2")
-axes[3].set_ylabel("State variable 3\nStable Soil Detritus")
-axes[4].plot(res.t, res.y[4], c="C3")
-axes[4].set_ylabel("State variable 4\nSoilMass")
+axes[0, 0].plot(res.t, res.y[0], c="k")
+axes[0, 0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
+axes[0, 1].plot(res.t, res.y[1], c="C0")
+axes[0, 1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
+axes[0, 2].plot(res.t, res.y[2], c="C1")
+axes[0, 2].set_ylabel("State variable 3\nLabile Soil Detritus")
+axes[1, 0].plot(res.t, res.y[3], c="C2")
+axes[1, 0].set_ylabel("State variable 4\nStable Soil Detritus")
+axes[1, 1].plot(res.t, res.y[4], c="C3")
+axes[1, 1].set_ylabel("State variable 5\nMineral")
+axes[1, 2].plot(res.t, res.y[5], c="C4")
+axes[1, 2].set_ylabel("State variable 6\nSoilMass")
 
 plt.tight_layout()
 

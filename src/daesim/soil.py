@@ -18,6 +18,8 @@ class SoilModuleCalculator:
 
     # Class parameters
     labileDecompositionRate: float = field(default=0.01)  ## Question: Where does this value come from? What are the units?
+    stableLabile_DecompositionRate: float = field(default=0.00001)  ## Question: Where does this value come from? What are the units?
+    stableMineral_DecompositionRate: float = field(default=0.00007)  ## Question: What does this represent? How come it is used for both SDDecompLD and SDDecompMine? Why 
     propPHLigninContent: float = field(
         default=0.025
     )  ## the proportion of the lignin content in photosynthetic biomass. Table 1 in Martin and Aber, 1997, Ecological Applications
@@ -63,6 +65,7 @@ class SoilModuleCalculator:
     def calculate(
         self,
         LabileDetritus,
+        StableDetritus,
         SoilMass,
         _PhBioMort,
         _NPhBioMort,
@@ -95,15 +98,21 @@ class SoilModuleCalculator:
         LDErosion = self.calculate_LDErosion(LabileDetritus,ErosionRate)
 
         # ODE for labile detritus
-        dCdt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion #+ SDDecompLD
+        dLabiledt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion #+ SDDecompLD
+
+        SDin = self.calculate_SDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
+        SDDecompLD = self.calculate_SDDecompLD(StableDetritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff)
+        # ODE for stable detritus
+        dStabledt = SDin - SDDecompLD #- SDDecompMine - MicUptakeSD - OxidationStable - SDErosion
 
         # ODE for soil mass
         dSoilMassdt = - ErosionRate
 
-        return (dCdt,dSoilMassdt)
+        return (dLabiledt,dStabledt,dSoilMassdt)
 
     def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
 
+        ## TODO: The four variables below are calculated in two different places, LDin and SDin. Need to consolidate these into one location.
     	propPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
     	propNPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
     	propHarvPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
@@ -182,4 +191,30 @@ class SoilModuleCalculator:
 
     	return ErosionRate
 
+    def calculate_SDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
 
+        ## TODO: The four variables below are calculated in two different places, LDin and SDin. Need to consolidate these into one location.
+        propPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
+        propNPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
+        propHarvPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
+        propHarvNPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvNPhLeft  ## TODO: note that propTillage is really from the Management module
+
+        _propManuIndirect = 0.2  ## the percentage of manure that directly gets decomposed into organic matter and nutrients
+        _Manure = 0.0
+        _SDManure = _Manure*_propManuIndirect  ## TODO: Placeholder for some future date when Livestock module is included
+
+        SDin = ((propPHLigninContentFarmMethod)*(PhBio_mort+PhBioHarvest*propHarvPhLeftFarmMethod+_SDManure) +
+            (propNPHLigninContentFarmMethod)*(NPhBio_mort+NPhBioHarvest*propHarvNPhLeftFarmMethod))  ## Question: This equation is different between the Stella code and the Taghikhah et al. (2022) publication appendix ("manure" is included in the publication but not in code)
+
+        return SDin
+
+    def calculate_SDDecompLD(self,Stable_Detritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff):
+        _vfunc = np.vectorize(self.calculate_SDDecompLD_conditional)
+        SDDecompLD = _vfunc(Stable_Detritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff)
+        return SDDecompLD
+
+    def calculate_SDDecompLD_conditional(self,Stable_Detritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff):
+        if Water_calPropUnsat_WatMoist > self.thresholdWater:
+            return Stable_Detritus*self.stableLabile_DecompositionRate*TempCoeff*Decomposing_Microbes
+        else:
+            return self.stableMineral_DecompositionRate  ## Question: In this case, how does this differ from the SDDecompMine flux? Why is there a flux to the Litter_Detritus at all?

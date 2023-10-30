@@ -557,9 +557,10 @@ Soil1
 
 # %%
 _LabileDetritus = 0.3956
-_SoilMass = 23736    ## Question: What are the units for Soil_Mass/SoilMass?
-_PhBM = 0.036
-_NPhBM = 0.0870588235294
+_StableDetritus = 5.1428
+_SoilMass = 23736  ## Question: What are the units for Soil_Mass/SoilMass?
+_PhBioMort = 0.000568811551452
+_NPhBioMort = 0.00348235294118
 _PhBioHarvest = 0.0
 _NPhBioHarvest = 0.0
 _airTempC = 21.43692112
@@ -569,9 +570,10 @@ _Water_SurfWatOutflux = 0.0002
 
 dydt = Soil1.calculate(
     _LabileDetritus,
+    _StableDetritus,
     _SoilMass,
-    _PhBM,
-    _NPhBM,
+    _PhBioMort,
+    _NPhBioMort,
     _PhBioHarvest,
     _NPhBioHarvest,
     _Water_calPropUnsat_WatMoist,
@@ -581,15 +583,28 @@ dydt = Soil1.calculate(
 )
 print("dy/dt =", dydt)
 print()
-print("  dCdt =", dydt[0])
-print("  dSoilMassdt =", dydt[1])
+print("  dLabiledt =", dydt[0])
+print("  dStabledt =", dydt[1])
+print("  dSoilMassdt =", dydt[2])
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
 
 # %%
-LDin = Soil1.calculate_LDin(_PhBM, _NPhBM, _PhBioHarvest, _NPhBioHarvest)
+LDin = Soil1.calculate_LDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest)
 print("LDin =", LDin)
+
+# %%
+SDin = Soil1.calculate_SDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest)
+print("SDin =", SDin)
+
+# %%
+_TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
+print(_TempCoeff)
+SDDecompLD = Soil1.calculate_SDDecompLD(
+    _StableDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, _TempCoeff
+)
+print("SDDecompLD =", SDDecompLD)
 
 # %%
 _Decomposing_Microbes = 0.03
@@ -632,6 +647,7 @@ class PlantSoilModel:
         Photosynthetic_Biomass,
         Non_Photosynthetic_Biomass,
         LabileDetritus,
+        StableDetritus,
         SoilMass,
         solRadGrd,
         airTempC,
@@ -660,8 +676,9 @@ class PlantSoilModel:
             Non_Photosynthetic_Biomass
         )
 
-        dCdt = self.soil_calculator.calculate(
+        dLabileSoilCdt,dStableSoilCdt,dSoilMassdt = self.soil_calculator.calculate(
             LabileDetritus,
+            StableDetritus,
             SoilMass,
             _PhBioMort,
             _NPhBioMort,
@@ -673,7 +690,7 @@ class PlantSoilModel:
             Site,
         )
 
-        return (dPhBMdt, dNPhBMdt, dCdt[0], dCdt[1])
+        return (dPhBMdt, dNPhBMdt, dLabileSoilCdt,dStableSoilCdt,dSoilMassdt)
     
 """
 Differential equation solver implementation for plant model
@@ -711,6 +728,11 @@ class PlantSoilModelSolver:
     """
     Initial value for state 4
     """
+    
+    state5_init: float
+    """
+    Initial value for state 5
+    """
 
     time_start: float
     """
@@ -744,6 +766,7 @@ class PlantSoilModelSolver:
             self.state2_init,
             self.state3_init,
             self.state4_init,
+            self.state5_init,
         )
 
         solve_kwargs = {
@@ -794,7 +817,8 @@ class PlantSoilModelSolver:
                 Photosynthetic_Biomass=y[0],
                 Non_Photosynthetic_Biomass=y[1],
                 LabileDetritus=y[2],
-                SoilMass=y[3],
+                StableDetritus=y[3],
+                SoilMass=y[4],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
@@ -844,7 +868,8 @@ Model = PlantSoilModelSolver(
     state1_init=0.036,
     state2_init=0.0870588,
     state3_init=0.3956,
-    state4_init=23736,
+    state4_init=5.1428,
+    state5_init=23736,
     time_start=1,
 )
 
@@ -861,18 +886,22 @@ res = Model.run(
 )
 
 # %%
-fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+fig, axes = plt.subplots(1, 5, figsize=(18, 4))
 
 axes[0].plot(res.t, res.y[0], c="C0")
 axes[0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
 axes[1].plot(res.t, res.y[1], c="C1")
 axes[1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
 axes[2].plot(res.t, res.y[2], c="C1")
-axes[2].set_ylabel("State variable 3\nLabileDetritus")
-axes[3].plot(res.t, res.y[3], c="C3")
-axes[3].set_ylabel("State variable 4\nSoilMass")
+axes[2].set_ylabel("State variable 3\nLabile Soil Detritus")
+axes[3].plot(res.t, res.y[3], c="C2")
+axes[3].set_ylabel("State variable 3\nStable Soil Detritus")
+axes[4].plot(res.t, res.y[4], c="C3")
+axes[4].set_ylabel("State variable 4\nSoilMass")
 
 plt.tight_layout()
+
+# %%
 
 # %%
 

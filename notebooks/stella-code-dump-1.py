@@ -567,6 +567,8 @@ _airTempC = 21.43692112
 _Water_calPropUnsat_WatMoist = 0.26
 _Water_SurfWatOutflux = 0.0002
 
+_Decomposing_Microbes = 0.03
+
 
 dydt = Soil1.calculate(
     _LabileDetritus,
@@ -599,21 +601,19 @@ SDin = Soil1.calculate_SDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarve
 print("SDin =", SDin)
 
 # %%
+TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
+LDDecomp = Soil1.calculate_LDDecomp(
+    _LabileDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, TempCoeff
+)
+print("LDDecomp =", LDDecomp)
+
+# %%
 _TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
 print(_TempCoeff)
 SDDecompLD = Soil1.calculate_SDDecompLD(
     _StableDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, _TempCoeff
 )
 print("SDDecompLD =", SDDecompLD)
-
-# %%
-_Decomposing_Microbes = 0.03
-
-TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
-LDDecomp = Soil1.calculate_LDDecomp(
-    _LabileDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, TempCoeff
-)
-print("LDDecomp =", LDDecomp)
 
 # %%
 OxidationLabile = Soil1.calculate_oxidation_labile(_LabileDetritus)

@@ -38,12 +38,21 @@ class SoilModuleCalculator:
     iniLabileOxi: float = field(
         default=0.04
     )  ## Question: What does this represent biophysically and what are the units?
+    iniStableOxi: float = field(
+        default=0.001
+    )  ## Question: What does this represent biophysically and what are the units?
     coeffLabile: float = field(
         default=0.0002
     )  ## the microbe consumption rate of labile detritus as fuels for growth
+    coeffStable: float = field(
+        default=0.000009
+    )  ## the microbe consumption rate of stable detritus as fuels for growth
     labileErodible: float = field(
         default=0.165
     )  ## the proportion of labile detritus that can be eroded
+    stableErodible: float = field(
+        default=0.005
+    )  ## the proportion of stable detritus that can be eroded
     
     RainfallErosivityFactor: float = field(
         default=1430
@@ -90,20 +99,25 @@ class SoilModuleCalculator:
         LDDecomp = self.calculate_LDDecomp(LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff)
 
         OxidationLabile = self.calculate_oxidation_labile(LabileDetritus)
+        OxidationStable = self.calculate_OxidationStable(StableDetritus)
 
         MicUptakeLD = self.calculate_MicUptakeLD(LabileDetritus)
+        MicUptakeSD = self.calculate_MicUptakeSD(StableDetritus)
 
         ErosionRate = self.calculate_ErosionRate(SoilMass,Water_SurfWatOutflux,Site.degSlope,Site.slopeLength)
 
         LDErosion = self.calculate_LDErosion(LabileDetritus,ErosionRate)
-
-        # ODE for labile detritus
-        dLabiledt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion #+ SDDecompLD
+        SDErosion = self.calculate_SDErosion(StableDetritus,ErosionRate)
 
         SDin = self.calculate_SDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
         SDDecompLD = self.calculate_SDDecompLD(StableDetritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff)
+        SDDecompMine = self.calculate_SDDecompMine(StableDetritus)
+
+        # ODE for labile detritus
+        dLabiledt = LDin - LDDecomp - OxidationLabile - MicUptakeLD - LDErosion + SDDecompLD
+
         # ODE for stable detritus
-        dStabledt = SDin - SDDecompLD #- SDDecompMine - MicUptakeSD - OxidationStable - SDErosion
+        dStabledt = SDin - SDDecompLD - SDDecompMine - MicUptakeSD - OxidationStable - SDErosion
 
         # ODE for soil mass
         dSoilMassdt = - ErosionRate
@@ -147,11 +161,23 @@ class SoilModuleCalculator:
     	labileOxi = (1+self.iniLabileOxi-(1-self.propTillage)/10)*self.iniLabileOxi
     	return labileOxi * Labile_Detritus
 
+    def calculate_OxidationStable(self, Stable_Detritus):
+        #stableOxi = iniStableOxi*(1+iniStableOxi-farmingMethod)  ## Question: This equation is from the publication supplementary material, which differs from the code
+        stableOxi = (1+self.iniStableOxi-(1-self.propTillage)/10)*self.iniStableOxi
+        OxidationLabile = Stable_Detritus*stableOxi
+        return OxidationLabile
+
     def calculate_MicUptakeLD(self, Labile_Detritus):
     	return self.coeffLabile * Labile_Detritus
 
+    def calculate_MicUptakeSD(self, Stable_Detritus):
+        return self.coeffStable * Stable_Detritus
+
     def calculate_LDErosion(self, Labile_Detritus, ErosionRate):
     	return ErosionRate * Labile_Detritus * self.labileErodible
+
+    def calculate_SDErosion(self, Stable_Detritus, ErosionRate):
+        return ErosionRate * Stable_Detritus * self.stableErodible
 
     def calculate_ErosionRate(self,SoilMass,Water_SurfWatOutflux,degSlope,slopeLength):
     	"""
@@ -218,3 +244,7 @@ class SoilModuleCalculator:
             return Stable_Detritus*self.stableLabile_DecompositionRate*TempCoeff*Decomposing_Microbes
         else:
             return self.stableMineral_DecompositionRate  ## Question: In this case, how does this differ from the SDDecompMine flux? Why is there a flux to the Litter_Detritus at all?
+
+    def calculate_SDDecompMine(self,Stable_Detritus):
+        SDDecompMine = self.stableMineral_DecompositionRate*Stable_Detritus
+        return SDDecompMine

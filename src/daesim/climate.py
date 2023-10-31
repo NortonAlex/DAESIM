@@ -25,6 +25,9 @@ class ClimateModule:
     slopeLength: float = field(
         default=97.2
     )  ## slope length, the distance from the point of origin of overland flow to the point where either the slope gradient decreases enough for deposition to start, or runoff waters are streamed into a channel
+    iniSoilDepth: float = field(
+        default=0.09
+    )  ## initial soil depth (m)
     cellArea = 1  ## area of the unit considered m2
 
 

@@ -559,6 +559,7 @@ Soil1
 _LabileDetritus = 0.3956
 _StableDetritus = 5.1428
 _Mineral = 2.3736
+_DecomposingMicrobes = 0.03  ## Question: Units?
 _SoilMass = 23736  ## Question: What are the units for Soil_Mass/SoilMass?
 _PhBioMort = 0.000568811551452
 _NPhBioMort = 0.00348235294118
@@ -568,13 +569,12 @@ _airTempC = 21.43692112
 _Water_calPropUnsat_WatMoist = 0.26
 _Water_SurfWatOutflux = 0.0002
 
-_Decomposing_Microbes = 0.03
-
 
 dydt = Soil1.calculate(
     _LabileDetritus,
     _StableDetritus,
     _Mineral,
+    _DecomposingMicrobes,
     _SoilMass,
     _PhBioMort,
     _NPhBioMort,
@@ -590,7 +590,8 @@ print()
 print("  dLabiledt =", dydt[0])
 print("  dStabledt =", dydt[1])
 print("  dMineraldt =", dydt[2])
-print("  dSoilMassdt =", dydt[3])
+print("  dDecomposingMicrobesdt =", dydt[3])
+print("  dSoilMassdt =", dydt[4])
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
@@ -606,7 +607,7 @@ print("SDin =", SDin)
 # %%
 TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
 LDDecomp = Soil1.calculate_LDDecomp(
-    _LabileDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, TempCoeff
+    _LabileDetritus, _DecomposingMicrobes, _Water_calPropUnsat_WatMoist, TempCoeff
 )
 print("LDDecomp =", LDDecomp)
 
@@ -614,7 +615,7 @@ print("LDDecomp =", LDDecomp)
 _TempCoeff = func_TempCoeff(_airTempC, optTemperature=Soil1.optTemperature)
 print(_TempCoeff)
 SDDecompLD = Soil1.calculate_SDDecompLD(
-    _StableDetritus, _Decomposing_Microbes, _Water_calPropUnsat_WatMoist, _TempCoeff
+    _StableDetritus, _DecomposingMicrobes, _Water_calPropUnsat_WatMoist, _TempCoeff
 )
 print("SDDecompLD =", SDDecompLD)
 
@@ -631,6 +632,17 @@ ErosionRate = Soil1.calculate_ErosionRate(
     _SoilMass, _Water_SurfWatOutflux, SiteX.degSlope, SiteX.slopeLength
 )
 print("ErosionRate =", ErosionRate)
+
+# %%
+MicDeath = Soil1.calculate_MicDeath(
+    _DecomposingMicrobes,
+    _LabileDetritus,
+    _StableDetritus,
+    _Mineral,
+    _SoilMass,
+    SiteX.iniSoilDepth,
+)
+print("MicDeath =", MicDeath)
 
 
 # %% [markdown]
@@ -652,6 +664,7 @@ class PlantSoilModel:
         LabileDetritus,
         StableDetritus,
         Mineral,
+        DecomposingMicrobes,
         SoilMass,
         solRadGrd,
         airTempC,
@@ -680,10 +693,11 @@ class PlantSoilModel:
             Non_Photosynthetic_Biomass
         )
 
-        dLabileSoilCdt,dStableSoilCdt,dMineralSoilCdt,dSoilMassdt = self.soil_calculator.calculate(
+        dLabileSoilCdt,dStableSoilCdt,dMineralSoilCdt,dMicrobialSoilCdt,dSoilMassdt = self.soil_calculator.calculate(
             LabileDetritus,
             StableDetritus,
             Mineral,
+            DecomposingMicrobes,
             SoilMass,
             _PhBioMort,
             _NPhBioMort,
@@ -695,7 +709,7 @@ class PlantSoilModel:
             Site,
         )
 
-        return (dPhBMdt, dNPhBMdt, dLabileSoilCdt, dStableSoilCdt, dMineralSoilCdt, dSoilMassdt)
+        return (dPhBMdt, dNPhBMdt, dLabileSoilCdt, dStableSoilCdt, dMineralSoilCdt, dMicrobialSoilCdt, dSoilMassdt)
     
 """
 Differential equation solver implementation for plant model
@@ -743,6 +757,11 @@ class PlantSoilModelSolver:
     """
     Initial value for state 6
     """
+    
+    state7_init: float
+    """
+    Initial value for state 7
+    """
 
     time_start: float
     """
@@ -778,6 +797,7 @@ class PlantSoilModelSolver:
             self.state4_init,
             self.state5_init,
             self.state6_init,
+            self.state7_init,
         )
 
         solve_kwargs = {
@@ -830,7 +850,8 @@ class PlantSoilModelSolver:
                 LabileDetritus=y[2],
                 StableDetritus=y[3],
                 Mineral=y[4],
-                SoilMass=y[5],
+                DecomposingMicrobes=y[5],
+                SoilMass=y[6],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
                 dayLength=dayLengthh,
@@ -882,7 +903,8 @@ Model = PlantSoilModelSolver(
     state3_init=0.3956,
     state4_init=5.1428,
     state5_init=2.3736,
-    state6_init=23736,
+    state6_init=0.03,
+    state7_init=23736,
     time_start=1,
 )
 
@@ -901,18 +923,22 @@ res = Model.run(
 # %%
 fig, axes = plt.subplots(2, 3, figsize=(16, 8))
 
-axes[0, 0].plot(res.t, res.y[0], c="k")
-axes[0, 0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
-axes[0, 1].plot(res.t, res.y[1], c="C0")
-axes[0, 1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
-axes[0, 2].plot(res.t, res.y[2], c="C1")
-axes[0, 2].set_ylabel("State variable 3\nLabile Soil Detritus")
-axes[1, 0].plot(res.t, res.y[3], c="C2")
-axes[1, 0].set_ylabel("State variable 4\nStable Soil Detritus")
-axes[1, 1].plot(res.t, res.y[4], c="C3")
-axes[1, 1].set_ylabel("State variable 5\nMineral")
-axes[1, 2].plot(res.t, res.y[5], c="C4")
-axes[1, 2].set_ylabel("State variable 6\nSoilMass")
+axes[0, 0].plot(res.t, res.y[0], c="k", label="PhBM")
+axes[0, 0].set_ylabel(
+    "State variable 1 and 2:\nPhotosynthetic_Biomass,\nNon_photosynthetic_Biomass"
+)
+axes[0, 0].plot(res.t, res.y[1], c="C0", label="NPhBM")
+axes[0, 0].legend()
+axes[0, 1].plot(res.t, res.y[2], c="C1")
+axes[0, 1].set_ylabel("State variable 3\nLabile Soil Detritus")
+axes[0, 2].plot(res.t, res.y[3], c="C2")
+axes[0, 2].set_ylabel("State variable 4\nStable Soil Detritus")
+axes[1, 0].plot(res.t, res.y[4], c="C3")
+axes[1, 0].set_ylabel("State variable 5\nMineral")
+axes[1, 1].plot(res.t, res.y[5], c="C4")
+axes[1, 1].set_ylabel("State variable 6\nDecomposing Microbes")
+axes[1, 2].plot(res.t, res.y[6], c="C5")
+axes[1, 2].set_ylabel("State variable 7\nSoilMass")
 
 plt.tight_layout()
 

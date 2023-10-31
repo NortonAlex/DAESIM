@@ -54,6 +54,7 @@ class SoilModuleCalculator:
     stableErodible: float = field(
         default=0.005
     )  ## the proportion of stable detritus that can be eroded
+    microbeDeathRate: float = field(default=0.11)  ## Question: Units? References?
     
     RainfallErosivityFactor: float = field(
         default=1430
@@ -61,7 +62,6 @@ class SoilModuleCalculator:
     ErodibilityFactor: float = field(default=0.0277) # K or K-factor, soil erodibility factor (e.g. Okorafor and Adeyemo, 2018, doi:10.5923/j.re.20180801.02; Panagos et al., 2014, doi:10.1016/j.scitotenv.2014.02.010). TODO: This is either prescribed as a fixed parameter or calculated dynamically (see Stella for equation), for now I only prescribe it. 
     empiricalC: float = field(default=0.08) # C or C-factor, cover management factor on soil erosion. TODO: This is either prescribed as a fixed parameter or calculated dynamically (see Stella for equation), for now I only prescribe it. 
     P: float = field(default = 1) # Support practices factor
-
 
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
@@ -77,6 +77,7 @@ class SoilModuleCalculator:
         LabileDetritus,
         StableDetritus,
         Mineral,
+        DecomposingMicrobes,
         SoilMass,
         _PhBioMort,
         _NPhBioMort,
@@ -89,7 +90,6 @@ class SoilModuleCalculator:
     ) -> Tuple[float]:
         Cin = 2.0
         Cout = 2.0
-        Decomposing_Microbes = 0.03
 
         # Call the initialisation method
         # SoilConditions = self._initialise(self.iniSoilConditions)
@@ -98,13 +98,14 @@ class SoilModuleCalculator:
 
         LDin = self.calculate_LDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
 
-        LDDecomp = self.calculate_LDDecomp(LabileDetritus, Decomposing_Microbes, Water_calPropUnsat_WatMoist, TempCoeff)
+        LDDecomp = self.calculate_LDDecomp(LabileDetritus, DecomposingMicrobes, Water_calPropUnsat_WatMoist, TempCoeff)
 
         OxidationLabile = self.calculate_oxidation_labile(LabileDetritus)
         OxidationStable = self.calculate_OxidationStable(StableDetritus)
 
         MicUptakeLD = self.calculate_MicUptakeLD(LabileDetritus)
         MicUptakeSD = self.calculate_MicUptakeSD(StableDetritus)
+        MicDeath = self.calculate_MicDeath(DecomposingMicrobes,LabileDetritus,StableDetritus,Mineral,SoilMass,Site.iniSoilDepth)
 
         ErosionRate = self.calculate_ErosionRate(SoilMass,Water_SurfWatOutflux,Site.degSlope,Site.slopeLength)
 
@@ -112,7 +113,7 @@ class SoilModuleCalculator:
         SDErosion = self.calculate_SDErosion(StableDetritus,ErosionRate)
 
         SDin = self.calculate_SDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
-        SDDecompLD = self.calculate_SDDecompLD(StableDetritus,Decomposing_Microbes,Water_calPropUnsat_WatMoist,TempCoeff)
+        SDDecompLD = self.calculate_SDDecompLD(StableDetritus,DecomposingMicrobes,Water_calPropUnsat_WatMoist,TempCoeff)
         SDDecompMine = self.calculate_SDDecompMine(StableDetritus)
 
         MineralDecomp = self.calculate_MineralDecomp(Mineral,TempCoeff)
@@ -126,10 +127,13 @@ class SoilModuleCalculator:
         # ODE for mineral
         dMineraldt = SDDecompMine - MineralDecomp
 
+        # ODE for decomposing microbes (microbial biomass)
+        dDecomposingMicrobesdt = MicUptakeLD + MicUptakeSD - MicDeath
+
         # ODE for soil mass
         dSoilMassdt = - ErosionRate
 
-        return (dLabiledt,dStabledt,dMineraldt,dSoilMassdt)
+        return (dLabiledt,dStabledt,dMineraldt,dDecomposingMicrobesdt,dSoilMassdt)
 
     def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
 
@@ -259,3 +263,16 @@ class SoilModuleCalculator:
     def calculate_MineralDecomp(self,Mineral,TempCoeff):
         MineralDecomp = Mineral*TempCoeff*self.mineralDecompositionRate
         return MineralDecomp
+
+    def calculate_MicDeath(self,Decomposing_Microbes,Labile_Detritus,Stable_Detritus,Mineral,Soil_Mass,iniSoilDepth):
+        calTotalOM = Labile_Detritus+Stable_Detritus+Mineral
+        calPerOM = (calTotalOM*1000/Soil_Mass)*iniSoilDepth  ## ErrorCheck: TODO: Check on the units and makes sure that all of the pools are in grams per meter squared (g soil mass/m2 or g C/m2)
+        _vfunc = np.vectorize(self.calculate_MicDeath_conditional)
+        MicDeath = _vfunc(Decomposing_Microbes,calPerOM)   
+        return MicDeath 
+
+    def calculate_MicDeath_conditional(self,Decomposing_Microbes,calPerOM):
+        if Decomposing_Microbes < 0.01*calPerOM:  ## Question: What is the basis of this conditional equation? What does 0.01*calPerOM mean? I think it represents the fraction of the soil mass that is carbon (organic matter, OM). But why is this compared to the decomposing_microbes, the two variables have different units (decomposing microbes=g C/m2 or kg C/m2; 0.01*calPerOM=dimensionless fraction)?
+            return 0
+        else:
+            return self.microbeDeathRate*(self.propTillage/10)*Decomposing_Microbes

@@ -8,7 +8,12 @@ References: Taghikhah et al. (2022) https://doi.org/10.1016/j.ecolmodel.2022.109
 
 ## Installation
 
-Text todo
+Download the DAESim git repository onto your local machine by clicking on the green "Code" button and following your download method of choice. Once you have the DAESim repository on your local machine, you must install it by following the instructions below.
+
+Before installation of DAESim, you will need to have the following things installed:
+- pip: A Python package management tool. It is the recommended tool for installing and managing Python packages. 
+- Anaconda (Conda): A cross-platform, package and environment management system. 
+Conda and pip do a lot of similar things. Here, we use Conda to install Python package dependencies as well as to manage the virtual environment, while we use pip to install the DAESim package source code. 
 
 ### Installing tools on Mac
 
@@ -35,6 +40,15 @@ You can now run the code or open a jupyter notebook to start testing. To open a 
 Once you're finished, you can deactivate the conda environment with the command:
 
 $ conda deactivate
+
+### Why do we use Anaconda?
+
+There are benefits to using Anaconda rather than just using pip. As discussed in this article (https://pythonspeed.com/articles/conda-vs-pip/) the main benefits are portability and reproducibility.
+- Portability across operating systems: Instead of installing Python in three different ways on Linux, macOS, and Windows, you can use the same environment.yml on all three.
+- Reproducibility: It’s possible to pin almost the whole stack, from the Python interpreter upwards.
+- Consistent configuration: You don’t need to install system packages and Python packages in two different ways; (almost) everything can go in one file, the environment.yml.
+
+Using Conda also addresses another problem: How to deal with Python libraries that require compiled code? At some point we may like to convert some of the DAESim source code into another, more computationally efficient language (e.g. C++ or Fortran) so that we can run larger simulations. If we decide to do that we will need to compile the source code in a language other than Python, in which case pip would be insufficient and Conda will be required. 
 
 ### Why do I only see `.py` files in the `notebooks` directory?
 

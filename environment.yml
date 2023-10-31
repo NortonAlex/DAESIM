@@ -8,8 +8,11 @@ dependencies:
   - ipython
   - jupyter
   - jupytext
+  - matplotlib>=2.2.5
   - nb_black
   - notebook
+  - pandas>=1.4.4
   - pip
   - pip:
     - -r requirements.txt
+  - scipy>=1.9.1

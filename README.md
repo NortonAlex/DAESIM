@@ -35,7 +35,7 @@ $ pip install -e .
 
 Hopefully everything installed successfully. 
 
-You can now run the code or open a jupyter notebook to start testing. To open a jupyter notebook run `jupyter notebook` to open a jupyter server. From there, go into the notebooks directory and work through the examples.
+You can now run the code or open a jupyter notebook to start testing. To open a jupyter notebook run `jupyter-notebook` to open a Jupyter Notebook server or run `jupyter-lab` to open a JupyterLab server (recommended). From there, go into the notebooks directory and work through the examples.
 
 Once you're finished, you can deactivate the conda environment with the command:
 

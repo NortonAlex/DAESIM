@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.1
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -278,6 +278,7 @@ _airTempC = 21.43692112
 _dayLength = 11.900191330084594
 _dayLengthPrev = 11.89987139219148
 _Bio_time = 0.0
+_nday = 1
 _propPhAboveBM = 0.473684210526
 
 
@@ -289,6 +290,7 @@ dydt = Plant1.calculate(
     _dayLength,
     _dayLengthPrev,
     _Bio_time,
+    _nday,
 )
 print("dy/dt =", dydt)
 print()
@@ -396,6 +398,7 @@ PlantGrowth_dayLengthPrev_f = interp1d(
     time, df_forcing["PlantGrowth.dayLengthPrev"].values
 )
 PlantGrowth_Bio_time_f = interp1d(time, df_forcing["PlantGrowth.Bio time"].values)
+Climate_nday_f = interp1d(time, time)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 ## Select any time within the time domain
 t1 = 100
@@ -412,6 +415,8 @@ axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label="dayLengthPrev")
 axes[1, 1].legend()
 axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label="Bio_time")
 axes[2, 0].legend()
+axes[2, 1].plot(Climate_nday_f(time), label="_nday")
+axes[2, 1].legend()
 
 # %% [markdown]
 # ## Model Initialisation
@@ -438,6 +443,7 @@ res = Model.run(
     dayLength=Climate_dayLength_f,
     dayLengthPrev=PlantGrowth_dayLengthPrev_f,
     Bio_time=PlantGrowth_Bio_time_f,
+    _nday=Climate_nday_f,
     time_axis=time_axis,
 )
 
@@ -490,30 +496,37 @@ Transup = PlantX.calculate_Transup(
 
 exudation = PlantX.calculate_exudation(rootBM)
 
+PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),PlantX.x_frequPlanting)
+NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),1-PlantX.x_frequPlanting)
+
 
 # %%
-fig, axes = plt.subplots(3, 2, figsize=(10, 12))
+
+# %%
+fig, axes = plt.subplots(3, 3, figsize=(14, 10), sharex=True)
 
 axes[0, 0].plot(res.t, res.y[0], c="C0")
 axes[0, 0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
 axes[0, 1].plot(res.t, res.y[1], c="C1")
 axes[0, 1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
+axes[0, 2].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
+axes[0, 2].set_ylabel("Diagnostic Flux: PhBioNPP")
 
-axes[1, 0].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
-axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
-axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
-axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
-axes[2, 0].plot(time_axis, Transdown, c="C3", alpha=0.5, label="Transdown")
-axes[2, 0].plot(time_axis, Transup, c="C4", alpha=0.5, label="Transup")
-axes[2, 0].set_ylabel("Diagnostic Flux:\nTransdown, Transup")
-axes[2, 0].legend()
-axes[2, 1].plot(time_axis, exudation, c="C5", label="exudation")
-axes[2, 1].set_ylabel("Diagnostic Flux: exudation")
-axes[2, 1].legend()
+axes[1, 0].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
+axes[1, 0].set_ylabel("Diagnostic Flux: PhBioMort")
+axes[1, 1].plot(time_axis, PhBioPlanting, c="C1", label="PhBioPlanting")
+axes[1, 1].set_ylabel("Diagnostic Flux: PhBioPlanting")
+axes[1, 2].plot(time_axis, NPhBioPlanting, c="C2", label="NPhBioPlanting")
+axes[1, 2].set_ylabel("Diagnostic Flux: NPhBioPlanting")
+
+axes[2, 0].plot(time_axis, Transup, c="C3", alpha=0.5, label="Transup")
+axes[2, 0].set_ylabel("Diagnostic Flux: Transup")
+axes[2, 1].plot(time_axis, Transdown, c="C4", alpha=0.5, label="Transdown")
+axes[2, 1].set_ylabel("Diagnostic Flux: Transdown")
+axes[2, 2].plot(time_axis, exudation, c="C5", label="exudation")
+axes[2, 2].set_ylabel("Diagnostic Flux: exudation")
 
 plt.tight_layout()
-
-# %%
 
 # %% [markdown]
 # ## Soil Module Calculator
@@ -671,6 +684,7 @@ class PlantSoilModel:
         dayLength,
         dayLengthPrev,
         Bio_time,
+        _nday,
         Site,
     ) -> Tuple[float]:
         dPhBMdt, dNPhBMdt = self.plant_calculator.calculate(
@@ -681,6 +695,7 @@ class PlantSoilModel:
             dayLength,
             dayLengthPrev,
             Bio_time,
+            _nday,
         )
         
         _PhBioHarvest = 0
@@ -777,6 +792,7 @@ class PlantSoilModelSolver:
         Bio_time: Callable[
             [float], float
         ],  ## TODO: Temporary driver (calculate internally at some point)
+        _nday: Callable[[float], float],
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
@@ -785,6 +801,7 @@ class PlantSoilModelSolver:
             dayLength,
             dayLengthPrev,
             Bio_time,
+            _nday,
             self.site,
         )
 
@@ -820,6 +837,7 @@ class PlantSoilModelSolver:
         dayLength,
         dayLengthPrev,
         Bio_time,
+        _nday,
         Site: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
@@ -843,6 +861,7 @@ class PlantSoilModelSolver:
             dayLengthh = dayLength(t).squeeze()
             dayLengthPrevh = dayLengthPrev(t).squeeze()
             Bio_timeh = Bio_time(t).squeeze()
+            _ndayh = _nday(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
@@ -857,6 +876,7 @@ class PlantSoilModelSolver:
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
                 Bio_time=Bio_timeh,
+                _nday=_ndayh,
                 Site=Site,
             )
 
@@ -917,6 +937,7 @@ res = Model.run(
     dayLength=Climate_dayLength_f,
     dayLengthPrev=PlantGrowth_dayLengthPrev_f,
     Bio_time=PlantGrowth_Bio_time_f,
+    _nday=Climate_nday_f,
     time_axis=time_axis,
 )
 

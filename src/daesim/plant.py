@@ -99,6 +99,12 @@ class PlantModuleCalculator:
         default=0.025
     )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
 
+    ## TODO: Shift the parameters below to a separate Management module
+    plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of day of year (DOY)
+    x_frequPlanting: float = field(default=0)  ## frequency of planting (days-1)
+    x_maxDensity: float = field(default=40)  ## number of individual plants per m2
+    x_plantWeight: float = field(default=0.0009)  ## mass of individual plant at sowing (Question: units? kg? g?)
+
     def calculate(
         self,
         Photosynthetic_Biomass,
@@ -108,9 +114,10 @@ class PlantModuleCalculator:
         dayLength,
         dayLengthPrev,
         Bio_time,
+        _nday,
     ) -> Tuple[float]:
-        PhBioPlanting = 0
-        NPhBioPlanting = 0
+        PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
+        NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
         PhBioHarvest = 0
         NPhBioHarvest = 0
 
@@ -410,6 +417,27 @@ class PlantModuleCalculator:
         exudation = rootBM * self.rhizodepositReleaseRate
         return exudation
 
+    def calculate_BioPlanting(self,_nday,frequPlanting):
+        """
+        _nday = ordinal day of year at beginning of model run plus number of simulated days (e.g. if model run starts on Jan 30, and runs for two full years, then _nday=30+np.arange(2*365))
+        frequPlanting = the planting rate (days-1)
+
+        returns:
+        BioPlanting = the flux of carbon planted
+        """
+        _vfunc = np.vectorize(self.calculate_BioPlanting_conditional,otypes=[float])
+        BioPlanting = _vfunc(_nday%365,frequPlanting)
+        return BioPlanting
+
+    def calculate_BioPlanting_conditional(self,_nday,frequPlanting):
+        if (self.plantingDay <= _nday < self.plantingDay+1):
+            Planting = self.x_maxDensity * self.x_plantWeight 
+            BioPlanting = Planting * frequPlanting
+            return BioPlanting
+        else:
+            return 0
+
+
 
 """
 Differential equation solver implementation for plant model
@@ -449,6 +477,7 @@ class PlantModelSolver:
         Bio_time: Callable[
             [float], float
         ],  ## TODO: Temporary driver (calculate internally at some point)
+        _nday: Callable[[float], float],
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
@@ -457,6 +486,7 @@ class PlantModelSolver:
             dayLength,
             dayLengthPrev,
             Bio_time,
+            _nday,
         )
 
         t_eval = time_axis
@@ -486,6 +516,7 @@ class PlantModelSolver:
         dayLength,
         dayLengthPrev,
         Bio_time: Callable[float, float],
+        _nday: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -508,6 +539,7 @@ class PlantModelSolver:
             dayLengthh = dayLength(t).squeeze()
             dayLengthPrevh = dayLengthPrev(t).squeeze()
             Bio_timeh = Bio_time(t).squeeze()
+            _ndayh = _nday(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
@@ -517,6 +549,7 @@ class PlantModelSolver:
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
                 Bio_time=Bio_timeh,
+                _nday=_ndayh,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt

@@ -751,6 +751,7 @@ class PlantSoilModel:
         _nday,
         Site,
     ) -> Tuple[float]:
+        PlantConditions = self.plant_calculator._initialise(self.plant_calculator.iniNPhAboveBM)
         dPhBMdt, dNPhBMdt = self.plant_calculator.calculate(
             Photosynthetic_Biomass,
             Non_Photosynthetic_Biomass,
@@ -762,8 +763,8 @@ class PlantSoilModel:
             _nday,
         )
         
-        _PhBioHarvest = 0
-        _NPhBioHarvest = 0
+        _PhBioHarvest = self.plant_calculator.calculate_PhBioHarvest(Photosynthetic_Biomass,Non_Photosynthetic_Biomass,PlantConditions["maxBM"],_nday)
+        _NPhBioHarvest = self.plant_calculator.calculate_NPhBioHarvest(Non_Photosynthetic_Biomass,_nday)
         _Water_calPropUnsat_WatMoist = 0.24
         _Water_SurfWatOutflux = 0.0001
 

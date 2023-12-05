@@ -69,6 +69,7 @@ class PlantModuleCalculator:
         default=0.85
     )  ## Ratio of above to below ground non-photosynthetic biomas (beta)
     heightMaxBM: float = field(default=1.2)  ## Height at maximum biomass
+    estimateHeight: float = field(default=1.2)  ## Height of the crop (m). Modification: Changed the units from cm (in Stella) to m (used here). ErrorCheck: Not sure if the units conversions were correct in Stella DAESsim, as this was in cm yet everything else was in m.
     iniRootDensity: float = field(default=0.05)
     propNPhRoot: float = field(
         default=0.002
@@ -100,10 +101,15 @@ class PlantModuleCalculator:
     )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
 
     ## TODO: Shift the parameters below to a separate Management module
-    plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of day of year (DOY)
+    plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of ordinal day of year (DOY)
+    harvestDay: float = field(default=235)  ## day that harvest occurs, in units of ordinal day of year (DOY)
     x_frequPlanting: float = field(default=0)  ## frequency of planting (days-1)
     x_maxDensity: float = field(default=40)  ## number of individual plants per m2
     x_plantWeight: float = field(default=0.0009)  ## mass of individual plant at sowing (Question: units? kg? g?)
+    x_propPhHarvesting: float = field(default=0.3)  ## proportion of Photosynthetic_Biomass harvested
+    x_propNPhHarvest: float = field(default=0.4)  ## proportion of Non_Photosynthetic_Biomass harvested
+    x_PhHarvestTurnoverTime: float = field(default=1)  ## Turnover time (days). Modification: This is a new parameter required to run in this framework. It does not exist in the Stella code, but it is needed as a replacement for "DT"
+    x_NPhHarvestTurnoverTime: float = field(default=1)  ## Turnover time (days). Modification: This is a new parameter required to run in this framework. It does not exist in the Stella code, but it is needed as a replacement for "DT"
 
     def calculate(
         self,
@@ -118,14 +124,15 @@ class PlantModuleCalculator:
     ) -> Tuple[float]:
         PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
         NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
-        PhBioHarvest = 0
-        NPhBioHarvest = 0
 
         WatStressHigh = 1
         WatStressLow = 0.99
 
         # Call the initialisation method
         PlantConditions = self._initialise(self.iniNPhAboveBM)
+
+        PhBioHarvest = self.calculate_PhBioHarvest(Photosynthetic_Biomass,Non_Photosynthetic_Biomass,PlantConditions["maxBM"],_nday)
+        NPhBioHarvest = self.calculate_NPhBioHarvest(Non_Photosynthetic_Biomass,_nday)
 
         # Call "conditions for plant" methods (following Stella code naming convention for this)
         rootBM = self.calculate_rootBM(Non_Photosynthetic_Biomass)
@@ -436,6 +443,45 @@ class PlantModuleCalculator:
             return BioPlanting
         else:
             return 0
+
+    def calculate_PhBioHarvest(self,Photosynthetic_Biomass,Non_Photosynthetic_Biomass,maxBM,_nday):
+        _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])
+        HarvestTime = _vfunc(_nday%365)
+        _vfunc = np.vectorize(self.calculate_CalcuHeight_conditional,otypes=[float])
+        CalcuHeight = _vfunc(Photosynthetic_Biomass,Non_Photosynthetic_Biomass,maxBM)
+        _vfunc = np.vectorize(self.calculate_removaltime_conditional,otypes=[float])
+        RemovalTime = _vfunc(CalcuHeight,_nday)
+        #PhBioHarvest = (HarvestTime+RemovalTime)*self.x_propPhHarvesting*Photosynthetic_Biomass/self.x_PhHarvestTurnoverTime  ## Question: Why is it HarvestTime+RemovalTime? That could produce a factor of 2 for this flux. Why not max(0,HarvestTime,RemovalTime)?
+        PhBioHarvest = (HarvestTime)*self.x_propPhHarvesting*Photosynthetic_Biomass/self.x_PhHarvestTurnoverTime  ## Modification: Not considering "Removal" as a harvest flux, so RemovalTime is not being used. It is unclear what this represents, it is not triggered in the default Stella DAESim run, and it seems to cause real headaches for the scipy solver, so I'm leaving it out for now.
+        return PhBioHarvest
+
+    def calculate_harvesttime_conditional(self,_nday):
+        if (self.harvestDay <= _nday < self.harvestDay+3):  ## Question: Why is the harvest period fixed to three days? Why not one considering this model technically applies to one management unit (or rather one m2)?
+            return 1
+        else:
+            return 0
+
+    def calculate_removaltime_conditional(self,CalcuHeight,_nday):
+        "Regular maintenance that does not cause death of plants. Kicks in whenever the plant height exceeds a certain value"
+        ## Question: What does this represent in terms of management practice? Is it appropriate or necessary? Or just required because the plant growth model would continue to grow beyond the max height (or biomass) if this removal flux wasn't present.
+        if CalcuHeight*self.x_propPhHarvesting > self.estimateHeight:
+            return 1
+        else:
+            return 0
+
+    def calculate_CalcuHeight_conditional(self,Photosynthetic_Biomass,Non_Photosynthetic_Biomass,maxBM):
+        "Height of the plants relative to current biomass. It is assumed that max height occurs at max biomass."
+        if maxBM > 0:
+            TotalBM = Photosynthetic_Biomass + Non_Photosynthetic_Biomass
+            return self.heightMaxBM * TotalBM/maxBM
+        else:
+            return 0
+
+    def calculate_NPhBioHarvest(self,Non_Photosynthetic_Biomass,_nday):
+        _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])
+        HarvestTime = _vfunc(_nday%365)
+        NPhBioHarvest = HarvestTime*self.x_propNPhHarvest*Non_Photosynthetic_Biomass/self.x_NPhHarvestTurnoverTime
+        return NPhBioHarvest
 
 
 

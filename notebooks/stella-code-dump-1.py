@@ -48,7 +48,7 @@ from daesim.soil import SoilModuleCalculator
 
 # %%
 start_time = 1
-end_time = 400
+end_time = 800
 dt = 1
 time = np.arange(start_time, end_time + dt, dt)
 
@@ -342,6 +342,63 @@ print(
     Transup,
 )
 
+# %%
+PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
+print("nday =",_nday)
+print("maxBM =",PlantConditions["maxBM"])
+CalcuHeight = Plant1.calculate_CalcuHeight_conditional(_PhBM,_NPhBM,PlantConditions["maxBM"])
+print("CalcuHeight =",CalcuHeight)
+HarvestTime = Plant1.calculate_harvesttime_conditional(_nday)
+print("HarvestTime?",bool(HarvestTime))
+RemovalTime = Plant1.calculate_removaltime_conditional(CalcuHeight,_nday)
+print("RemovalTime?",bool(RemovalTime))
+
+PhBioHarvest = Plant1.calculate_PhBioHarvest(
+    _PhBM,
+    _NPhBM,
+    PlantConditions["maxBM"],
+    _nday,
+)
+print(
+    "PhBioHarvest =",
+    PhBioHarvest,
+)
+
+# %%
+_nday = 235
+_PhBM = 0.58126338
+_NPhBM = 0.43178847544
+
+PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
+print("nday =",_nday)
+print("maxBM =",PlantConditions["maxBM"])
+CalcuHeight = Plant1.calculate_CalcuHeight_conditional(_PhBM,_NPhBM,PlantConditions["maxBM"])
+print("CalcuHeight =",CalcuHeight)
+HarvestTime = Plant1.calculate_harvesttime_conditional(_nday)
+print("HarvestTime?",bool(HarvestTime))
+RemovalTime = Plant1.calculate_removaltime_conditional(CalcuHeight,_nday)
+print("RemovalTime?",bool(RemovalTime))
+
+PhBioHarvest = Plant1.calculate_PhBioHarvest(
+    _PhBM,
+    _NPhBM,
+    PlantConditions["maxBM"],
+    _nday,
+)
+print(
+    "PhBioHarvest =",
+    PhBioHarvest,
+)
+
+NPhBioHarvest = Plant1.calculate_NPhBioHarvest(
+    _NPhBM,
+    _nday,
+)
+print(
+    "NPhBioHarvest =",
+    NPhBioHarvest,
+)
+
 # %% [markdown]
 # #### - Test the TempCoeff function
 #
@@ -460,6 +517,8 @@ res.y[1]
 # Now that the model ODE has been evaluated, you can compute any related "diagnostic" quantities.
 
 # %%
+PlantConditions = PlantX._initialise(PlantX.iniNPhAboveBM)
+
 PhBioNPP = PlantX.calculate_PhBioNPP(
     res.y[0],
     Climate_solRadGrd_f(time_axis),
@@ -499,8 +558,9 @@ exudation = PlantX.calculate_exudation(rootBM)
 PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),PlantX.x_frequPlanting)
 NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),1-PlantX.x_frequPlanting)
 
+PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis))
+NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis))
 
-# %%
 
 # %%
 fig, axes = plt.subplots(3, 3, figsize=(14, 10), sharex=True)
@@ -515,9 +575,13 @@ axes[0, 2].set_ylabel("Diagnostic Flux: PhBioNPP")
 axes[1, 0].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
 axes[1, 0].set_ylabel("Diagnostic Flux: PhBioMort")
 axes[1, 1].plot(time_axis, PhBioPlanting, c="C1", label="PhBioPlanting")
-axes[1, 1].set_ylabel("Diagnostic Flux: PhBioPlanting")
+axes[1, 1].plot(time_axis, -PhBioHarvest, c="0.5", linestyle=":", label="PhBioHarvest")
+axes[1, 1].set_ylabel("Diagnostic Flux: PhBioPlanting/Harvest")
+axes[1, 1].legend()
 axes[1, 2].plot(time_axis, NPhBioPlanting, c="C2", label="NPhBioPlanting")
-axes[1, 2].set_ylabel("Diagnostic Flux: NPhBioPlanting")
+axes[1, 2].plot(time_axis, -NPhBioHarvest, c="0.5", linestyle=":", label="NPhBioHarvest")
+axes[1, 2].set_ylabel("Diagnostic Flux: NPhBioPlanting/Harvest")
+axes[1, 2].legend()
 
 axes[2, 0].plot(time_axis, Transup, c="C3", alpha=0.5, label="Transup")
 axes[2, 0].set_ylabel("Diagnostic Flux: Transup")

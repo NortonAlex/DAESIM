@@ -511,6 +511,11 @@ res = Model.run(
 res.y[0]
 
 # %%
+res.y[1] 
+
+# %%
+
+# %%
 res.y[1]
 
 # %% [markdown]
@@ -555,8 +560,8 @@ Transup = PlantX.calculate_Transup(
 
 exudation = PlantX.calculate_exudation(rootBM)
 
-PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),PlantX.x_frequPlanting)
-NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),1-PlantX.x_frequPlanting)
+PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),PlantX.x_propPhPlanting)
+NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),1-PlantX.x_propPhPlanting)
 
 PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis))
 NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis))

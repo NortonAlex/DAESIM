@@ -104,7 +104,9 @@ class PlantModuleCalculator:
     plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of ordinal day of year (DOY)
     harvestDay: float = field(default=235)  ## day that harvest occurs, in units of ordinal day of year (DOY)
     x_frequPlanting: float = field(default=0)  ## frequency of planting (days-1)
+    x_propPhPlanting: float = field(default=0)  ## fraction of planted biomass that is photosynthetic (almost always equal to 0, as it is seeds that are planted, which have no photosynthetic biomass. Although, this parameter allows planting of seedlings which have some photosynthetic biomass as soon as they're planted). Modification: This variable was previously defined using "frequPlanting", which didn't match with the units or its definition.
     x_maxDensity: float = field(default=40)  ## number of individual plants per m2
+    x_plantingRate: float = field(default=40)  ## number of individual plants per m2 per day (# plants m-2 d-1)
     x_plantWeight: float = field(default=0.0009)  ## mass of individual plant at sowing (Question: units? kg? g?)
     x_propPhHarvesting: float = field(default=0.3)  ## proportion of Photosynthetic_Biomass harvested
     x_propNPhHarvest: float = field(default=0.4)  ## proportion of Non_Photosynthetic_Biomass harvested
@@ -122,8 +124,8 @@ class PlantModuleCalculator:
         Bio_time,
         _nday,
     ) -> Tuple[float]:
-        PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
-        NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_frequPlanting)  ## Errorcheck: "frequPlanting" represents the planting/sowing rate in units per day (days-1), I'm not sure why it is used to split up (fractional allocate) the planting carbon mass between Ph and NPh pools.
+        PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_propPhPlanting) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_propPhPlanting)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
         WatStressHigh = 1
         WatStressLow = 0.99
@@ -424,22 +426,22 @@ class PlantModuleCalculator:
         exudation = rootBM * self.rhizodepositReleaseRate
         return exudation
 
-    def calculate_BioPlanting(self,_nday,frequPlanting):
+    def calculate_BioPlanting(self,_nday,propBMPlanting):
         """
         _nday = ordinal day of year at beginning of model run plus number of simulated days (e.g. if model run starts on Jan 30, and runs for two full years, then _nday=30+np.arange(2*365))
-        frequPlanting = the planting rate (days-1)
+        propBMPlanting = the proportion of planting that applies to this live biomass pool (e.g. if sowing seeds, calculation of the the non-photosynthetic planting flux will require propBMPlanting=1). Modification: The Stella code uses a parameter "frequPlanting" which isn't the correct use, given its definition. 
 
         returns:
         BioPlanting = the flux of carbon planted
         """
         _vfunc = np.vectorize(self.calculate_BioPlanting_conditional,otypes=[float])
-        BioPlanting = _vfunc(_nday%365,frequPlanting)
+        BioPlanting = _vfunc(_nday%365,propBMPlanting)
         return BioPlanting
 
-    def calculate_BioPlanting_conditional(self,_nday,frequPlanting):
+    def calculate_BioPlanting_conditional(self,_nday,propBMPlanting):
+        # Modification: I have modified the variables/parameters used in this function as the definitions and units in the Stella code didn't match up (see previous parameters maxDensity and frequPlanting vs new parameters plantingRate and propPhPlanting).
         if (self.plantingDay <= _nday < self.plantingDay+1):
-            Planting = self.x_maxDensity * self.x_plantWeight 
-            BioPlanting = Planting * frequPlanting
+            BioPlanting = self.x_plantingRate * self.x_plantWeight * propBMPlanting
             return BioPlanting
         else:
             return 0

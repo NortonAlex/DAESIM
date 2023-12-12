@@ -8,6 +8,7 @@ from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import func_TempCoeff
+from daesim.management import ManagementModule as Management
 
 
 @define
@@ -101,7 +102,7 @@ class PlantModuleCalculator:
     )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
 
     ## TODO: Shift the parameters below to a separate Management module
-    plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of ordinal day of year (DOY)
+    #plantingDay: float = field(default=30)  ## day that planting (sowing) occurs, in units of ordinal day of year (DOY)
     harvestDay: float = field(default=235)  ## day that harvest occurs, in units of ordinal day of year (DOY)
     x_frequPlanting: float = field(default=0)  ## frequency of planting (days-1)
     x_propPhPlanting: float = field(default=0)  ## fraction of planted biomass that is photosynthetic (almost always equal to 0, as it is seeds that are planted, which have no photosynthetic biomass. Although, this parameter allows planting of seedlings which have some photosynthetic biomass as soon as they're planted). Modification: This variable was previously defined using "frequPlanting", which didn't match with the units or its definition.
@@ -123,9 +124,12 @@ class PlantModuleCalculator:
         dayLengthPrev,
         Bio_time,
         _nday,
+        Management,
     ) -> Tuple[float]:
-        PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_propPhPlanting) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
-        NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_propPhPlanting)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        #PhBioPlanting = self.calculate_BioPlanting(_nday,self.x_propPhPlanting) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        #NPhBioPlanting = self.calculate_BioPlanting(_nday,1-self.x_propPhPlanting)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        PhBioPlanting = self.calculate_BioPlanting(_nday,Management.x_propPhPlanting,Management) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        NPhBioPlanting = self.calculate_BioPlanting(_nday,1-Management.x_propPhPlanting,Management)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
         WatStressHigh = 1
         WatStressLow = 0.99
@@ -426,7 +430,7 @@ class PlantModuleCalculator:
         exudation = rootBM * self.rhizodepositReleaseRate
         return exudation
 
-    def calculate_BioPlanting(self,_nday,propBMPlanting):
+    def calculate_BioPlanting(self,_nday,propBMPlanting,Management):
         """
         _nday = ordinal day of year at beginning of model run plus number of simulated days (e.g. if model run starts on Jan 30, and runs for two full years, then _nday=30+np.arange(2*365))
         propBMPlanting = the proportion of planting that applies to this live biomass pool (e.g. if sowing seeds, calculation of the the non-photosynthetic planting flux will require propBMPlanting=1). Modification: The Stella code uses a parameter "frequPlanting" which isn't the correct use, given its definition. 
@@ -435,13 +439,13 @@ class PlantModuleCalculator:
         BioPlanting = the flux of carbon planted
         """
         _vfunc = np.vectorize(self.calculate_BioPlanting_conditional,otypes=[float])
-        BioPlanting = _vfunc(_nday%365,propBMPlanting)
+        BioPlanting = _vfunc(_nday%365,propBMPlanting,Management)
         return BioPlanting
 
-    def calculate_BioPlanting_conditional(self,_nday,propBMPlanting):
+    def calculate_BioPlanting_conditional(self,_nday,propBMPlanting,Management):
         # Modification: I have modified the variables/parameters used in this function as the definitions and units in the Stella code didn't match up (see previous parameters maxDensity and frequPlanting vs new parameters plantingRate and propPhPlanting).
-        if (self.plantingDay <= _nday < self.plantingDay+1):
-            BioPlanting = self.x_plantingRate * self.x_plantWeight * propBMPlanting
+        if (Management.x_plantingDay <= _nday < Management.x_plantingDay+1):
+            BioPlanting = Management.x_plantingRate * Management.x_plantWeight * propBMPlanting
             return BioPlanting
         else:
             return 0

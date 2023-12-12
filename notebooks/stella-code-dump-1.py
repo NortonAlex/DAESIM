@@ -32,6 +32,9 @@ from daesim.plant import PlantModuleCalculator, PlantModelSolver
 from daesim.climate import ClimateModule
 from daesim.soil import SoilModuleCalculator
 
+# %%
+from daesim.management import ManagementModule
+
 # %% [markdown]
 # ### Notes for translating code
 #
@@ -281,6 +284,7 @@ _Bio_time = 0.0
 _nday = 1
 _propPhAboveBM = 0.473684210526
 
+Management = ManagementModule()
 
 dydt = Plant1.calculate(
     _PhBM,
@@ -291,6 +295,7 @@ dydt = Plant1.calculate(
     _dayLengthPrev,
     _Bio_time,
     _nday,
+    Management,
 )
 print("dy/dt =", dydt)
 print()
@@ -343,61 +348,29 @@ print(
 )
 
 # %%
-PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
-print("nday =",_nday)
-print("maxBM =",PlantConditions["maxBM"])
-CalcuHeight = Plant1.calculate_CalcuHeight_conditional(_PhBM,_NPhBM,PlantConditions["maxBM"])
-print("CalcuHeight =",CalcuHeight)
-HarvestTime = Plant1.calculate_harvesttime_conditional(_nday)
-print("HarvestTime?",bool(HarvestTime))
-RemovalTime = Plant1.calculate_removaltime_conditional(CalcuHeight,_nday)
-print("RemovalTime?",bool(RemovalTime))
-
-PhBioHarvest = Plant1.calculate_PhBioHarvest(
-    _PhBM,
-    _NPhBM,
-    PlantConditions["maxBM"],
-    _nday,
-)
-print(
-    "PhBioHarvest =",
-    PhBioHarvest,
-)
-
-# %%
-_nday = 235
+_nday = 30
 _PhBM = 0.58126338
 _NPhBM = 0.43178847544
 
-PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
+Management = ManagementModule(x_plantingDay=30)
+
 print("nday =",_nday)
-print("maxBM =",PlantConditions["maxBM"])
-CalcuHeight = Plant1.calculate_CalcuHeight_conditional(_PhBM,_NPhBM,PlantConditions["maxBM"])
-print("CalcuHeight =",CalcuHeight)
-HarvestTime = Plant1.calculate_harvesttime_conditional(_nday)
-print("HarvestTime?",bool(HarvestTime))
-RemovalTime = Plant1.calculate_removaltime_conditional(CalcuHeight,_nday)
-print("RemovalTime?",bool(RemovalTime))
+print("plantingDay =",Management.x_plantingDay)
+print("harvestDay =",Plant1.harvestDay)
 
-PhBioHarvest = Plant1.calculate_PhBioHarvest(
-    _PhBM,
-    _NPhBM,
-    PlantConditions["maxBM"],
-    _nday,
-)
-print(
-    "PhBioHarvest =",
-    PhBioHarvest,
-)
+PhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.x_propPhPlanting,Management) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+NPhBioPlanting = Plant1.calculate_BioPlanting(_nday,1-Management.x_propPhPlanting,Management)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
-NPhBioHarvest = Plant1.calculate_NPhBioHarvest(
-    _NPhBM,
-    _nday,
-)
-print(
-    "NPhBioHarvest =",
-    NPhBioHarvest,
-)
+print("PhBioPlanting, NPhBioPlanting =",PhBioPlanting, NPhBioPlanting)
+
+PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
+PhBioHarvest = Plant1.calculate_PhBioHarvest(_PhBM,_NPhBM,PlantConditions["maxBM"],_nday)
+NPhBioHarvest = Plant1.calculate_NPhBioHarvest(_NPhBM,_nday)
+
+print("PhBioHarvest, NPhBioHarvest =",PhBioHarvest, NPhBioHarvest)
+
+
+# %%
 
 # %% [markdown]
 # #### - Test the TempCoeff function

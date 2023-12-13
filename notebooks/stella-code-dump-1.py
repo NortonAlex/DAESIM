@@ -295,7 +295,7 @@ dydt = Plant1.calculate(
     _dayLengthPrev,
     _Bio_time,
     _nday,
-    Management,
+    Management,   # It is optional to pass this argument
 )
 print("dy/dt =", dydt)
 print()
@@ -453,6 +453,7 @@ axes[2, 1].legend()
 
 # %%
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)
+ManagementX = ManagementModule()
 
 Model = PlantModelSolver(
     calculator=PlantX, state1_init=0.036, state2_init=0.0870588, time_start=1
@@ -465,6 +466,7 @@ Model = PlantModelSolver(
 time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
+    Management=ManagementX,
     airTempC=Climate_airTempC_f,
     solRadGrd=Climate_solRadGrd_f,
     dayLength=Climate_dayLength_f,
@@ -482,11 +484,6 @@ res.y[0]
 
 # %%
 res.y[1] 
-
-# %%
-
-# %%
-res.y[1]
 
 # %% [markdown]
 # Now that the model ODE has been evaluated, you can compute any related "diagnostic" quantities.
@@ -530,11 +527,11 @@ Transup = PlantX.calculate_Transup(
 
 exudation = PlantX.calculate_exudation(rootBM)
 
-PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),PlantX.x_propPhPlanting)
-NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),1-PlantX.x_propPhPlanting)
+PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight)
+NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),Management.plantingDay,1-Management.propPhPlanting,Management.plantingRate,Management.plantWeight)
 
-PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis))
-NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis))
+PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis),Management.harvestDay,Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
+NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis),Management.harvestDay,Management.propNPhHarvest,Management.NPhHarvestTurnoverTime)
 
 
 # %%

@@ -8,7 +8,7 @@ from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import func_TempCoeff
-from daesim.management import ManagementModule as Management
+from daesim.management import ManagementModule
 
 
 @define
@@ -111,7 +111,7 @@ class PlantModuleCalculator:
         dayLengthPrev,
         Bio_time,
         _nday,
-        Management,
+        Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
     ) -> Tuple[float]:
         PhBioPlanting = self.calculate_BioPlanting(_nday,Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
         NPhBioPlanting = self.calculate_BioPlanting(_nday,Management.plantingDay,1-Management.propPhPlanting,Management.plantingRate,Management.plantWeight)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
@@ -507,6 +507,7 @@ class PlantModelSolver:
 
     def run(
         self,
+        Management,
         airTempC: Callable[[float], float],
         solRadGrd: Callable[[float], float],
         dayLength: Callable[[float], float],
@@ -518,6 +519,7 @@ class PlantModelSolver:
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
+            Management,
             airTempC,
             solRadGrd,
             dayLength,
@@ -548,8 +550,9 @@ class PlantModelSolver:
 
     def _get_func_to_solve(
         self,
-        solRadGrd,
+        Management,
         airTempC,
+        solRadGrd,
         dayLength,
         dayLengthPrev,
         Bio_time: Callable[float, float],
@@ -587,6 +590,7 @@ class PlantModelSolver:
                 dayLengthPrev=dayLengthPrevh,
                 Bio_time=Bio_timeh,
                 _nday=_ndayh,
+                Management=Management,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt

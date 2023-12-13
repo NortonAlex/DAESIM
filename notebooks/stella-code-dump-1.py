@@ -352,20 +352,20 @@ _nday = 235
 _PhBM = 0.58126338
 _NPhBM = 0.43178847544
 
-Management = ManagementModule(x_plantingDay=30)
+Management = ManagementModule(plantingDay=30)
 
 print("nday =",_nday)
-print("plantingDay =",Management.x_plantingDay)
-print("harvestDay =",Plant1.harvestDay)
+print("plantingDay =",Management.plantingDay)
+print("harvestDay =",Management.harvestDay)
 
-PhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.x_plantingDay,Management.x_propPhPlanting,Management.x_plantingRate,Management.x_plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
-NPhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.x_plantingDay,1-Management.x_propPhPlanting,Management.x_plantingRate,Management.x_plantWeight)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+PhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+NPhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.plantingDay,1-Management.propPhPlanting,Management.plantingRate,Management.plantWeight)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
 print("PhBioPlanting, NPhBioPlanting =",PhBioPlanting, NPhBioPlanting)
 
 PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
-PhBioHarvest = Plant1.calculate_PhBioHarvest(_PhBM,_NPhBM,PlantConditions["maxBM"],_nday,Management.x_harvestDay,Management.x_propPhHarvesting,Management.x_PhHarvestTurnoverTime)
-NPhBioHarvest = Plant1.calculate_NPhBioHarvest(_NPhBM,_nday,Management.x_harvestDay,Management.x_propNPhHarvest,Management.x_NPhHarvestTurnoverTime)
+PhBioHarvest = Plant1.calculate_PhBioHarvest(_PhBM,_NPhBM,PlantConditions["maxBM"],_nday,Management.harvestDay,Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
+NPhBioHarvest = Plant1.calculate_NPhBioHarvest(_NPhBM,_nday,Management.harvestDay,Management.propNPhHarvest,Management.NPhHarvestTurnoverTime)
 
 print("PhBioHarvest, NPhBioHarvest =",PhBioHarvest, NPhBioHarvest)
 

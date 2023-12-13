@@ -456,7 +456,7 @@ PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 ManagementX = ManagementModule()
 
 Model = PlantModelSolver(
-    calculator=PlantX, state1_init=0.036, state2_init=0.0870588, time_start=1
+    calculator=PlantX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, time_start=1
 )
 
 # %% [markdown]
@@ -466,7 +466,6 @@ Model = PlantModelSolver(
 time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
-    Management=ManagementX,
     airTempC=Climate_airTempC_f,
     solRadGrd=Climate_solRadGrd_f,
     dayLength=Climate_dayLength_f,
@@ -618,6 +617,7 @@ _airTempC = 21.43692112
 _Water_calPropUnsat_WatMoist = 0.26
 _Water_SurfWatOutflux = 0.0002
 
+ManagementX = ManagementModule()
 
 dydt = Soil1.calculate(
     _LabileDetritus,
@@ -633,6 +633,7 @@ dydt = Soil1.calculate(
     _Water_SurfWatOutflux,
     _airTempC,
     SiteX,
+    ManagementX,
 )
 print("dy/dt =", dydt)
 print()
@@ -646,11 +647,11 @@ print("  dSoilMassdt =", dydt[4])
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
 
 # %%
-LDin = Soil1.calculate_LDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest)
+LDin = Soil1.calculate_LDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest, ManagementX.propTillage, ManagementX.propHarvPhLeft, ManagementX.propHarvNPhLeft)
 print("LDin =", LDin)
 
 # %%
-SDin = Soil1.calculate_SDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest)
+SDin = Soil1.calculate_SDin(_PhBioMort, _NPhBioMort, _PhBioHarvest, _NPhBioHarvest, ManagementX.propTillage, ManagementX.propHarvPhLeft, ManagementX.propHarvNPhLeft)
 print("SDin =", SDin)
 
 # %%
@@ -669,7 +670,7 @@ SDDecompLD = Soil1.calculate_SDDecompLD(
 print("SDDecompLD =", SDDecompLD)
 
 # %%
-OxidationLabile = Soil1.calculate_oxidation_labile(_LabileDetritus)
+OxidationLabile = Soil1.calculate_oxidation_labile(_LabileDetritus, ManagementX.propTillage)
 print("OxidationLabile =", OxidationLabile)
 
 # %%
@@ -690,6 +691,7 @@ MicDeath = Soil1.calculate_MicDeath(
     _Mineral,
     _SoilMass,
     SiteX.iniSoilDepth,
+    ManagementX.propTillage,
 )
 print("MicDeath =", MicDeath)
 
@@ -722,6 +724,7 @@ class PlantSoilModel:
         Bio_time,
         _nday,
         Site,
+        Management,
     ) -> Tuple[float]:
         PlantConditions = self.plant_calculator._initialise(self.plant_calculator.iniNPhAboveBM)
         dPhBMdt, dNPhBMdt = self.plant_calculator.calculate(
@@ -735,8 +738,8 @@ class PlantSoilModel:
             _nday,
         )
         
-        _PhBioHarvest = self.plant_calculator.calculate_PhBioHarvest(Photosynthetic_Biomass,Non_Photosynthetic_Biomass,PlantConditions["maxBM"],_nday)
-        _NPhBioHarvest = self.plant_calculator.calculate_NPhBioHarvest(Non_Photosynthetic_Biomass,_nday)
+        _PhBioHarvest = self.plant_calculator.calculate_PhBioHarvest(Photosynthetic_Biomass,Non_Photosynthetic_Biomass,PlantConditions["maxBM"],_nday,Management.harvestDay,Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
+        _NPhBioHarvest = self.plant_calculator.calculate_NPhBioHarvest(Non_Photosynthetic_Biomass,_nday,Management.harvestDay,1-Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
         _Water_calPropUnsat_WatMoist = 0.24
         _Water_SurfWatOutflux = 0.0001
 
@@ -779,6 +782,9 @@ class PlantSoilModelSolver:
     
     site: ClimateModule
     """Site details"""
+
+    management: ManagementModule
+    """Management details"""
     
     state1_init: float
     """
@@ -833,13 +839,14 @@ class PlantSoilModelSolver:
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
+            self.site,
+            self.management,
             airTempC,
             solRadGrd,
             dayLength,
             dayLengthPrev,
             Bio_time,
             _nday,
-            self.site,
         )
 
         t_eval = time_axis
@@ -869,13 +876,14 @@ class PlantSoilModelSolver:
 
     def _get_func_to_solve(
         self,
-        solRadGrd,
+        Site,
+        Management,
         airTempC,
+        solRadGrd,
         dayLength,
         dayLengthPrev,
         Bio_time,
         _nday,
-        Site: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             """
@@ -915,6 +923,7 @@ class PlantSoilModelSolver:
                 Bio_time=Bio_timeh,
                 _nday=_ndayh,
                 Site=Site,
+                Management=Management,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt
@@ -947,6 +956,7 @@ class PlantSoilModelSolver:
 
 # %%
 Site1 = ClimateModule()
+Management1 = ManagementModule()
 Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
 Soil1 = SoilModuleCalculator()
 
@@ -955,6 +965,7 @@ PSModel = PlantSoilModel(plant_calculator=Plant1, soil_calculator=Soil1)
 Model = PlantSoilModelSolver(
     calculator=PSModel,
     site=Site1,
+    management=Management1,
     state1_init=0.036,
     state2_init=0.0870588,
     state3_init=0.3956,

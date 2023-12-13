@@ -8,6 +8,7 @@ from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import func_TempCoeff
+from daesim.management import ManagementModule
 
 
 @define
@@ -27,12 +28,6 @@ class SoilModuleCalculator:
     propNPHLigninContent: float = field(
         default=0.5
     )  ## the proportion of the lignin content in non-photosynthetic biomass. Table 1 in Martin and Aber, 1997, Ecological Applications
-    propHarvPhLeft: float = field(
-        default=0.1
-    )  ## the percentage of photosynthetic biomass left after harvesting
-    propHarvNPhLeft: float = field(
-        default=0.8
-    )  ## the percentage of non-photosynthetic biomass left after harvesting
     thresholdWater: float = field(
         default=0.05
     )  ## the moisture threshold above which microbes can continue to accelerate the biological decomposition process
@@ -66,12 +61,6 @@ class SoilModuleCalculator:
     ## TODO: These are only temporary parameters for model testing
     optTemperature: float = field(default=20)  ## optimal temperature
 
-    ## TODO: These are temporary parameters that really belong in a separate "Management" module
-    propTillage: float = field(
-        default=0.5
-    )  ## Management module: propTillage=intensityTillage/10 (ErrorCheck: in the Stella code propTillage=intensityTillage/10 but in the documentation propTillage=(intensityTillage*9)/(5*10), why?)
-
-
     def calculate(
         self,
         LabileDetritus,
@@ -87,6 +76,7 @@ class SoilModuleCalculator:
         Water_SurfWatOutflux,
         airTempC,
         Site,
+        Management=ManagementModule(),  ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
     ) -> Tuple[float]:
         Cin = 2.0
         Cout = 2.0
@@ -96,23 +86,23 @@ class SoilModuleCalculator:
 
         TempCoeff = func_TempCoeff(airTempC,optTemperature=self.optTemperature)
 
-        LDin = self.calculate_LDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
+        LDin = self.calculate_LDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest,Management.propTillage,Management.propHarvPhLeft,Management.propHarvNPhLeft)
 
         LDDecomp = self.calculate_LDDecomp(LabileDetritus, DecomposingMicrobes, Water_calPropUnsat_WatMoist, TempCoeff)
 
-        OxidationLabile = self.calculate_oxidation_labile(LabileDetritus)
-        OxidationStable = self.calculate_OxidationStable(StableDetritus)
+        OxidationLabile = self.calculate_oxidation_labile(LabileDetritus,Management.propTillage)
+        OxidationStable = self.calculate_OxidationStable(StableDetritus,Management.propTillage)
 
         MicUptakeLD = self.calculate_MicUptakeLD(LabileDetritus)
         MicUptakeSD = self.calculate_MicUptakeSD(StableDetritus)
-        MicDeath = self.calculate_MicDeath(DecomposingMicrobes,LabileDetritus,StableDetritus,Mineral,SoilMass,Site.iniSoilDepth)
+        MicDeath = self.calculate_MicDeath(DecomposingMicrobes,LabileDetritus,StableDetritus,Mineral,SoilMass,Site.iniSoilDepth,Management.propTillage)
 
         ErosionRate = self.calculate_ErosionRate(SoilMass,Water_SurfWatOutflux,Site.degSlope,Site.slopeLength)
 
         LDErosion = self.calculate_LDErosion(LabileDetritus,ErosionRate)
         SDErosion = self.calculate_SDErosion(StableDetritus,ErosionRate)
 
-        SDin = self.calculate_SDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest)
+        SDin = self.calculate_SDin(_PhBioMort,_NPhBioMort,_PhBioHarvest,_NPhBioHarvest,Management.propTillage,Management.propHarvPhLeft,Management.propHarvNPhLeft)
         SDDecompLD = self.calculate_SDDecompLD(StableDetritus,DecomposingMicrobes,Water_calPropUnsat_WatMoist,TempCoeff)
         SDDecompMine = self.calculate_SDDecompMine(StableDetritus)
 
@@ -135,13 +125,13 @@ class SoilModuleCalculator:
 
         return (dLabiledt,dStabledt,dMineraldt,dDecomposingMicrobesdt,dSoilMassdt)
 
-    def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
+    def calculate_LDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest,propTillage,propHarvPhLeft,propHarvNPhLeft):
 
         ## TODO: The four variables below are calculated in two different places, LDin and SDin. Need to consolidate these into one location.
-    	propPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
-    	propNPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
-    	propHarvPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
-    	propHarvNPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvNPhLeft  ## TODO: note that propTillage is really from the Management module
+    	propPHLigninContentFarmMethod = (1.0000001 - propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
+    	propNPHLigninContentFarmMethod = (1.0000001 - propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
+    	propHarvPhLeftFarmMethod = (1.0000001 - propTillage)*propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
+    	propHarvNPhLeftFarmMethod = (1.0000001 - propTillage)*propHarvNPhLeft  ## TODO: note that propTillage is really from the Management module
 
 
     	_propManuIndirect = 0.2  ## the percentage of manure that directly gets decomposed into organic matter and nutrients
@@ -165,16 +155,16 @@ class SoilModuleCalculator:
     	else:
     		return 0.01
 
-    def calculate_oxidation_labile(self, Labile_Detritus):
+    def calculate_oxidation_labile(self, Labile_Detritus, propTillage):
     	"""
     	Question: What does this flux represent biophysically? How does it differ from LDDecomp?
     	"""
-    	labileOxi = (1+self.iniLabileOxi-(1-self.propTillage)/10)*self.iniLabileOxi
+    	labileOxi = (1+self.iniLabileOxi-(1-propTillage)/10)*self.iniLabileOxi
     	return labileOxi * Labile_Detritus
 
-    def calculate_OxidationStable(self, Stable_Detritus):
+    def calculate_OxidationStable(self, Stable_Detritus, propTillage):
         #stableOxi = iniStableOxi*(1+iniStableOxi-farmingMethod)  ## Question: This equation is from the publication supplementary material, which differs from the code
-        stableOxi = (1+self.iniStableOxi-(1-self.propTillage)/10)*self.iniStableOxi
+        stableOxi = (1+self.iniStableOxi-(1-propTillage)/10)*self.iniStableOxi
         OxidationLabile = Stable_Detritus*stableOxi
         return OxidationLabile
 
@@ -228,13 +218,13 @@ class SoilModuleCalculator:
 
     	return ErosionRate
 
-    def calculate_SDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest):
+    def calculate_SDin(self,PhBio_mort,NPhBio_mort,PhBioHarvest,NPhBioHarvest,propTillage,propHarvPhLeft,propHarvNPhLeft):
 
         ## TODO: The four variables below are calculated in two different places, LDin and SDin. Need to consolidate these into one location.
-        propPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
-        propNPHLigninContentFarmMethod = (1.0000001 - self.propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
-        propHarvPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
-        propHarvNPhLeftFarmMethod = (1.0000001 - self.propTillage)*self.propHarvNPhLeft  ## TODO: note that propTillage is really from the Management module
+        propPHLigninContentFarmMethod = (1.0000001 - propTillage)*self.propPHLigninContent  ## TODO: note that propTillage is really from the Management module
+        propNPHLigninContentFarmMethod = (1.0000001 - propTillage)*self.propNPHLigninContent  ## TODO: note that propTillage is really from the Management module
+        propHarvPhLeftFarmMethod = (1.0000001 - propTillage)*propHarvPhLeft  ## TODO: note that propTillage is really from the Management module
+        propHarvNPhLeftFarmMethod = (1.0000001 - propTillage)*propHarvNPhLeft  ## TODO: note that propTillage is really from the Management module
 
         _propManuIndirect = 0.2  ## the percentage of manure that directly gets decomposed into organic matter and nutrients
         _Manure = 0.0
@@ -264,15 +254,15 @@ class SoilModuleCalculator:
         MineralDecomp = Mineral*TempCoeff*self.mineralDecompositionRate
         return MineralDecomp
 
-    def calculate_MicDeath(self,Decomposing_Microbes,Labile_Detritus,Stable_Detritus,Mineral,Soil_Mass,iniSoilDepth):
+    def calculate_MicDeath(self,Decomposing_Microbes,Labile_Detritus,Stable_Detritus,Mineral,Soil_Mass,iniSoilDepth,propTillage):
         calTotalOM = Labile_Detritus+Stable_Detritus+Mineral
         calPerOM = (calTotalOM*1000/Soil_Mass)*iniSoilDepth  ## ErrorCheck: TODO: Check on the units and makes sure that all of the pools are in grams per meter squared (g soil mass/m2 or g C/m2)
         _vfunc = np.vectorize(self.calculate_MicDeath_conditional)
-        MicDeath = _vfunc(Decomposing_Microbes,calPerOM)   
+        MicDeath = _vfunc(Decomposing_Microbes,calPerOM,propTillage)   
         return MicDeath 
 
-    def calculate_MicDeath_conditional(self,Decomposing_Microbes,calPerOM):
+    def calculate_MicDeath_conditional(self,Decomposing_Microbes,calPerOM,propTillage):
         if Decomposing_Microbes < 0.01*calPerOM:  ## Question: What is the basis of this conditional equation? What does 0.01*calPerOM mean? I think it represents the fraction of the soil mass that is carbon (organic matter, OM). But why is this compared to the decomposing_microbes, the two variables have different units (decomposing microbes=g C/m2 or kg C/m2; 0.01*calPerOM=dimensionless fraction)?
             return 0
         else:
-            return self.microbeDeathRate*(self.propTillage/10)*Decomposing_Microbes
+            return self.microbeDeathRate*(propTillage/10)*Decomposing_Microbes

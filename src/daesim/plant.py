@@ -490,6 +490,9 @@ class PlantModelSolver:
     calculator: PlantModuleCalculator
     """Calculator of plant model"""
 
+    management: ManagementModule
+    """Management details"""
+
     state1_init: float
     """
     Initial value for state 1
@@ -507,7 +510,6 @@ class PlantModelSolver:
 
     def run(
         self,
-        Management,
         airTempC: Callable[[float], float],
         solRadGrd: Callable[[float], float],
         dayLength: Callable[[float], float],
@@ -519,7 +521,7 @@ class PlantModelSolver:
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
-            Management,
+            self.management,
             airTempC,
             solRadGrd,
             dayLength,

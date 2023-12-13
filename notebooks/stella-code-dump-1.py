@@ -31,8 +31,6 @@ from daesim.biophysics_funcs import func_TempCoeff
 from daesim.plant import PlantModuleCalculator, PlantModelSolver
 from daesim.climate import ClimateModule
 from daesim.soil import SoilModuleCalculator
-
-# %%
 from daesim.management import ManagementModule
 
 # %% [markdown]
@@ -284,7 +282,7 @@ _Bio_time = 0.0
 _nday = 1
 _propPhAboveBM = 0.473684210526
 
-Management = ManagementModule()
+Management1 = ManagementModule(plantingDay=30,harvestDay=235)
 
 dydt = Plant1.calculate(
     _PhBM,
@@ -295,7 +293,7 @@ dydt = Plant1.calculate(
     _dayLengthPrev,
     _Bio_time,
     _nday,
-    Management,   # It is optional to pass this argument
+    Management1,   # It is optional to pass this argument
 )
 print("dy/dt =", dydt)
 print()
@@ -348,24 +346,22 @@ print(
 )
 
 # %%
-_nday = 235
+_nday = 30
 _PhBM = 0.58126338
 _NPhBM = 0.43178847544
 
-Management = ManagementModule(plantingDay=30)
-
 print("nday =",_nday)
-print("plantingDay =",Management.plantingDay)
-print("harvestDay =",Management.harvestDay)
+print("plantingDay =",Management1.plantingDay)
+print("harvestDay =",Management1.harvestDay)
 
-PhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
-NPhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management.plantingDay,1-Management.propPhPlanting,Management.plantingRate,Management.plantWeight)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+PhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management1.plantingDay,Management1.propPhPlanting,Management1.plantingRate,Management1.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+NPhBioPlanting = Plant1.calculate_BioPlanting(_nday,Management1.plantingDay,1-Management1.propPhPlanting,Management1.plantingRate,Management1.plantWeight)  ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
 print("PhBioPlanting, NPhBioPlanting =",PhBioPlanting, NPhBioPlanting)
 
 PlantConditions = Plant1._initialise(Plant1.iniNPhAboveBM)
-PhBioHarvest = Plant1.calculate_PhBioHarvest(_PhBM,_NPhBM,PlantConditions["maxBM"],_nday,Management.harvestDay,Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
-NPhBioHarvest = Plant1.calculate_NPhBioHarvest(_NPhBM,_nday,Management.harvestDay,Management.propNPhHarvest,Management.NPhHarvestTurnoverTime)
+PhBioHarvest = Plant1.calculate_PhBioHarvest(_PhBM,_NPhBM,PlantConditions["maxBM"],_nday,Management1.harvestDay,Management1.propPhHarvesting,Management1.PhHarvestTurnoverTime)
+NPhBioHarvest = Plant1.calculate_NPhBioHarvest(_NPhBM,_nday,Management1.harvestDay,Management1.propNPhHarvest,Management1.NPhHarvestTurnoverTime)
 
 print("PhBioHarvest, NPhBioHarvest =",PhBioHarvest, NPhBioHarvest)
 
@@ -453,7 +449,7 @@ axes[2, 1].legend()
 
 # %%
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)
-ManagementX = ManagementModule()
+ManagementX = ManagementModule(plantingDay=30,harvestDay=235)
 
 Model = PlantModelSolver(
     calculator=PlantX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, time_start=1
@@ -526,11 +522,11 @@ Transup = PlantX.calculate_Transup(
 
 exudation = PlantX.calculate_exudation(rootBM)
 
-PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight)
-NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),Management.plantingDay,1-Management.propPhPlanting,Management.plantingRate,Management.plantWeight)
+PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),ManagementX.plantingDay,ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
+NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),ManagementX.plantingDay,1-ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
 
-PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis),Management.harvestDay,Management.propPhHarvesting,Management.PhHarvestTurnoverTime)
-NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis),Management.harvestDay,Management.propNPhHarvest,Management.NPhHarvestTurnoverTime)
+PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propPhHarvesting,ManagementX.PhHarvestTurnoverTime)
+NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propNPhHarvest,ManagementX.NPhHarvestTurnoverTime)
 
 
 # %%
@@ -617,7 +613,7 @@ _airTempC = 21.43692112
 _Water_calPropUnsat_WatMoist = 0.26
 _Water_SurfWatOutflux = 0.0002
 
-ManagementX = ManagementModule()
+ManagementX = ManagementModule(plantingDay=30,harvestDay=235)
 
 dydt = Soil1.calculate(
     _LabileDetritus,
@@ -956,7 +952,7 @@ class PlantSoilModelSolver:
 
 # %%
 Site1 = ClimateModule()
-Management1 = ManagementModule()
+Management1 = ManagementModule(plantingDay=30,harvestDay=235)
 Plant1 = PlantModuleCalculator(mortality_constant=0.002, dayLengRequire=12)
 Soil1 = SoilModuleCalculator()
 

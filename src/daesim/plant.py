@@ -429,7 +429,9 @@ class PlantModuleCalculator:
 
     def calculate_BioPlanting_conditional(self,_nday,plantingDay,propBMPlanting,plantingRate,plantWeight):
         # Modification: I have modified the variables/parameters used in this function as the definitions and units in the Stella code didn't match up (see previous parameters maxDensity and frequPlanting vs new parameters plantingRate and propPhPlanting).
-        if (plantingDay <= _nday < plantingDay+1):
+        if plantingDay is None:
+            return 0
+        elif (plantingDay <= _nday < plantingDay+1):
             BioPlanting = plantingRate * plantWeight * propBMPlanting
             return BioPlanting
         else:
@@ -447,7 +449,9 @@ class PlantModuleCalculator:
         return PhBioHarvest
 
     def calculate_harvesttime_conditional(self,_nday,harvestDay):
-        if (harvestDay <= _nday < harvestDay+3):  ## Question: Why is the harvest period fixed to three days? Why not one considering this model technically applies to one management unit (or rather one m2)?
+        if harvestDay is None:
+            return 0
+        elif (harvestDay <= _nday < harvestDay+3):  ## Question: Why is the harvest period fixed to three days? Why not one considering this model technically applies to one management unit (or rather one m2)?
             return 1
         else:
             return 0

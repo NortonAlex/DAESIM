@@ -10,7 +10,6 @@ from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import func_TempCoeff
 from daesim.management import ManagementModule
 
-
 @define
 class PlantModuleCalculator:
     """
@@ -160,10 +159,10 @@ class PlantModuleCalculator:
         # Call the calculate_Transdown method
         Transdown = self.calculate_Transdown(
             Photosynthetic_Biomass,
+            Bio_time,
             PhNPP,
             Fall_litter,
             propPhAboveBM,
-            Bio_time,
         )
 
         Transup = self.calculate_Transup(
@@ -245,7 +244,8 @@ class PlantModuleCalculator:
         )  ## The maximum general photosynthetic biomass above ground (not site specific). kg/m2*dimless=kg/m2
 
         # calculatedPhBioNPP ## Estimated net primary productivity
-        calculatedPhBioNPP = np.minimum(Photosynthetic_Biomass, maxPhAboveBM)
+        # This function essentially says: if Photosynthetic_Biomass < maxPhAboveBM: calculate NPP; else: NPP=0
+        calculatedPhBioNPP = np.maximum((Photosynthetic_Biomass < maxPhAboveBM) * (NPPControlCoeff * self.NPPCalibration * Photosynthetic_Biomass * (1-Photosynthetic_Biomass/maxPhAboveBM)),0)
 
         return calculatedPhBioNPP
 
@@ -319,7 +319,7 @@ class PlantModuleCalculator:
             ) ** 3
 
     def calculate_Transdown(
-        self, Photosynthetic_Biomass, PhNPP, Fall_litter, propPhAboveBM, Bio_time
+        self, Photosynthetic_Biomass, Bio_time, PhNPP, Fall_litter, propPhAboveBM
     ):
         # TransdownRate:
         # The plant attempts to obtain the optimum photobiomass to total above ground biomass ratio.  Once this is reached,
@@ -335,7 +335,7 @@ class PlantModuleCalculator:
         #                 np.cos((self.maxPropPhAboveBM / propPhAboveBM) * np.pi / 2) ** 0.1
         #             )
         ## Modification: Had to vectorize the above if statements to support array-based calculations
-        _vfunc = np.vectorize(self.calculate_TransdownRate)
+        _vfunc = np.vectorize(self.calculate_TransdownRate,otypes=[float])
         TransdownRate = _vfunc(Bio_time, propPhAboveBM)
 
         ## TODO: Include HarvestTime info
@@ -557,10 +557,10 @@ class PlantModelSolver:
     def _get_func_to_solve(
         self,
         Management,
-        airTempC,
-        solRadGrd,
-        dayLength,
-        dayLengthPrev,
+        airTempC: Callable[float, float],
+        solRadGrd: Callable[float, float],
+        dayLength: Callable[float, float],
+        dayLengthPrev: Callable[float, float],
         Bio_time: Callable[float, float],
         _nday: Callable[float, float],
     ) -> Callable[float, float]:

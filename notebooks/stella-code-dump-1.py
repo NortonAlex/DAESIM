@@ -25,6 +25,8 @@ from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
+from functools import partial
+
 # %%
 from daesim.climate_funcs import *
 from daesim.biophysics_funcs import func_TempCoeff
@@ -322,7 +324,10 @@ print("Fall_litter =", Fall_litter)
 rootBM = Plant1.calculate_rootBM(_NPhBM)
 print("rootBM =", rootBM)
 
-propPhAboveBM = Plant1.calculate_propPhAboveBM(_PhBM, rootBM)
+NPhAboveBM = Plant1.calculate_NPhAboveBM(rootBM)
+print("NPhAboveBM =",NPhAboveBM)
+
+propPhAboveBM = Plant1.calculate_propPhAboveBM(_PhBM, NPhAboveBM)
 print("propPhAboveBM =", propPhAboveBM)
 
 # %%
@@ -503,14 +508,14 @@ PhBioMort, Fall_litter = PlantX.calculate_PhBioMortality(
 )
 
 rootBM = PlantX.calculate_rootBM(res.y[1])
-
-propPhAboveBM = PlantX.calculate_propPhAboveBM(res.y[0], rootBM)
+NPhAboveBM = PlantX.calculate_NPhAboveBM(rootBM)
+propPhAboveBM = PlantX.calculate_propPhAboveBM(res.y[0], NPhAboveBM)
 
 Transdown = PlantX.calculate_Transdown(
     res.y[0],
+    PlantGrowth_Bio_time_f(time_axis),
     PhBioNPP,
     Fall_litter,
-    PlantGrowth_Bio_time_f(time_axis),
     propPhAboveBM,
 )
 
@@ -519,6 +524,8 @@ Transup = PlantX.calculate_Transup(
     PlantGrowth_Bio_time_f(time_axis),
     propPhAboveBM,
 )
+
+NPhBioMort = PlantX.calculate_NPhBioMort(res.y[1])
 
 exudation = PlantX.calculate_exudation(rootBM)
 
@@ -558,6 +565,58 @@ axes[2, 2].plot(time_axis, exudation, c="C5", label="exudation")
 axes[2, 2].set_ylabel("Diagnostic Flux: exudation")
 
 plt.tight_layout()
+
+# %%
+## Evaluate state based on solver solution (pools) and diagnosed from fluxes
+
+# %%
+S1_eval = np.zeros(res.t.size)
+S1_eval[0] = Model.state1_init
+S2_eval = np.zeros(res.t.size)
+S2_eval[0] = Model.state2_init
+
+for i in range(res.t.size-1):
+    S1_eval[i+1] = S1_eval[i] + (PhBioPlanting[i]+PhBioNPP[i]+Transup[i]) - (PhBioHarvest[i]+PhBioMort[i]+Transdown[i])
+    S2_eval[i+1] = S2_eval[i] + (NPhBioPlanting[i]+Transdown[i]) - (Transup[i]+NPhBioHarvest[i]+NPhBioMort[i]+exudation[i])
+
+
+# %%
+fig, axes = plt.subplots(2,3,figsize=(16,8),sharex=True)
+
+axes[0,0].plot(res.t, res.y[0],c="k",label="solver state")
+axes[0,0].plot(res.t, S1_eval,c="r",label="flux diag state")
+axes[0,1].plot(res.t, S1_eval - res.y[0])
+axes[0,2].plot(res.t, PhBioNPP, c="C0", linestyle="-", alpha=0.6)
+axes[0,2].plot(res.t, PhBioPlanting, c="C0", linestyle="--", alpha=0.6)
+axes[0,2].plot(res.t, Transup, c="C0", linestyle=":", alpha=0.6)
+axes[0,2].plot(res.t, PhBioHarvest, c="C1", linestyle="-", alpha=0.6)
+axes[0,2].plot(res.t, PhBioMort, c="C1", linestyle="--", alpha=0.6)
+axes[0,2].plot(res.t, Transdown, c="C1", linestyle=":", alpha=0.6)
+axes[0,0].legend()
+axes[0,0].set_ylabel("y")
+axes[0,1].set_ylabel("Error in y")
+axes[0,2].set_ylabel("Diagnosed fluxes")
+
+axes[1,0].plot(res.t, res.y[1],c="k",label="solver state")
+axes[1,0].plot(res.t, S2_eval,c="r",label="flux diag state")
+
+axes[1,1].plot(res.t, S2_eval - res.y[1])
+axes[1,2].plot(res.t, NPhBioPlanting, c="C0", linestyle="-", alpha=0.6)
+axes[1,2].plot(res.t, Transdown, c="C0", linestyle="--", alpha=0.6)
+axes[1,2].plot(res.t, Transup, c="C0", linestyle=":", alpha=0.6)
+axes[1,2].plot(res.t, NPhBioHarvest, c="C1", linestyle="-", alpha=0.6)
+axes[1,2].plot(res.t, NPhBioMort, c="C1", linestyle="--", alpha=0.6)
+axes[1,2].plot(res.t, exudation, c="C1", linestyle="-.", alpha=0.6)
+axes[1,0].set_ylabel("y")
+axes[1,1].set_ylabel("Error in y")
+axes[1,2].set_ylabel("Diagnosed fluxes")
+
+plt.tight_layout()
+
+
+
+
+# %%
 
 # %% [markdown]
 # ## Soil Module Calculator

@@ -16,6 +16,12 @@ class ClimateModule:
     CLatDeg: float = field(
         default=-33.715
     )  ## latitude of site in degrees; Beltsville = 39.0; min = 64.; max = 20.
+    CLonDeg: float = field(
+        default=-76.922
+    )  ## longitude of site in degrees
+    timezone: float = field(
+        default=-5
+        ) ## Time zone in hours relative to UTC (positive to the East). Must be Local Standard Time – Daylight Savings Time is not used. 
     Elevation: float = field(
         default=70.74206543
     )  ## IF there is sediment surface BELOW MSL (e.g., tidal creeks) then use the bathimetry data (depth below MSL) to determine elevation of sediments above the base datum.; ELSE use the land elevation data above MSL (indicating distance from MSL to the soil surface) plus the distance from the datum to mean sea level; ALL VALUES ARE POSITIVE (m) above base datum.
@@ -40,9 +46,10 @@ class ClimateModule:
     R_w_mol: float = 8.31446 ## specific gas constant for water vapor, J mol-1 K-1
     R_w_mass: float = 0.4615 ## specific gas constant for water vapor, J g-1 K-1 (=>R_w_mol * M_H2O = 8.31446/18.01)
 
-    def time_discretisation(self, t, dt=1):
+    def time_discretisation(self, t, t_year, dt=1):
         """
         t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
+        t_year  = array of consecutive time steps (year) e.g. a 2 year run with a 1-day time-step, starting on Jan 1st 2018 would have 365 values of 2018, followed by 365 values of 2019
         dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
 
         """
@@ -57,8 +64,8 @@ class ClimateModule:
         #         Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12  ## ErrorCheck: This formulation seems odd. It doesn't return expected behaviour of a day-length calculator. E.g. it gives a shorter day length amplitude (annual min to annual max) at higher latitudes (e.g. -60o compared to -30o), it should be the other way around! I am going to replace it with my own solar calculations
         #         Climate_dayLengthPrev = Climate_ampl * np.sin((Climate_DayJulPrev - 79) * 0.01721) + 12
 
-        dayLength = sunlight_duration(self.CLatDeg, DayJul - 1)
-        dayLengthPrev = sunlight_duration(self.CLatDeg, DayJulPrev - 1)
+        dayLength = sunlight_duration(t_year, DayJul, self.CLatDeg, self.CLonDeg, self.timezone)
+        dayLengthPrev = sunlight_duration(t_year, DayJulPrev, self.CLatDeg, self.CLonDeg, self.timezone)
 
         return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
 

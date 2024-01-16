@@ -27,6 +27,8 @@ import matplotlib.pyplot as plt
 
 from functools import partial
 
+from datetime import datetime, date, timedelta
+
 # %%
 from daesim.climate_funcs import *
 from daesim.biophysics_funcs import func_TempCoeff
@@ -50,13 +52,46 @@ from daesim.management import ManagementModule
 # ## Model run variables
 
 # %%
-start_time = 1
-end_time = 800
-dt = 1
-time = np.arange(start_time, end_time + dt, dt)
+## Simulation time period
+## - accounts for leap years
 
-it = 0
-t = time[it]
+## Must always define a start day-of-year and year
+start_doy = 180
+start_year = 2019
+
+## Two options for defining the simulation period
+## Defaults to option 1, as long as "nrundays" is defined (i.e. nrundays != None)
+## 1) define the number of days to run, starting on start date (e.g. ndays = 800)
+nrundays = 300
+dt = 1
+## 2) define an end day-of-year and year
+end_doy = 365
+end_year = 2019
+
+
+# %%
+if (nrundays != None):
+    start_date = datetime.strptime(str(start_year) + "-" + str(start_doy), "%Y-%j")
+    date_list = [start_date + timedelta(days=x) for x in range(nrundays)]
+    time_year = [d.year for d in date_list]
+    time_doy = [float(d.strftime('%j')) for d in date_list]
+elif (nrundays == None) and (end_doy != None):
+    start_date = datetime.strptime(str(start_year) + "-" + str(start_doy), "%Y-%j")
+    end_date = datetime.strptime(str(end_year) + "-" + str(end_doy), "%Y-%j")
+    date_list = []
+    while start_date <= end_date:
+        date_list.append(start_date)
+        start_date += timedelta(days=1)    
+    time_year = [d.year for d in date_list]
+    time_doy = [float(d.strftime('%j')) for d in date_list]
+
+time_nday = np.arange(1, len(time_doy)+dt)
+
+print("Simulation start date:",date_list[0])
+print("Simulation end date:",date_list[-1])
+
+# %%
+time_nday
 
 # %% [markdown]
 # ## Forcing data
@@ -77,7 +112,10 @@ df_forcing = pd.read_csv(file)
 # %%
 SiteX = ClimateModule()
 
-DayJul_X, DayJulPrev_X, dayLength_X, dayLengthPrev_X = SiteX.time_discretisation(time)
+DayJul_X, DayJulPrev_X, dayLength_X, dayLengthPrev_X = SiteX.time_discretisation(time_nday,time_year)
+
+# %%
+plt.plot(DayJul_X[0:365], dayLength_X[0:365], label="Site lat, lon = %1.1f, %1.1f" % (SiteX.CLatDeg, SiteX.CLonDeg))
 
 # %% [markdown]
 # To initialise with a different site, you can specify a different latitude and/or elevation

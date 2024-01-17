@@ -7,7 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear
+from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
 from daesim.management import ManagementModule
 from daesim.climate import ClimateModule
 from daesim.climate_funcs import solar_day_calcs
@@ -101,6 +101,9 @@ class PlantModuleCalculator:
     rhizodepositReleaseRate: float = field(
         default=0.025
     )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
+    GDD_method: str = field(
+        default="nonlinear"
+        ) ## method used to calculate daily thermal time and hence growing degree days. Options are: "nonlinear", "linear1", "linear2", "linear3"
     GDD_Tbase: float = field(
         default=5.0
     )  ## Base temperature (minimum threshold) used for calculating the growing degree days
@@ -502,9 +505,19 @@ class PlantModuleCalculator:
         return NPhBioHarvest
 
     def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
-        _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
-        DTT_nonlinear = _vfunc(Tmin,Tmax,sunrise,sunset,self.GDD_Tbase,self.GDD_Tupp,self.GDD_Topt)
-        return DTT_nonlinear
+        if self.GDD_method == "nonlinear":
+            _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
+            DTT = _vfunc(Tmin,Tmax,sunrise,sunset,self.GDD_Tbase,self.GDD_Tupp,self.GDD_Topt)
+        elif self.GDD_method == "linear1":
+            _vfunc = np.vectorize(growing_degree_days_DTT_linear1)
+            DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
+        elif self.GDD_method == "linear2":
+            _vfunc = np.vectorize(growing_degree_days_DTT_linear2)
+            DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
+        elif self.GDD_method == "linear3":
+            _vfunc = np.vectorize(growing_degree_days_DTT_linear3)
+            DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
+        return DTT
 
     def calculate_growingdegreedays_reset(self,GDD,_nday,plantingDay):
         _vfunc = np.vectorize(self.calculate_growingdegreedays_reset_conditional)

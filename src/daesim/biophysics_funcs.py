@@ -65,12 +65,12 @@ def _diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
 
 def diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
     """
-    Calculates a synthetic diurnal temperature profile based on the minimum and maximum daily temperature. 
-    The model describes the daily temperature curve using a combination of two formulas: 
-    a cosine curve to describe daytime warming, and a separate cosine curve for nighttime cooling. 
+    Calculates a synthetic diurnal temperature profile based on the minimum and maximum daily temperature.
+    The model describes the daily temperature curve using a combination of two formulas:
+    a cosine curve to describe daytime warming, and a separate cosine curve for nighttime cooling.
     
-    The transition points between the two formulas are determined from the sunrise time and the time assumed 
-    to reach the maximum temperature (14:00). The first formula is used for daytime warming between sunrise 
+    The transition points between the two formulas are determined from the sunrise time and the time assumed
+    to reach the maximum temperature (14:00). The first formula is used for daytime warming between sunrise
     and 14:00. The second formula is used for nighttime cooling from 14:00 to sunrise on the next day.
 
     References: See "WAVE Model" in Bal et al. (2023, doi:10.1038/s41598-023-34194-9)
@@ -119,9 +119,9 @@ def diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
 
 def growing_degree_days_HTT(Th,Tb,Tu,Topt):
     """
-    Calculates the hourly thermal time (HTT) or 'heat units' according to a peaked temperature response model. 
-    The temperature response model is based on that of Yan and Hunt (1999, doi:10.1006/anbo.1999.0955). 
-    Also see description in Zhou and Wang (2018, doi:10.1038/s41598-018-28392-z). 
+    Calculates the hourly thermal time (HTT) or 'heat units' according to a peaked temperature response model.
+    The temperature response model is based on that of Yan and Hunt (1999, doi:10.1006/anbo.1999.0955).
+    Also see description in Zhou and Wang (2018, doi:10.1038/s41598-018-28392-z).
 
     Parameters
     ----------
@@ -147,8 +147,8 @@ def growing_degree_days_HTT(Th,Tb,Tu,Topt):
 
 def growing_degree_days_DTT_from_HTT(HTT,tstep=1):
     """
-    Calculates the daily thermal time (DTT) from the hourly thermal time (HTT) by 
-    taking the average of the HTT values. 
+    Calculates the daily thermal time (DTT) from the hourly thermal time (HTT) by
+    taking the average of the HTT values.
     """
     t = np.arange(0,24,tstep)
     n = t.size
@@ -156,9 +156,9 @@ def growing_degree_days_DTT_from_HTT(HTT,tstep=1):
 
 def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
     """
-    Calculates the daily thermal time from the minimum daily temperature, maximum daily 
-    temperature, sunrise time, sunset time, and the cardinal temperatures that describe 
-    the hourly thermal time temperature response model. 
+    Calculates the daily thermal time from the minimum daily temperature, maximum daily
+    temperature, sunrise time, sunset time, and the cardinal temperatures that describe
+    the hourly thermal time temperature response model.
 
     Parameters
     ----------
@@ -193,3 +193,116 @@ def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
     HTT_ = _vfunc(T_diurnal_profile,Tb,Tu,Topt)
     DTT = growing_degree_days_DTT_from_HTT(HTT_)
     return DTT
+
+def growing_degree_days_DTT_linear1(Tmin,Tmax,Tb,Tu):
+    """
+    Calculates the daily thermal time (DTT) using the linear "Method 1" in McMaster and 
+    Wilhelm (1997, doi:10.1016/S0168-1923(97)00027-0). This function requires the 
+    minimum daily temperature, maximum daily temperature, the base and upper threshold 
+    temperatures that describe the hourly thermal time temperature response model.
+
+    Parameters
+    ----------
+    Tmin: float or ndarray
+        Minimum daily air temperature (degrees Celcius)
+
+    Tmax: float or ndarray
+        Maximum daily air temperature (degrees Celcius)
+
+    Tb : float
+        Minimum threshold temperature or "base" temperature (degrees Celcius)
+
+    Tu : float
+        Upper threshold temperature or "upper" temperature (degrees Celcius)
+
+    Returns
+    -------
+    Daily thermal time (DTT): float or ndarray
+        Daily thermal time (degrees Celcius)
+    """
+    Tavg = (Tmin+Tmax)/2
+    if Tavg < Tb:
+        return 0
+    elif (Tavg > Tb) and (Tavg < Tu):
+        return Tavg - Tb
+    elif Tavg > Tu:
+        return Tu - Tb
+
+def growing_degree_days_DTT_linear2(Tmin,Tmax,Tb,Tu):
+    """
+    Calculates the daily thermal time (DTT) using the linear "Method 2" in McMaster and 
+    Wilhelm (1997, doi:10.1016/S0168-1923(97)00027-0). This function requires the 
+    minimum daily temperature, maximum daily temperature, the base and upper threshold 
+    temperatures that describe the hourly thermal time temperature response model.
+
+    Parameters
+    ----------
+    Tmin: float or ndarray
+        Minimum daily air temperature (degrees Celcius)
+
+    Tmax: float or ndarray
+        Maximum daily air temperature (degrees Celcius)
+
+    Tb : float
+        Minimum threshold temperature or "base" temperature (degrees Celcius)
+
+    Tu : float
+        Upper threshold temperature or "upper" temperature (degrees Celcius)
+
+    Returns
+    -------
+    Daily thermal time (DTT): float or ndarray
+        Daily thermal time (degrees Celcius)
+    """
+    if Tmax < Tb:
+        Tmax = Tb
+    elif Tmax > Tu:
+        Tmax = Tu
+    if Tmin < Tb:
+        Tmin = Tb
+    elif Tmin > Tu:
+        Tmin = Tu
+    Tavg = (Tmin+Tmax)/2
+    if Tavg < Tb:
+        return 0
+    elif (Tavg > Tb) and (Tavg < Tu):
+        return Tavg - Tb
+    elif Tavg > Tu:
+        return Tu - Tb
+
+def growing_degree_days_DTT_linear3(Tmin,Tmax,Tb,Tu):
+    """
+    Calculates the daily thermal time (DTT) using the linear "Method 2" in Zhou and 
+    Wang (2018, doi:10.1038/s41598-018-28392-z). This function requires the minimum 
+    daily temperature, maximum daily temperature, the base and upper threshold 
+    temperatures that describe the hourly thermal time temperature response model.
+
+    Parameters
+    ----------
+    Tmin: float or ndarray
+        Minimum daily air temperature (degrees Celcius)
+
+    Tmax: float or ndarray
+        Maximum daily air temperature (degrees Celcius)
+
+    Tb : float
+        Minimum threshold temperature or "base" temperature (degrees Celcius)
+
+    Tu : float
+        Upper threshold temperature or "upper" temperature (degrees Celcius)
+
+    Returns
+    -------
+    Daily thermal time (DTT): float or ndarray
+        Daily thermal time (degrees Celcius)
+    """
+    Tavg = (Tmin+Tmax)/2
+    if Tavg <= Tb:
+        return 0
+    elif (Tavg > Tb) and (Tavg < Tu):
+        Tm = min(Tmax,Tu)
+        Tn = max(Tm,Tb)
+        Tavg_prime = (Tm+Tn)/2
+        return Tavg_prime - Tb
+    elif Tu < Tavg:
+        return Tu - Tb

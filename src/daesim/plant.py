@@ -120,7 +120,6 @@ class PlantModuleCalculator:
         Non_Photosynthetic_Biomass,
         Bio_time,
         solRadGrd,
-        airTempC,
         airTempCMin,
         airTempCMax,
         dayLength,
@@ -128,6 +127,7 @@ class PlantModuleCalculator:
         sunrise,
         sunset,
         _nday,
+        Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
         Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
     ) -> Tuple[float]:
         PhBioPlanting = self.calculate_BioPlanting(_nday,Management.plantingDay,Management.propPhPlanting,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
@@ -157,6 +157,7 @@ class PlantModuleCalculator:
         propPhAboveBM = self.calculate_propPhAboveBM(Photosynthetic_Biomass, NPhAboveBM)
 
         # Call the calculate_PhBioNPP method
+        airTempC = Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
         PhNPP = self.calculate_PhBioNPP(
             Photosynthetic_Biomass, solRadGrd, airTempC, WatStressHigh, WatStressLow
         )
@@ -551,6 +552,9 @@ class PlantModelSolver:
     calculator: PlantModuleCalculator
     """Calculator of plant model"""
 
+    site: ClimateModule
+    """Site and climate details"""
+
     management: ManagementModule
     """Management details"""
 
@@ -576,7 +580,6 @@ class PlantModelSolver:
 
     def run(
         self,
-        airTempC: Callable[[float], float],
         airTempCMin: Callable[[float], float],
         airTempCMax: Callable[[float], float],
         solRadGrd: Callable[[float], float],
@@ -588,8 +591,8 @@ class PlantModelSolver:
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
+            self.site,
             self.management,
-            airTempC,
             airTempCMin,
             airTempCMax,
             solRadGrd,
@@ -663,8 +666,8 @@ class PlantModelSolver:
 
     def _get_func_to_solve(
         self,
+        Site,
         Management,
-        airTempC: Callable[float, float],
         airTempCMin: Callable[float, float],
         airTempCMax: Callable[float, float],
         solRadGrd: Callable[float, float],
@@ -690,7 +693,6 @@ class PlantModelSolver:
             -------
                 dy / dt (also as a vector)
             """
-            airTempCh = airTempC(t).squeeze()
             airTempCMinh = airTempCMin(t).squeeze()
             airTempCMaxh = airTempCMax(t).squeeze()
             solRadGrdh = solRadGrd(t).squeeze()
@@ -705,7 +707,6 @@ class PlantModelSolver:
                 Non_Photosynthetic_Biomass=y[1],
                 Bio_time=y[2],
                 solRadGrd=solRadGrdh,
-                airTempC=airTempCh,
                 airTempCMin=airTempCMinh,
                 airTempCMax=airTempCMaxh,
                 dayLength=dayLengthh,
@@ -713,6 +714,7 @@ class PlantModelSolver:
                 sunrise=sunriseh,
                 sunset=sunseth,
                 _nday=_ndayh,
+                Site=Site,
                 Management=Management,
             )
 

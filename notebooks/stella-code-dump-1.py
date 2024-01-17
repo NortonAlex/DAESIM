@@ -320,6 +320,7 @@ df_forcing["PlantGrowth.Bio time"].values[0:10]
 # %%
 
 # %%
+_nday = 1
 _PhBM = 2.0
 _NPhBM = 1.0
 _Bio_time = 0.0
@@ -329,18 +330,17 @@ _airTempCMax = 28.99026108
 _airTempC = (_airTempCMin + _airTempCMax)/2
 _dayLength = sunlight_duration(time_year[0], time_doy[_nday-1], SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 _dayLengthPrev = sunlight_duration(2017, 365.0, SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
-_nday = 1
 _sunrise, _solarnoon, _sunset = solar_day_calcs(time_year[0], time_doy[_nday-1], SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 _propPhAboveBM = 0.473684210526
 
 Management1 = ManagementModule(plantingDay=30,harvestDay=235)
+Site1 = ClimateModule()
 
 dydt = Plant1.calculate(
     _PhBM,
     _NPhBM,
     _Bio_time,
     _solRadGrd,
-    _airTempC,
     _airTempCMin,
     _airTempCMax,
     _dayLength,
@@ -348,6 +348,7 @@ dydt = Plant1.calculate(
     _sunrise,
     _sunset,
     _nday,
+    Site1,
     Management1,   # It is optional to pass this argument
 )
 print("dy/dt =", dydt)
@@ -526,7 +527,7 @@ PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 ManagementX = ManagementModule(plantingDay=30,harvestDay=235)
 
 Model = PlantModelSolver(
-    calculator=PlantX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, state3_init=0.0, time_start=1
+    calculator=PlantX, site=SiteX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, state3_init=0.0, time_start=1
 )
 
 # %% [markdown]
@@ -536,7 +537,7 @@ Model = PlantModelSolver(
 time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
-    airTempC=Climate_airTempC_f,
+    #airTempC=Climate_airTempC_f,
     airTempCMin=Climate_airTempCMin_f,
     airTempCMax=Climate_airTempCMax_f,
     solRadGrd=Climate_solRadGrd_f,

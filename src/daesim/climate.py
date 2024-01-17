@@ -4,6 +4,7 @@ Climate class: Includes module parameters and solar calculations to specify and 
 
 import numpy as np
 from attrs import define, field
+from datetime import datetime, date, timedelta
 from daesim.climate_funcs import *
 
 @define
@@ -46,28 +47,54 @@ class ClimateModule:
     R_w_mol: float = 8.31446 ## specific gas constant for water vapor, J mol-1 K-1
     R_w_mass: float = 0.4615 ## specific gas constant for water vapor, J g-1 K-1 (=>R_w_mol * M_H2O = 8.31446/18.01)
 
-    def time_discretisation(self, t, t_year, dt=1):
+    def time_discretisation(self, start_doy, start_year, nrundays=None, end_doy=None, end_year=None, dt=1):
         """
         t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
         t_year  = array of consecutive time steps (year) e.g. a 2 year run with a 1-day time-step, starting on Jan 1st 2018 would have 365 values of 2018, followed by 365 values of 2019
         dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
 
         """
+        if (nrundays != None):
+            start_date = datetime.strptime(str(int(start_year)) + "-" + str(int(start_doy)), "%Y-%j")
+            date_list = [start_date + timedelta(days=x) for x in range(nrundays)]
+            time_year = [d.year for d in date_list]
+            time_doy = [float(d.strftime('%j')) for d in date_list]
+        elif (nrundays == None) and (end_doy != None):
+            start_date = datetime.strptime(str(int(start_year)) + "-" + str(int(start_doy)), "%Y-%j")
+            end_date = datetime.strptime(str(int(end_year)) + "-" + str(int(end_doy)), "%Y-%j")
+            date_list = []
+            while start_date <= end_date:
+                date_list.append(start_date)
+                start_date += timedelta(days=1)    
+            time_year = [d.year for d in date_list]
+            time_doy = [float(d.strftime('%j')) for d in date_list]
 
-        ## TODO: DayJul and DayJulPrev are really the "ordinal date" variables, not the Julian day. Rename them.
-        DayJul = (
-            t - dt
-        ) % 365 + 1  # Modification: Changed this equation so that Jan 1st (UTC 00:00:00) is represented by 1 (not 0). December 31st (UTC 00:00:00) is represented by 365.
-        DayJulPrev = (t - 2 * dt) % 365 + 1
+        time_nday = np.arange(1, len(time_doy)+dt)
 
-        #         Climate_ampl = np.exp(7.42 + 0.045 * Climate_CLatDeg) / 3600   ## ErrorCheck: Where does this equation come from? Is it globally applicable?
-        #         Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12  ## ErrorCheck: This formulation seems odd. It doesn't return expected behaviour of a day-length calculator. E.g. it gives a shorter day length amplitude (annual min to annual max) at higher latitudes (e.g. -60o compared to -30o), it should be the other way around! I am going to replace it with my own solar calculations
-        #         Climate_dayLengthPrev = Climate_ampl * np.sin((Climate_DayJulPrev - 79) * 0.01721) + 12
+        return (time_nday, time_doy, time_year)
 
-        dayLength = sunlight_duration(t_year, DayJul, self.CLatDeg, self.CLonDeg, self.timezone)
-        dayLengthPrev = sunlight_duration(t_year, DayJulPrev, self.CLatDeg, self.CLonDeg, self.timezone)
+    # def time_discretisation(self, t, t_year, dt=1):
+    #     """
+    #     t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
+    #     t_year  = array of consecutive time steps (year) e.g. a 2 year run with a 1-day time-step, starting on Jan 1st 2018 would have 365 values of 2018, followed by 365 values of 2019
+    #     dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
 
-        return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
+    #     """
+
+    #     ## TODO: DayJul and DayJulPrev are really the "ordinal date" variables, not the Julian day. Rename them.
+    #     DayJul = (
+    #         t - dt
+    #     ) % 365 + 1  # Modification: Changed this equation so that Jan 1st (UTC 00:00:00) is represented by 1 (not 0). December 31st (UTC 00:00:00) is represented by 365.
+    #     DayJulPrev = (t - 2 * dt) % 365 + 1
+
+    #     #         Climate_ampl = np.exp(7.42 + 0.045 * Climate_CLatDeg) / 3600   ## ErrorCheck: Where does this equation come from? Is it globally applicable?
+    #     #         Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12  ## ErrorCheck: This formulation seems odd. It doesn't return expected behaviour of a day-length calculator. E.g. it gives a shorter day length amplitude (annual min to annual max) at higher latitudes (e.g. -60o compared to -30o), it should be the other way around! I am going to replace it with my own solar calculations
+    #     #         Climate_dayLengthPrev = Climate_ampl * np.sin((Climate_DayJulPrev - 79) * 0.01721) + 12
+
+    #     dayLength = sunlight_duration(t_year, DayJul, self.CLatDeg, self.CLonDeg, self.timezone)
+    #     dayLengthPrev = sunlight_duration(t_year, DayJulPrev, self.CLatDeg, self.CLonDeg, self.timezone)
+
+    #     return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
 
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """

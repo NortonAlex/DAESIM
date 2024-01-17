@@ -7,8 +7,10 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import func_TempCoeff
+from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear
 from daesim.management import ManagementModule
+from daesim.climate import ClimateModule
+from daesim.climate_funcs import solar_day_calcs
 
 @define
 class PlantModuleCalculator:
@@ -99,16 +101,29 @@ class PlantModuleCalculator:
     rhizodepositReleaseRate: float = field(
         default=0.025
     )  ## Question: What does this parameter mean physiologically? No documentation available in Stella
+    GDD_Tbase: float = field(
+        default=5.0
+    )  ## Base temperature (minimum threshold) used for calculating the growing degree days
+    GDD_Topt: float = field(
+        default=25.0
+    )  ## Optimum temperature used for calculating the growing degree days (non-linear method only)
+    GDD_Tupp: float = field(
+        default=40.0
+    )  ## Upper temperature (maximum threshold) used for calculating the growing degree days
 
     def calculate(
         self,
         Photosynthetic_Biomass,
         Non_Photosynthetic_Biomass,
+        Bio_time,
         solRadGrd,
         airTempC,
+        airTempCMin,
+        airTempCMax,
         dayLength,
         dayLengthPrev,
-        Bio_time,
+        sunrise,
+        sunset,
         _nday,
         Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
     ) -> Tuple[float]:
@@ -183,7 +198,11 @@ class PlantModuleCalculator:
             - exudation
         )
 
-        return (dPhBMdt, dNPhBMdt)
+        DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
+        GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_nday,Management.plantingDay)
+        dGDDdt = DTT - GDD_reset
+
+        return (dPhBMdt, dNPhBMdt, dGDDdt)
 
     def _initialise(self, iniNPhAboveBM):
         ## TODO: Need to handle this initialisation better.
@@ -429,13 +448,9 @@ class PlantModuleCalculator:
 
     def calculate_BioPlanting_conditional(self,_nday,plantingDay,propBMPlanting,plantingRate,plantWeight):
         # Modification: I have modified the variables/parameters used in this function as the definitions and units in the Stella code didn't match up (see previous parameters maxDensity and frequPlanting vs new parameters plantingRate and propPhPlanting).
-        if plantingDay is None:
-            return 0
-        elif (plantingDay <= _nday < plantingDay+1):
-            BioPlanting = plantingRate * plantWeight * propBMPlanting
-            return BioPlanting
-        else:
-            return 0
+        PlantingTime = self.calculate_plantingtime_conditional(_nday,plantingDay)
+        BioPlanting = PlantingTime * plantingRate * plantWeight * propBMPlanting
+        return BioPlanting
 
     def calculate_PhBioHarvest(self,Photosynthetic_Biomass,Non_Photosynthetic_Biomass,maxBM,_nday,harvestDay,propPhHarvesting,PhHarvestTurnoverTime):
         _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])
@@ -452,6 +467,14 @@ class PlantModuleCalculator:
         if harvestDay is None:
             return 0
         elif (harvestDay <= _nday < harvestDay+3):  ## Question: Why is the harvest period fixed to three days? Why not one considering this model technically applies to one management unit (or rather one m2)?
+            return 1
+        else:
+            return 0
+
+    def calculate_plantingtime_conditional(self,_nday,plantingDay):
+        if plantingDay is None:
+            return 0
+        elif (plantingDay <= _nday < plantingDay+1):
             return 1
         else:
             return 0
@@ -477,6 +500,27 @@ class PlantModuleCalculator:
         HarvestTime = _vfunc(_nday%365,harvestDay)
         NPhBioHarvest = HarvestTime*propNPhHarvest*Non_Photosynthetic_Biomass/NPhHarvestTurnoverTime
         return NPhBioHarvest
+
+    def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
+        _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
+        DTT_nonlinear = _vfunc(Tmin,Tmax,sunrise,sunset,self.GDD_Tbase,self.GDD_Tupp,self.GDD_Topt)
+        return DTT_nonlinear
+
+    def calculate_growingdegreedays_reset(self,GDD,_nday,plantingDay):
+        _vfunc = np.vectorize(self.calculate_growingdegreedays_reset_conditional)
+        GDD_reset_flux = _vfunc(GDD,_nday,plantingDay)
+        return GDD_reset_flux
+
+    def calculate_growingdegreedays_reset_conditional(self,GDD,_nday,plantingDay):
+        """
+        When it is planting/sowing time (plantingTime == 1), subtract some arbitrarily large 
+        number from the growing degree days (GDD) state. It just has to be a large enough 
+        number to trigger a zero-crossing "event" for Scipy solve_ivp to recognise. 
+        """
+        PlantingTime = self.calculate_plantingtime_conditional(_nday%365,plantingDay)
+        GDD_reset_flux = PlantingTime * GDD
+        return GDD_reset_flux
+
 
 
 
@@ -507,6 +551,11 @@ class PlantModelSolver:
     Initial value for state 2
     """
 
+    state3_init: float
+    """
+    Initial value for state 3
+    """
+
     time_start: float
     """
     Time at which the initialisation values apply.
@@ -515,22 +564,26 @@ class PlantModelSolver:
     def run(
         self,
         airTempC: Callable[[float], float],
+        airTempCMin: Callable[[float], float],
+        airTempCMax: Callable[[float], float],
         solRadGrd: Callable[[float], float],
         dayLength: Callable[[float], float],
         dayLengthPrev: Callable[[float], float],
-        Bio_time: Callable[
-            [float], float
-        ],  ## TODO: Temporary driver (calculate internally at some point)
+        sunrise: Callable[[float], float],
+        sunset: Callable[[float], float],
         _nday: Callable[[float], float],
         time_axis: float,
     ) -> Tuple[float]:
         func_to_solve = self._get_func_to_solve(
             self.management,
             airTempC,
+            airTempCMin,
+            airTempCMax,
             solRadGrd,
             dayLength,
             dayLengthPrev,
-            Bio_time,
+            sunrise,
+            sunset,
             _nday,
         )
 
@@ -539,6 +592,7 @@ class PlantModelSolver:
         start_state = (
             self.state1_init,
             self.state2_init,
+            self.state3_init,
         )
 
         solve_kwargs = {
@@ -558,10 +612,13 @@ class PlantModelSolver:
         self,
         Management,
         airTempC: Callable[float, float],
+        airTempCMin: Callable[float, float],
+        airTempCMax: Callable[float, float],
         solRadGrd: Callable[float, float],
         dayLength: Callable[float, float],
         dayLengthPrev: Callable[float, float],
-        Bio_time: Callable[float, float],
+        sunrise: Callable[float, float],
+        sunset: Callable[float, float],
         _nday: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
@@ -581,20 +638,27 @@ class PlantModelSolver:
                 dy / dt (also as a vector)
             """
             airTempCh = airTempC(t).squeeze()
+            airTempCMinh = airTempCMin(t).squeeze()
+            airTempCMaxh = airTempCMax(t).squeeze()
             solRadGrdh = solRadGrd(t).squeeze()
             dayLengthh = dayLength(t).squeeze()
             dayLengthPrevh = dayLengthPrev(t).squeeze()
-            Bio_timeh = Bio_time(t).squeeze()
+            sunriseh = sunrise(t).squeeze()
+            sunseth = sunset(t).squeeze()
             _ndayh = _nday(t).squeeze()
 
             dydt = self.calculator.calculate(
                 Photosynthetic_Biomass=y[0],
                 Non_Photosynthetic_Biomass=y[1],
+                Bio_time=y[2],
                 solRadGrd=solRadGrdh,
                 airTempC=airTempCh,
+                airTempCMin=airTempCMinh,
+                airTempCMax=airTempCMaxh,
                 dayLength=dayLengthh,
                 dayLengthPrev=dayLengthPrevh,
-                Bio_time=Bio_timeh,
+                sunrise=sunriseh,
+                sunset=sunseth,
                 _nday=_ndayh,
                 Management=Management,
             )

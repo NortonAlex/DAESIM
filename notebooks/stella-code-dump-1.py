@@ -90,17 +90,6 @@ time_nday = np.arange(1, len(time_doy)+dt)
 print("Simulation start date:",date_list[0])
 print("Simulation end date:",date_list[-1])
 
-# %%
-time_nday
-
-# %% [markdown]
-# ## Forcing data
-
-# %%
-file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/StellaOutFile.csv"
-
-df_forcing = pd.read_csv(file)
-
 # %% [markdown]
 # ## Site and Climate
 
@@ -112,28 +101,45 @@ df_forcing = pd.read_csv(file)
 # %%
 SiteX = ClimateModule()
 
-DayJul_X, DayJulPrev_X, dayLength_X, dayLengthPrev_X = SiteX.time_discretisation(time_nday,time_year)
+time_nday_X, time_doy_X, time_year_X = SiteX.time_discretisation(1, 2018, nrundays=1000)
 
-# %%
-plt.plot(DayJul_X[0:365], dayLength_X[0:365], label="Site lat, lon = %1.1f, %1.1f" % (SiteX.CLatDeg, SiteX.CLonDeg))
+dayLength_X = sunlight_duration(time_year_X, time_doy_X, SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 
 # %% [markdown]
 # To initialise with a different site, you can specify a different latitude and/or elevation
 
 # %%
-SiteY = ClimateModule(CLatDeg=45.0, Elevation=100)
+SiteY = ClimateModule(CLatDeg=45.0, CLonDeg=144.0, timezone=10, Elevation=100)
 
-DayJul_Y, DayJulPrev_Y, dayLength_Y, dayLengthPrev_Y = SiteY.time_discretisation(time)
+time_nday_Y, time_doy_Y, time_year_Y = SiteY.time_discretisation(1, 2018, nrundays=1000)
+
+dayLength_Y = sunlight_duration(time_year_Y, time_doy_Y, SiteY.CLatDeg, SiteY.CLonDeg, SiteY.timezone)
 
 # %% [markdown]
 # Compare the two sites
 
 # %%
-plt.plot(DayJul_X[0:365], dayLength_X[0:365], label="Site lat = %1.1f" % SiteX.CLatDeg)
-plt.plot(DayJul_Y[0:365], dayLength_Y[0:365], label="Site lat = %1.1f" % SiteY.CLatDeg)
+plt.plot(time_doy_X[0:365], dayLength_X[0:365], label="Site lat, lon = %1.1f, %1.1f" % (SiteX.CLatDeg,SiteX.CLonDeg))
+plt.plot(time_doy_Y[0:365], dayLength_Y[0:365], label="Site lat, lon = %1.1f, %1.1f" % (SiteY.CLatDeg,SiteY.CLonDeg))
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Day length (sunlight hours)")
+
+# %% [markdown]
+# ## Forcing data
+
+# %%
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/StellaOutFile.csv"
+
+df_forcing = pd.read_csv(file)
+
+# %%
+SiteX = ClimateModule()
+start_doy = 1.0
+start_year = 2018
+nrundays = df_forcing.index.size
+
+time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy, start_year, nrundays=nrundays)
 
 # %%
 _airTempC = df_forcing["Climate.airTempC"].values
@@ -166,8 +172,8 @@ AH = SiteX.compute_absolute_humidity(
     df_forcing["Climate.airTempC"].values, df_forcing["Climate.relativeHumidity"].values
 )
 
-plt.plot(DayJul_X[0:365], AH[0:365])
-plt.plot(DayJul_X[0:365], _AH_Stella[0:365])
+plt.plot(time_doy[0:365], AH[0:365])
+plt.plot(time_doy[0:365], _AH_Stella[0:365])
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Absolute Humidity (g m-3)")
@@ -193,13 +199,13 @@ _vapPress_py = SiteX.compute_actual_vapor_pressure(
 #     label=r"$E_a (output)$ (units?)",
 # )
 plt.plot(
-    DayJul_X[0:365], 1e-2 * _vapPress_Stella[0:365], label=r"$E_a (Stella)$ (unit?)"
+    time_doy[0:365], 1e-2 * _vapPress_Stella[0:365], label=r"$E_a (Stella)$ (unit?)"
 )
-plt.plot(DayJul_X[0:365], 1e-3 * _vapPress_py[0:365], c="r", label=r"$E_a (new)$ (kPa)")
+plt.plot(time_doy[0:365], 1e-3 * _vapPress_py[0:365], c="r", label=r"$E_a (new)$ (kPa)")
 
 _satvapPress_py = SiteX.compute_sat_vapor_pressure(_airTempC)
 plt.plot(
-    DayJul_X[0:365], 1e-3 * _satvapPress_py[0:365], c="0.5", label=r"$E_s (new)$ (kPa)"
+    time_doy[0:365], 1e-3 * _satvapPress_py[0:365], c="0.5", label=r"$E_s (new)$ (kPa)"
 )
 
 plt.legend()
@@ -217,7 +223,7 @@ plt.show()
 # %%
 _VPD = SiteX.compute_VPD(_airTempC, _relativeHumidity)
 
-plt.plot(DayJul_X[0:365], 1e-3 * _VPD[0:365])
+plt.plot(time_doy[0:365], 1e-3 * _VPD[0:365])
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("VPD (kPa)")
@@ -235,7 +241,7 @@ _vapPress = SiteX.compute_actual_vapor_pressure(
 # _Cloudy_test = [compute_Cloudy(p, v) for p, v in zip(_precipM, _vapPress)]
 _Cloudy = SiteX.compute_Cloudy(_precipM, _vapPress)
 
-plt.plot(DayJul_X[0:365], _Cloudy[0:365])
+plt.plot(time_doy[0:365], _Cloudy[0:365])
 plt.ylabel("Cloudy")
 
 ## Question: What does this "Cloudy" variable represent??
@@ -312,14 +318,19 @@ df_forcing["PlantGrowth.Bio time"].values[0:10]
 # #### - Use the `calculate` method to compute the RHS for the state
 
 # %%
+
+# %%
 _PhBM = 2.0
 _NPhBM = 1.0
-_solRadGrd = 20.99843025
-_airTempC = 21.43692112
-_dayLength = 11.900191330084594
-_dayLengthPrev = 11.89987139219148
 _Bio_time = 0.0
+_solRadGrd = 20.99843025
+_airTempCMin = 13.88358116
+_airTempCMax = 28.99026108
+_airTempC = (_airTempCMin + _airTempCMax)/2
+_dayLength = sunlight_duration(time_year[0], time_doy[_nday-1], SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
+_dayLengthPrev = sunlight_duration(2017, 365.0, SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 _nday = 1
+_sunrise, _solarnoon, _sunset = solar_day_calcs(time_year[0], time_doy[_nday-1], SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 _propPhAboveBM = 0.473684210526
 
 Management1 = ManagementModule(plantingDay=30,harvestDay=235)
@@ -327,11 +338,15 @@ Management1 = ManagementModule(plantingDay=30,harvestDay=235)
 dydt = Plant1.calculate(
     _PhBM,
     _NPhBM,
+    _Bio_time,
     _solRadGrd,
     _airTempC,
+    _airTempCMin,
+    _airTempCMax,
     _dayLength,
     _dayLengthPrev,
-    _Bio_time,
+    _sunrise,
+    _sunset,
     _nday,
     Management1,   # It is optional to pass this argument
 )
@@ -339,6 +354,7 @@ print("dy/dt =", dydt)
 print()
 print("  PhBM = %1.4f" % dydt[0])
 print("  NPhBM = %1.4f" % dydt[1])
+print("  Bio_time = %1.4f" % dydt[2])
 
 # %% [markdown]
 # #### - Use one of the calculate methods to compute a flux e.g. PhBioNPP or PhBioMort
@@ -348,9 +364,6 @@ PhBioNPP = Plant1.calculate_PhBioNPP(_PhBM, _solRadGrd, _airTempC, 1, 0.99)
 print("PhBioNPP =", PhBioNPP)
 
 # %%
-_dayLength = 11.900191330084594
-_dayLengthPrev = 11.89987139219148
-
 PhBioMort, Fall_litter = Plant1.calculate_PhBioMortality(
     _PhBM, _dayLength, _dayLengthPrev, 1, 0.99
 )
@@ -455,9 +468,23 @@ plt.legend()
 # So, in order for discrete forcing data to be used with solve_ivp, the solver must be able to compute the forcing __at any point over the temporal domain__. To do this, we interpolate the forcing data and pass this function to the model. 
 
 # %%
+SiteX = ClimateModule(CLatDeg=-35.0,CLonDeg=-110.0,timezone=-10)
+
+start_year = 2018
+start_doy = 1
+
+time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy,start_year,nrundays=1000)
+Climate_sunrise,Climate_solarnoon,Climate_sunset = solar_day_calcs(time_year,time_doy,SiteX.CLatDeg,SiteX.CLonDeg,SiteX.timezone)
+
+Climate_sunrise_f = interp1d(time_nday, Climate_sunrise)
+Climate_sunset_f = interp1d(time_nday, Climate_sunset)
+
+# %%
 time = df_forcing["Days"].values
 
 Climate_airTempC_f = interp1d(time, df_forcing["Climate.airTempC"].values)
+Climate_airTempCMin_f = interp1d(time, df_forcing["Climate.airTempMin"].values)
+Climate_airTempCMax_f = interp1d(time, df_forcing["Climate.airTempMax"].values)
 Climate_solRadGrd_f = interp1d(time, df_forcing["Climate.solRadGrd"].values)
 Climate_dayLength_f = interp1d(time, df_forcing["Climate.dayLength"].values)
 PlantGrowth_dayLengthPrev_f = interp1d(
@@ -470,7 +497,7 @@ Climate_nday_f = interp1d(time, time)   ## nday represents the ordinal day-of-ye
 t1 = 100
 
 ## plot the interpolated time-series
-fig, axes = plt.subplots(3, 2, figsize=(12, 10))
+fig, axes = plt.subplots(4, 2, figsize=(12, 14))
 axes[0, 0].plot(Climate_solRadGrd_f(time), label="solRadGrd")
 axes[0, 0].legend()
 axes[0, 1].plot(Climate_airTempC_f(time), label="airTempC")
@@ -483,6 +510,10 @@ axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label="Bio_time")
 axes[2, 0].legend()
 axes[2, 1].plot(Climate_nday_f(time), label="_nday")
 axes[2, 1].legend()
+axes[3, 0].plot(Climate_sunrise_f(time_nday), label="sunrise time")
+axes[3, 0].legend()
+axes[3, 1].plot(Climate_sunset_f(time_nday), label="sunset time")
+axes[3, 1].legend()
 
 # %% [markdown]
 # ## Model Initialisation
@@ -495,7 +526,7 @@ PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 ManagementX = ManagementModule(plantingDay=30,harvestDay=235)
 
 Model = PlantModelSolver(
-    calculator=PlantX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, time_start=1
+    calculator=PlantX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, state3_init=0.0, time_start=1
 )
 
 # %% [markdown]
@@ -506,10 +537,13 @@ time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
     airTempC=Climate_airTempC_f,
+    airTempCMin=Climate_airTempCMin_f,
+    airTempCMax=Climate_airTempCMax_f,
     solRadGrd=Climate_solRadGrd_f,
     dayLength=Climate_dayLength_f,
     dayLengthPrev=PlantGrowth_dayLengthPrev_f,
-    Bio_time=PlantGrowth_Bio_time_f,
+    sunrise=Climate_sunrise_f,
+    sunset=Climate_sunset_f,
     _nday=Climate_nday_f,
     time_axis=time_axis,
 )
@@ -521,7 +555,10 @@ res = Model.run(
 res.y[0]
 
 # %%
-res.y[1] 
+res.y[1]
+
+# %%
+res.y[2]
 
 # %% [markdown]
 # Now that the model ODE has been evaluated, you can compute any related "diagnostic" quantities.
@@ -575,28 +612,36 @@ NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis
 
 
 # %%
+GDD_reset = PlantX.calculate_growingdegreedays_reset(res.y[2],Climate_nday_f(time_axis),ManagementX.harvestDay)
+plt.plot(GDD_reset)
+DTT = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis), Climate_airTempCMax_f(time_axis), Climate_sunrise_f(time_axis), Climate_sunset_f(time_axis))
+plt.plot(DTT)
+
+# %%
 fig, axes = plt.subplots(3, 3, figsize=(14, 10), sharex=True)
 
 axes[0, 0].plot(res.t, res.y[0], c="C0")
 axes[0, 0].set_ylabel("State variable 1\nPhotosynthetic_Biomass")
 axes[0, 1].plot(res.t, res.y[1], c="C1")
 axes[0, 1].set_ylabel("State variable 2\nNon_photosynthetic_Biomass")
-axes[0, 2].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
-axes[0, 2].set_ylabel("Diagnostic Flux: PhBioNPP")
+axes[0, 2].plot(res.t, res.y[2], c="C2")
+axes[0, 2].set_ylabel("State variable 2\nBio_time")
 
-axes[1, 0].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
-axes[1, 0].set_ylabel("Diagnostic Flux: PhBioMort")
-axes[1, 1].plot(time_axis, PhBioPlanting, c="C1", label="PhBioPlanting")
-axes[1, 1].plot(time_axis, -PhBioHarvest, c="0.5", linestyle=":", label="PhBioHarvest")
-axes[1, 1].set_ylabel("Diagnostic Flux: PhBioPlanting/Harvest")
-axes[1, 1].legend()
-axes[1, 2].plot(time_axis, NPhBioPlanting, c="C2", label="NPhBioPlanting")
-axes[1, 2].plot(time_axis, -NPhBioHarvest, c="0.5", linestyle=":", label="NPhBioHarvest")
-axes[1, 2].set_ylabel("Diagnostic Flux: NPhBioPlanting/Harvest")
+axes[1, 0].plot(time_axis, PhBioNPP, c="C1", label="PhBioNPP")
+axes[1, 0].set_ylabel("Diagnostic Flux: PhBioNPP")
+axes[1, 1].plot(time_axis, PhBioMort, c="C2", label="PhBioMort")
+axes[1, 1].set_ylabel("Diagnostic Flux: PhBioMort")
+axes[1, 2].plot(time_axis, PhBioPlanting, c="C1", label="PhBioPlanting")
+axes[1, 2].plot(time_axis, -PhBioHarvest, c="0.5", linestyle=":", label="PhBioHarvest")
+axes[1, 2].set_ylabel("Diagnostic Flux: PhBioPlanting/Harvest")
 axes[1, 2].legend()
+axes[2, 0].plot(time_axis, NPhBioPlanting, c="C2", label="NPhBioPlanting")
+axes[2, 0].plot(time_axis, -NPhBioHarvest, c="0.5", linestyle=":", label="NPhBioHarvest")
+axes[2, 0].set_ylabel("Diagnostic Flux: NPhBioPlanting/Harvest")
+axes[2, 0].legend()
 
-axes[2, 0].plot(time_axis, Transup, c="C3", alpha=0.5, label="Transup")
-axes[2, 0].set_ylabel("Diagnostic Flux: Transup")
+axes[2, 1].plot(time_axis, Transup, c="C3", alpha=0.5, label="Transup")
+axes[2, 1].set_ylabel("Diagnostic Flux: Transup")
 axes[2, 1].plot(time_axis, Transdown, c="C4", alpha=0.5, label="Transdown")
 axes[2, 1].set_ylabel("Diagnostic Flux: Transdown")
 axes[2, 2].plot(time_axis, exudation, c="C5", label="exudation")
@@ -656,7 +701,7 @@ plt.tight_layout()
 
 # %%
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Soil Module Calculator
 
 # %%

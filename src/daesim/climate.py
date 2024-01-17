@@ -73,29 +73,6 @@ class ClimateModule:
 
         return (time_nday, time_doy, time_year)
 
-    # def time_discretisation(self, t, t_year, dt=1):
-    #     """
-    #     t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
-    #     t_year  = array of consecutive time steps (year) e.g. a 2 year run with a 1-day time-step, starting on Jan 1st 2018 would have 365 values of 2018, followed by 365 values of 2019
-    #     dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
-
-    #     """
-
-    #     ## TODO: DayJul and DayJulPrev are really the "ordinal date" variables, not the Julian day. Rename them.
-    #     DayJul = (
-    #         t - dt
-    #     ) % 365 + 1  # Modification: Changed this equation so that Jan 1st (UTC 00:00:00) is represented by 1 (not 0). December 31st (UTC 00:00:00) is represented by 365.
-    #     DayJulPrev = (t - 2 * dt) % 365 + 1
-
-    #     #         Climate_ampl = np.exp(7.42 + 0.045 * Climate_CLatDeg) / 3600   ## ErrorCheck: Where does this equation come from? Is it globally applicable?
-    #     #         Climate_dayLength = Climate_ampl * np.sin((Climate_DayJul - 79) * 0.01721) + 12  ## ErrorCheck: This formulation seems odd. It doesn't return expected behaviour of a day-length calculator. E.g. it gives a shorter day length amplitude (annual min to annual max) at higher latitudes (e.g. -60o compared to -30o), it should be the other way around! I am going to replace it with my own solar calculations
-    #     #         Climate_dayLengthPrev = Climate_ampl * np.sin((Climate_DayJulPrev - 79) * 0.01721) + 12
-
-    #     dayLength = sunlight_duration(t_year, DayJul, self.CLatDeg, self.CLonDeg, self.timezone)
-    #     dayLengthPrev = sunlight_duration(t_year, DayJulPrev, self.CLatDeg, self.CLonDeg, self.timezone)
-
-    #     return (DayJul, DayJulPrev, dayLength, dayLengthPrev)
-
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """
         Computes the actual vapor pressure from relative humidity and temperature.

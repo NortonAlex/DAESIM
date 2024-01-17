@@ -518,7 +518,7 @@ class PlantModuleCalculator:
         number to trigger a zero-crossing "event" for Scipy solve_ivp to recognise. 
         """
         PlantingTime = self.calculate_plantingtime_conditional(_nday%365,plantingDay)
-        GDD_reset_flux = PlantingTime * GDD
+        GDD_reset_flux = PlantingTime * 1e9
         return GDD_reset_flux
 
 
@@ -595,16 +595,56 @@ class PlantModelSolver:
             self.state3_init,
         )
 
+        ## When the state y[2] goes below zero we trigger the solver to terminate and restart at the next time step
+        def zero_crossing_event(t, y):
+            return y[2]
+        zero_crossing_event.terminal = True
+        zero_crossing_event.direction = -1
+
         solve_kwargs = {
             "t_span": t_span,
             "t_eval": t_eval,
             "y0": start_state,
+            "events": zero_crossing_event,
         }
 
         res_raw = self._solve_ivp(
             func_to_solve,
             **solve_kwargs,
         )
+
+        ## if a termination event occurs, we restart the solver at the next time step 
+        ## with new initial values and continue until the status changes
+        if res_raw.status == 1:
+            res_next = res_raw
+        while res_raw.status == 1:
+            t_restart = np.ceil(res_next.t_events[0][0])
+            t_eval = time_axis[time_axis >= t_restart]
+            t_span = (t_restart, t_eval[-1])
+            start_state_restart = res_next.y_events[0][0]
+            start_state_restart[2] = 0
+            solve_kwargs = {
+                "t_span": t_span,
+                "t_eval": t_eval,
+                "y0": tuple(start_state_restart),
+                "events": zero_crossing_event,
+            }
+            res_next = self._solve_ivp(
+                func_to_solve,
+                **solve_kwargs,
+                )
+            res_raw.t = np.append(res_raw.t,res_next.t)
+            res_raw.y = np.append(res_raw.y,res_next.y,axis=1)
+            if res_next.status == 1:
+                res_raw.t_events = res_raw.t_events + res_next.t_events
+                res_raw.y_events = res_raw.y_events + res_next.y_events
+            res_raw.nfev += res_next.nfev
+            res_raw.njev += res_next.njev
+            res_raw.nlu += res_next.nlu
+            res_raw.sol = res_next.sol
+            res_raw.message = res_next.message
+            res_raw.success = res_next.success
+            res_raw.status = res_next.status
 
         return res_raw
 

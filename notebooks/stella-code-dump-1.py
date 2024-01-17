@@ -610,12 +610,10 @@ NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),Manageme
 PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propPhHarvesting,ManagementX.PhHarvestTurnoverTime)
 NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propNPhHarvest,ManagementX.NPhHarvestTurnoverTime)
 
-
-# %%
-GDD_reset = PlantX.calculate_growingdegreedays_reset(res.y[2],Climate_nday_f(time_axis),ManagementX.harvestDay)
-plt.plot(GDD_reset)
+# Bio_time / growing degree days terms
 DTT = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis), Climate_airTempCMax_f(time_axis), Climate_sunrise_f(time_axis), Climate_sunset_f(time_axis))
-plt.plot(DTT)
+GDD_reset = PlantX.calculate_growingdegreedays_reset(res.y[2],Climate_nday_f(time_axis),ManagementX.harvestDay)
+
 
 # %%
 fig, axes = plt.subplots(3, 3, figsize=(14, 10), sharex=True)

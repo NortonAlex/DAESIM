@@ -4,6 +4,8 @@ Helper functions for the climate module
 
 import numpy as np
 from datetime import datetime, date, timedelta
+from scipy.interpolate import interp1d
+from functools import partial
 
 def solar_day_calcs(year,doy,latitude,longitude,timezone):
     """
@@ -134,3 +136,77 @@ def sunlight_duration(year,doy,latitude,longitude,timezone):
     sunrise_t,solarnoon_t,sunset_t = solar_day_calcs(year,doy,latitude,longitude,timezone)
     sunlight_duration_hrs = sunset_t-sunrise_t
     return sunlight_duration_hrs
+
+def interp_nearest_lower_neighbour(x,y,xt,fill_value=(np.nan,np.nan)):
+    """
+    One-dimensional piecewise constant interpolation, with given discrete data points (x, y), 
+    evaluated at xt.
+
+    Given an array of x and y coordinates and a point xt anywhere within the x domain, it will
+    index to the nearest x coordinate below xt and return the corresponding y value.
+
+    Parameters
+    ----------
+    x: array_like
+        The x-coordinates of the data points
+    y: array_like
+        The y-coordinates of the data points, length must match x
+    xt: float
+        The x-coordinate at which to evaluate the interpolated value
+    fill_value: two-element tuple
+        The first value of this tuple will be used to fill in for requested points below the data range.
+        The second value of this tuple will be used to fill in for requested points above the data range.
+
+    Returns
+    -------
+    yt: float
+        The interpolated value at the new x-coordinate, xt.
+
+    Examples
+    -------- 
+    
+        # Create some discrete data 
+        x = np.array([0,1.5,3,5])
+        y = np.array([12,10,15,20])
+        plt.scatter(x,y,marker="o",label="y(x)")
+        
+        # Generate the interpolation by using partial and vectorize
+        f = partial(interp_nearest_lower_neighbour_update,x,y,fill_value=(y[0],y[-1]))
+        y_interped_f = np.vectorize(f)
+        
+        # Interpolate new y values across x dimension
+        xt_array = np.linspace(0,6,1000)
+        y_interped = y_interped_f(xt_array)
+        plt.plot(xt_array,y_interped,label="interpolation",c="C1")
+        plt.legend()
+
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    if (xt < x).all():
+        #print("Warning: xt = %1.3f is below x array domain [%1.3f, %1.3f]" % (xt,x.min(),x.max()),"; returning lower fill value")
+        return fill_value[0]
+    elif (xt > x).all():
+        #print("Warning: xt = %1.3f is above x array domain [%1.3f, %1.3f]" % (xt,x.min(),x.max()),"; returning upper fill value")
+        return fill_value[1]
+    x_xt = np.max(x[x <= xt])
+    i_xt = (x == np.max(x[x <= xt]))
+    y_xt = y[i_xt]
+    return y_xt
+
+def interp_forcing(x,y,kind="linear",fill_value=(np.nan,np.nan)):
+    """
+    This method returns a function whose call method uses the interpolation to find the value of new points.
+    """
+
+    if (kind == "linear") or (kind == "quadratic"):
+        ## Use the scipy.interpolate.interp1d method
+        interp_f = interp1d(x,y,kind=kind,bounds_error=False,fill_value=(fill_value[0],fill_value[-1]))
+    elif kind == "pconst":
+        ## Use the piecewise constant interpolation method (interp_nearest_lower_neighbour)
+        f = partial(interp_nearest_lower_neighbour,x,y,fill_value=(fill_value[0],fill_value[-1]))
+        interp_f = np.vectorize(f,otypes=[float])
+    else:
+        raise Exception("Interpolation method %s not accepted. Please choose one of 'linear', 'quadratic' or 'pconst'" % kind)
+
+    return interp_f

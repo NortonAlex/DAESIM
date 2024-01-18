@@ -122,10 +122,8 @@ class PlantModuleCalculator:
         solRadGrd,
         airTempCMin,
         airTempCMax,
-        dayLength,
-        dayLengthPrev,
-        sunrise,
-        sunset,
+        _doy,
+        _year,
         _nday,
         Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
         Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
@@ -164,6 +162,8 @@ class PlantModuleCalculator:
 
         # Call the calculate_PhBioMort method
         # PhBioMort = self.calculate_PhBioMort(Photosynthetic_Biomass)
+        dayLength = Site.sunlight_duration(_year,_doy+1)  ## TODO: Fix these input arguments: _nday+1 should really be ordinal day-of-year (doy)
+        dayLengthPrev = Site.sunlight_duration(_year,_doy) ## TODO: Fix these input arguments: _nday should really be previous ordinal day-of-year (doy)
         PhBioMort, Fall_litter = self.calculate_PhBioMortality(
             Photosynthetic_Biomass,
             dayLength,
@@ -202,6 +202,7 @@ class PlantModuleCalculator:
             - exudation
         )
 
+        sunrise, solarnoon, sunset = Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
         GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_nday,Management.plantingDay)
         dGDDdt = DTT - GDD_reset
@@ -583,10 +584,8 @@ class PlantModelSolver:
         airTempCMin: Callable[[float], float],
         airTempCMax: Callable[[float], float],
         solRadGrd: Callable[[float], float],
-        dayLength: Callable[[float], float],
-        dayLengthPrev: Callable[[float], float],
-        sunrise: Callable[[float], float],
-        sunset: Callable[[float], float],
+        _doy: Callable[[float], float],
+        _year: Callable[[float], float],
         _nday: Callable[[float], float],
         time_axis: float,
     ) -> Tuple[float]:
@@ -596,10 +595,8 @@ class PlantModelSolver:
             airTempCMin,
             airTempCMax,
             solRadGrd,
-            dayLength,
-            dayLengthPrev,
-            sunrise,
-            sunset,
+            _doy,
+            _year,
             _nday,
         )
 
@@ -671,10 +668,8 @@ class PlantModelSolver:
         airTempCMin: Callable[float, float],
         airTempCMax: Callable[float, float],
         solRadGrd: Callable[float, float],
-        dayLength: Callable[float, float],
-        dayLengthPrev: Callable[float, float],
-        sunrise: Callable[float, float],
-        sunset: Callable[float, float],
+        _doy: Callable[float, float],
+        _year: Callable[float, float],
         _nday: Callable[float, float],
     ) -> Callable[float, float]:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
@@ -696,10 +691,8 @@ class PlantModelSolver:
             airTempCMinh = airTempCMin(t).squeeze()
             airTempCMaxh = airTempCMax(t).squeeze()
             solRadGrdh = solRadGrd(t).squeeze()
-            dayLengthh = dayLength(t).squeeze()
-            dayLengthPrevh = dayLengthPrev(t).squeeze()
-            sunriseh = sunrise(t).squeeze()
-            sunseth = sunset(t).squeeze()
+            _doyh = _doy(t).squeeze()
+            _yearh = _year(t).squeeze()
             _ndayh = _nday(t).squeeze()
 
             dydt = self.calculator.calculate(
@@ -709,10 +702,8 @@ class PlantModelSolver:
                 solRadGrd=solRadGrdh,
                 airTempCMin=airTempCMinh,
                 airTempCMax=airTempCMaxh,
-                dayLength=dayLengthh,
-                dayLengthPrev=dayLengthPrevh,
-                sunrise=sunriseh,
-                sunset=sunseth,
+                _doy=_doyh,
+                _year=_yearh,
                 _nday=_ndayh,
                 Site=Site,
                 Management=Management,

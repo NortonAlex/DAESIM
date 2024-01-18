@@ -479,6 +479,8 @@ Climate_sunrise,Climate_solarnoon,Climate_sunset = solar_day_calcs(time_year,tim
 
 Climate_sunrise_f = interp1d(time_nday, Climate_sunrise)
 Climate_sunset_f = interp1d(time_nday, Climate_sunset)
+Climate_doy_f = interp_forcing(time_nday, time_doy, kind="pconst", fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday, time_year, kind="pconst", fill_value=(time_year[0],time_year[-1]))
 
 # %%
 time = df_forcing["Days"].values
@@ -504,8 +506,9 @@ axes[0, 0].legend()
 axes[0, 1].plot(Climate_airTempC_f(time), label="airTempC")
 axes[0, 1].legend()
 axes[1, 0].plot(Climate_dayLength_f(time), label="dayLength")
+axes[1, 0].plot(PlantGrowth_dayLengthPrev_f(time), label="dayLengthPrev")
 axes[1, 0].legend()
-axes[1, 1].plot(PlantGrowth_dayLengthPrev_f(time), label="dayLengthPrev")
+axes[1, 1].plot(Climate_doy_f(time), label="doy")
 axes[1, 1].legend()
 axes[2, 0].plot(PlantGrowth_Bio_time_f(time), label="Bio_time")
 axes[2, 0].legend()
@@ -537,14 +540,11 @@ Model = PlantModelSolver(
 time_axis = np.arange(1, 1001, 1)
 
 res = Model.run(
-    #airTempC=Climate_airTempC_f,
     airTempCMin=Climate_airTempCMin_f,
     airTempCMax=Climate_airTempCMax_f,
     solRadGrd=Climate_solRadGrd_f,
-    dayLength=Climate_dayLength_f,
-    dayLengthPrev=PlantGrowth_dayLengthPrev_f,
-    sunrise=Climate_sunrise_f,
-    sunset=Climate_sunset_f,
+    _doy=Climate_doy_f,
+    _year=Climate_year_f,
     _nday=Climate_nday_f,
     time_axis=time_axis,
 )

@@ -474,7 +474,7 @@ SiteX = ClimateModule(CLatDeg=-35.0,CLonDeg=-110.0,timezone=-10)
 start_year = 2018
 start_doy = 1
 
-time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy,start_year,nrundays=1000)
+time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy,start_year,nrundays=df_forcing["Days"].size)
 Climate_sunrise,Climate_solarnoon,Climate_sunset = solar_day_calcs(time_year,time_doy,SiteX.CLatDeg,SiteX.CLonDeg,SiteX.timezone)
 
 Climate_sunrise_f = interp1d(time_nday, Climate_sunrise)
@@ -523,29 +523,28 @@ axes[3, 1].legend()
 # ## Model Initialisation
 
 # %% [markdown]
-# Initialise the calculator. Then create the Model class with that calculator, initial conditions and start time. 
+# Define a time-axis over which to execute the model. Initialise the calculator. Then create the Model class with that calculator, initial conditions and start time. 
 
 # %%
+time_axis = np.arange(1, 1001, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+
 PlantX = PlantModuleCalculator(mortality_constant=0.0003)
 ManagementX = ManagementModule(plantingDay=30,harvestDay=235)
 
 Model = PlantModelSolver(
-    calculator=PlantX, site=SiteX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, state3_init=0.0, time_start=1
+    calculator=PlantX, site=SiteX, management=ManagementX, state1_init=0.036, state2_init=0.0870588, state3_init=0.0, time_start=time_axis[0]
 )
 
 # %% [markdown]
-# Define a time-axis over which to execute the model. Then run the model given some forcing data.
+# Then run the model given some forcing data.
 
 # %%
-time_axis = np.arange(1, 1001, 1)
-
 res = Model.run(
     airTempCMin=Climate_airTempCMin_f,
     airTempCMax=Climate_airTempCMax_f,
     solRadGrd=Climate_solRadGrd_f,
     _doy=Climate_doy_f,
     _year=Climate_year_f,
-    _nday=Climate_nday_f,
     time_axis=time_axis,
 )
 
@@ -605,15 +604,16 @@ NPhBioMort = PlantX.calculate_NPhBioMort(res.y[1])
 
 exudation = PlantX.calculate_exudation(rootBM)
 
-PhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),ManagementX.plantingDay,ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
-NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_nday_f(time_axis),ManagementX.plantingDay,1-ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
+PhBioPlanting = PlantX.calculate_BioPlanting(Climate_doy_f(time_axis),ManagementX.plantingDay,ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
+NPhBioPlanting = PlantX.calculate_BioPlanting(Climate_doy_f(time_axis),ManagementX.plantingDay,1-ManagementX.propPhPlanting,ManagementX.plantingRate,ManagementX.plantWeight)
 
-PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propPhHarvesting,ManagementX.PhHarvestTurnoverTime)
-NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_nday_f(time_axis),ManagementX.harvestDay,ManagementX.propNPhHarvest,ManagementX.NPhHarvestTurnoverTime)
+PhBioHarvest = PlantX.calculate_PhBioHarvest(res.y[0],res.y[1],PlantConditions["maxBM"],Climate_doy_f(time_axis),ManagementX.harvestDay,ManagementX.propPhHarvesting,ManagementX.PhHarvestTurnoverTime)
+NPhBioHarvest = PlantX.calculate_NPhBioHarvest(res.y[1],Climate_doy_f(time_axis),ManagementX.harvestDay,ManagementX.propNPhHarvest,ManagementX.NPhHarvestTurnoverTime)
 
 # Bio_time / growing degree days terms
 DTT = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis), Climate_airTempCMax_f(time_axis), Climate_sunrise_f(time_axis), Climate_sunset_f(time_axis))
-GDD_reset = PlantX.calculate_growingdegreedays_reset(res.y[2],Climate_nday_f(time_axis),ManagementX.harvestDay)
+GDD_reset = PlantX.calculate_growingdegreedays_reset(res.y[2],Climate_doy_f(time_axis),ManagementX.harvestDay)
+
 
 
 # %%

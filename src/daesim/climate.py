@@ -49,9 +49,41 @@ class ClimateModule:
 
     def time_discretisation(self, start_doy, start_year, nrundays=None, end_doy=None, end_year=None, dt=1):
         """
-        t  = array of consecutive time steps (days) e.g. a 2 year run with a 1-day time-step would require t=np.arange(1,2*365+1,1)
-        t_year  = array of consecutive time steps (year) e.g. a 2 year run with a 1-day time-step, starting on Jan 1st 2018 would have 365 values of 2018, followed by 365 values of 2019
-        dt = time step size (days). Default is dt=1 day. TODO: Convert all time dimension units to seconds (t, dt)
+        Initialise the time dimension of a simulation. Calculates the consecutive simulation day (nday), 
+        the ordinal day-of-year (doy) and the corresponding year (year). You must define either the 
+        number of simulation days (nrundays) or the end date (by setting the ordinal day-of-year, end_doy 
+        and year, end_year). 
+
+        Parameters
+        ----------
+        start_doy: int or float
+            Ordinal day-of-year of the start of the simulation period.
+
+        start_year: int or float
+            Year for the start of the simulation period
+
+        nrundays: int or float
+            Number of consecutive simulation days (e.g. if you want to run for 100 days, nrundays=100; if you want to run for two non-leap years, nrundays=730)
+
+        end_doy: int or float
+            Ordinal day-of-year of the end of the simulation period (inclusive).
+
+        end_year: int or float
+            Year for the end of the simulation period.
+
+        dt: int or float
+            Time step size (days). Default is 1 day. TODO: Convert all time dimension units to seconds (t, dt)
+
+        Returns
+        -------
+        time_nday: array_like
+            Array containing the consecutive simulation days.
+
+        time_doy: array_like
+            Array containing the ordinal day-of-year values.
+
+        time_year: array_like
+            Array containing the corresponding year values.
 
         """
         if (nrundays != None):

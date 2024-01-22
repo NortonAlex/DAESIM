@@ -49,54 +49,21 @@ from daesim.management import ManagementModule
 # "Modification": A piece of code that HAD to be modified compared with the Stella version in order to work within this framework or in Python more generally. 
 
 # %% [markdown]
-# ## Model run variables
-
-# %%
-## Simulation time period
-## - accounts for leap years
-
-## Must always define a start day-of-year and year
-start_doy = 180
-start_year = 2019
-
-## Two options for defining the simulation period
-## Defaults to option 1, as long as "nrundays" is defined (i.e. nrundays != None)
-## 1) define the number of days to run, starting on start date (e.g. ndays = 800)
-nrundays = 300
-dt = 1
-## 2) define an end day-of-year and year
-end_doy = 365
-end_year = 2019
-
-
-# %%
-if (nrundays != None):
-    start_date = datetime.strptime(str(start_year) + "-" + str(start_doy), "%Y-%j")
-    date_list = [start_date + timedelta(days=x) for x in range(nrundays)]
-    time_year = [d.year for d in date_list]
-    time_doy = [float(d.strftime('%j')) for d in date_list]
-elif (nrundays == None) and (end_doy != None):
-    start_date = datetime.strptime(str(start_year) + "-" + str(start_doy), "%Y-%j")
-    end_date = datetime.strptime(str(end_year) + "-" + str(end_doy), "%Y-%j")
-    date_list = []
-    while start_date <= end_date:
-        date_list.append(start_date)
-        start_date += timedelta(days=1)    
-    time_year = [d.year for d in date_list]
-    time_doy = [float(d.strftime('%j')) for d in date_list]
-
-time_nday = np.arange(1, len(time_doy)+dt)
-
-print("Simulation start date:",date_list[0])
-print("Simulation end date:",date_list[-1])
-
-# %% [markdown]
 # ## Site and Climate
+#
+# ### Simulation time period
+# Accounts for leap years. Must always define a start day-of-year and year e.g. start_doy = 180, start_year = 2019.
+#
+# #### Two options for defining the simulation period
+#  Defaults to option 1, as long as "nrundays" is defined (i.e. nrundays != None)
+# 1) define the number of days to run, starting on start date.
+#
+# 2) define an end day-of-year and year e.g. end_doy = 365, end_year = 2019
 
 # %% [markdown]
 # #### - Initialise the Climate module (details about meteorology, solar, location)
 #
-# You can initialise it simply with the default parameters or you can initialise it and assign different parameters. 
+# You can initialise it simply with the default parameters or you can initialise it and assign different parameters:
 
 # %%
 SiteX = ClimateModule()
@@ -106,7 +73,7 @@ time_nday_X, time_doy_X, time_year_X = SiteX.time_discretisation(1, 2018, nrunda
 dayLength_X = sunlight_duration(time_year_X, time_doy_X, SiteX.CLatDeg, SiteX.CLonDeg, SiteX.timezone)
 
 # %% [markdown]
-# To initialise with a different site, you can specify a different latitude and/or elevation
+# To initialise with a different site, you can specify a different latitude and/or elevation:
 
 # %%
 SiteY = ClimateModule(CLatDeg=45.0, CLonDeg=144.0, timezone=10, Elevation=100)
@@ -124,6 +91,16 @@ plt.plot(time_doy_Y[0:365], dayLength_Y[0:365], label="Site lat, lon = %1.1f, %1
 plt.legend()
 plt.xlabel("Day of Year")
 plt.ylabel("Day length (sunlight hours)")
+
+# %% [markdown]
+# You can also initialise by setting the end date, instead of the number of run days (nrundays):
+
+# %%
+SiteZ = ClimateModule()
+
+time_nday_Z, time_doy_Z, time_year_Z = SiteZ.time_discretisation(1, 2018, end_doy=366, end_year=2020)
+
+dayLength_Z = sunlight_duration(time_year_Z, time_doy_Z, SiteZ.CLatDeg, SiteZ.CLonDeg, SiteZ.timezone)
 
 # %% [markdown]
 # ## Forcing data

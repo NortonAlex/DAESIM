@@ -7,7 +7,7 @@ from typing import Tuple, Callable
 from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
+from daesim.biophysics_funcs import fT_arrhenius, fT_arrheniuspeaked, fT_Q10
 from daesim.management import ManagementModule
 from daesim.climate import ClimateModule
 from daesim.climate_funcs import solar_day_calcs
@@ -23,11 +23,10 @@ class LeafGasExchangeModule:
     ## Biochemical constants
     Kc_opt: float = field(
         default=405.0*1e-06
-    )  ## Kinetic coefficient for CO2 (VonCaemmerer and Furbank, 1999), bar
+    )  ## Michaelis-Menten kinetic coefficient for CO2 (VonCaemmerer and Furbank, 1999), bar
     Ko_opt: float = field(
         default=278.0*1e-03
-    )  ## Kinetic coefficient for O2 (VonCaemmerer and Furbank, 1999), bar
-
+    )  ## Michaelis-Menten kinetic coefficient for O2 (VonCaemmerer and Furbank, 1999), bar
     spfy_opt: float = field(
         default=2600.0
     )  ## Specificity (tau in Collatz e.a. 1991). This is, in theory, Vcmax/Vomax.*Ko./Kc, but used as a separate parameter.
@@ -39,6 +38,19 @@ class LeafGasExchangeModule:
         default=350.0*1e-6
         ) ## Maximum Cyt b6f activity at optimum temperature, mol e-1 m-2 s-1
     TPU_opt_rVcmax: float = field(default=0.1666)  ## TPU as a ratio of Vcmax_opt (from Bonan, 2019, Chapter 11, p. 171)
+    ## Temperature dependence parameters
+    Kc_Ea: float = field(default=79.43)  ## activation energy of Kc, kJ mol-1 (Bernacchi et al., 2001; Medlyn et al., 2002, Eq. 5)
+    Ko_Ea: float = field(default=36.28)  ## activation energy of Ko, kJ mol-1 (Bernacchi et al., 2001; Medlyn et al., 2002, Eq. 6)
+    Vcmax_Ea: float = field(default=70.0)  ## activation energy of Vcmax, kJ mol-1 (Medlyn et al., 2002)
+    Vcmax_Hd: float = field(default=200.0)  ## deactivation energy of Vcmax, kJ mol-1 (Medlyn et al., 2002)
+    Vcmax_DeltaS: float = field(default=0.65)  ## entropy of process for Vcmax, kJ mol-1 K-1 (Medlyn et al., 2002)
+    Vqmax_Ea: float = field(default=80.0)  ## activation energy of Vqmax, kJ mol-1 (it is assumed that derived Jmax temperature response parameters can apply to Vqmax; Medlyn et al., 2002)
+    Vqmax_Hd: float = field(default=200.0)  ## deactivation energy of Vqmax, kJ mol-1 (it is assumed that derived Jmax temperature response parameters can apply to Vqmax; Medlyn et al., 2002)
+    Vqmax_DeltaS: float = field(default=0.65)  ## entropy of process for Vqmax, kJ mol-1 K-1 (it is assumed that derived Jmax temperature response parameters can apply to Vqmax; Medlyn et al., 2002)
+    Rd_Q10: float = field(default=1.8)  ## Q10 coefficient for the temperature response of Rd
+    TPU_Q10: float = field(default=1.8)  ## Q10 coefficient for the temperature response of TPU
+    spfy_Ea: float = field(default=-29.0)  ## activation energy for the specificity factor (Medlyn et al., 2002, p. 1170)
+
     Abs: float = field(default=0.85)  ## Total leaf absorptance to PAR, mol PPFD absorbed mol-1 PPFD incident
     beta: float = field(default=0.52)  ## PSII fraction of total leaf absorptance, mol PPFD absorbed by PSII mol-1 PPFD absorbed
     Rds: float = field(default=0.01)  ## Scalar for dark respiration, dimensionless
@@ -84,14 +96,13 @@ class LeafGasExchangeModule:
     ) -> Tuple[float]:
 
         # Calculate derived variables from constants
-        # TODO: Add in temperature response functions to scale temperature-dependent parameters
-        Vqmax = self.Vqmax_opt       # Maximum Cyt b6f activity, mol e-1 m-2 s-1
-        Vcmax = self.Vcmax_opt       # Maximum Rubisco activity, mol CO2 m-2 s-1
-        TPU = self.TPU_opt_rVcmax * self.Vcmax_opt
-        Rd = Vcmax*self.Rds
-        S = self.spfy_opt
-        Kc = self.Kc_opt
-        Ko = self.Ko_opt
+        Vqmax = fT_arrheniuspeaked(self.Vqmax_opt,T,E_a=self.Vqmax_Ea,H_d=self.Vqmax_Hd,DeltaS=self.Vqmax_DeltaS)       # Maximum Cyt b6f activity, mol e-1 m-2 s-1
+        Vcmax = fT_arrheniuspeaked(self.Vcmax_opt,T,E_a=self.Vcmax_Ea,H_d=self.Vcmax_Hd,DeltaS=self.Vcmax_DeltaS)       # Maximum Rubisco activity, mol CO2 m-2 s-1
+        TPU = fT_Q10(self.TPU_opt_rVcmax*self.Vcmax_opt,T,Q10=self.TPU_Q10) 
+        Rd = fT_Q10(Vcmax*self.Rds,T,Q10=self.Rd_Q10)
+        S = fT_arrhenius(self.spfy_opt,T,E_a=self.spfy_Ea)
+        Kc = fT_arrhenius(self.Kc_opt,T,E_a=self.Kc_Ea)
+        Ko = fT_arrhenius(self.Ko_opt,T,E_a=self.Ko_Ea)
         phi1P_max = self.Kp1/(self.Kp1+self.Kd+self.Kf)  # Maximum photochemical yield PS I
         Gamma_star   = 0.5 / S * O      # compensation point in absence of Rd
 
@@ -103,10 +114,6 @@ class LeafGasExchangeModule:
         elif self.alpha_opt == 'dynamic':
             print("dynamic absorption cross-section not implemented yet")
             return np.nan
-
-        minCi = 0.3  ## Minimum Ci (as fraction of Cs) for BallBerry Ci.
-
-        MM_consts = Kc * (1.0 + O/Ko)
 
         VPD = Site.compute_VPD(T,RH)*1e-3
 

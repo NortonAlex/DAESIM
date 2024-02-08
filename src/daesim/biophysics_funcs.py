@@ -18,6 +18,110 @@ def func_TempCoeff(airTempC,optTemperature=20):
         )  ## See Stella docs
         return TempCoeff
 
+def fT_arrheniuspeaked(k_25, T_k, E_a=70.0, H_d=200, DeltaS=0.650):
+    """
+    Applies a peaked Arrhenius-type temperature scaling function to the given parameter.
+    
+    Parameters
+    ----------
+    k_25: float
+        Rate constant at 25oC
+
+    T_k: float
+        Temperature, degrees Celcius
+
+    E_a: float
+        Activation energy, kJ mol-1. Describes the rate of exponential increase of the function below the optimum
+    
+    H_d: float
+        Deactivation energy, kJ mol-1. Describes the rate of decrease of the function above the optimum
+    
+    DeltaS: float
+        Entropy of the process, kJ mol-1 K-1. Also known as an entropy factor but is not readily interpreted.
+
+    Returns
+    -------
+    Temperature adjusted rate constant at the given temperature.
+
+    References
+    ----------
+    From Medlyn et al. (2002, doi: 10.1046/j.1365-3040.2002.00891.x) Equation 17. Note that this ignores
+    the correction as described in Murphy and Stinziano (2020, doi: 10.1111/nph.16883) Equation 10 because 
+    the biochemical parameters were calibrated using the Medlyn formulation. 
+    """
+    T_k = T_k + 273.15
+    R   = 8.314      # universal gas constant J mol-1 K-1
+    E_a = E_a * 1e3  # convert kJ mol-1 to J mol-1
+    H_d = H_d * 1e3  # convert kJ mol-1 to J mol-1
+    DeltaS = DeltaS * 1e3  # convert kJ mol-1 K-1 to J mol-1 K-1
+    
+    exponential_term1 = (E_a*(T_k - 298.15))/(298.15*R*T_k)
+    exponential_term2 = (298.15 * DeltaS - H_d)/(289.15*R)
+    exponential_term3 = (T_k*DeltaS - H_d)/(T_k*R)
+    
+    k_scaling = np.exp(exponential_term1) * ((1.0 + np.exp(exponential_term2))/(1.0 + np.exp(exponential_term3)))
+
+    return k_25*k_scaling
+
+def fT_arrhenius(k_25, T_k, E_a=70.0, T_opt=298.15):
+    """
+    Applies an Arrhenius-type temperature scaling function to the given parameter.
+    
+    Parameters
+    ----------
+    k_25: float
+        Rate constant at 25oC
+
+    T_k: float
+        Temperature, degrees Celcius
+
+    E_a: float
+        Activation energy, kJ mol-1, gives the rate of exponential increase of the function
+
+    T_opt: float
+        Optimum temperature for rate constant, K
+
+    Returns
+    -------
+    Temperature adjusted rate constant at the given temperature.
+
+    References
+    ----------
+    Medlyn et al. (2002) Equation 16
+    """
+    T_k = T_k + 273.15
+    R   = 8.314      # universal gas constant J mol-1 K-1
+    E_a = E_a * 1e3  # convert kJ mol-1 to J mol-1
+
+    k_scaling = np.exp( (E_a * (T_k - T_opt))/(T_opt*R*T_k) ) 
+
+    return k_25*k_scaling
+
+def fT_Q10(k_25, T_k, Q10=2.0):
+    """
+    Applies a Q10 temperature scaling function to the given parameter (e.g. a rate constant).
+    
+    Parameters
+    ----------
+    k_25: float
+        Rate constant at 25oC
+
+    T_k: float
+        Temperature, K
+
+    Q10: float
+        Q10 coefficient (factor change per 10oC increments), unitless
+
+    Returns
+    -------
+    Temperature adjusted rate constant at the given temperature
+
+    """
+    T_k = T_k + 273.15
+    k_scaling = Q10**((T_k - 298.15)/10)
+
+    return k_25*k_scaling
+
 def _diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
     """
     Parameters

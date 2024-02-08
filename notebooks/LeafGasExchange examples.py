@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 # %%
 from daesim.leafgasexchange import LeafGasExchangeModule
 from daesim.climate import *
+from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 
 # %% [markdown]
 # ### Photosynthesis Model
@@ -73,7 +74,7 @@ from daesim.climate import *
 # ### Initialise the Leaf Gas Exchange model
 
 # %%
-Leaf = LeafGasExchangeModule()#Vcmax_opt=100e-6,Vqmax_opt=350e-6,g1=2.5,TPU_opt_rVcmax=0.25)
+Leaf = LeafGasExchangeModule()
 
 # %% [markdown]
 # ### Run the model given input data
@@ -82,7 +83,7 @@ Leaf = LeafGasExchangeModule()#Vcmax_opt=100e-6,Vqmax_opt=350e-6,g1=2.5,TPU_opt_
 p = 101325 # air pressure, Pa
 
 Q = 1200e-6  # absorbed PPFD, umol PAR m-2 s-1
-T = 25.0  # leaf emperature, degrees Celcius
+T = 25.0  # leaf temperature, degrees Celcius
 Cs = 400*(p/1e5)*1e-6 # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
 RH = 65.0  # relative humidity, %
@@ -110,7 +111,7 @@ axes[0].plot(Q*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
 axes[0].plot(Q*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Q*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
-axes[0].set_ylim([-5,70])
+# axes[0].set_ylim([-5,70])
 axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 
@@ -159,5 +160,44 @@ axes[0].set_title("CO2-response curve: Photosynthetic rate")
 axes[1].set_title("CO2-response curve: Stomatal conductance")
 
 plt.tight_layout()
+
+# %% [markdown]
+# ### Simulate a temperature response curve
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = np.linspace(0,50,n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)
+
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+
+fig, axes = plt.subplots(1,2,figsize=(10,4))
+
+axes[0].plot(T,A*1e6,label="Anet",c="0.5")
+axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(T,Vc*1e6,label="Vc",linestyle=":")
+axes[0].plot(T,Ve*1e6,label="Ve",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,50])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
+axes[0].grid(True)
+
+axes[1].plot(T,gs)
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
+axes[1].grid(True)
+
+axes[0].set_title("Temperature-response curve: Photosynthetic rate")
+axes[1].set_title("Temperature-response curve: Stomatal conductance")
+
+plt.tight_layout()
+
+# %%
 
 # %%

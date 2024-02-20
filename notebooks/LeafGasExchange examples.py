@@ -76,6 +76,9 @@ from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 # %%
 Leaf = LeafGasExchangeModule()
 
+# %%
+Site = ClimateModule()
+
 # %% [markdown]
 # ### Run the model given input data
 
@@ -89,6 +92,74 @@ O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
 RH = 65.0  # relative humidity, %
 
 A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+
+# %% [markdown]
+# #### - Checking optimal vs actual A, gs and Ci
+
+# %%
+p = 101325 # air pressure, Pa
+
+Q = 2000e-6  # absorbed PPFD, umol PAR m-2 s-1
+T = 25.0  # leaf temperature, degrees Celcius
+Cs = 400*(p/1e5)*1e-6 # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
+RH = 65.0  # relative humidity, %
+
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+
+print("Final calculated values:")
+print(" A =",A*1e6)
+print(" gs =",gs)
+print(" Ci =", Ci)
+print()
+VPD = Site.compute_VPD(T,RH)*1e-3
+print("Using actual A in the formulation")
+print("Medlyn et al. (2011) equation:")
+print("gs = 1.6 (1 + g1/sqrt(D)) A/Ca")
+print("  -> gs =",gs)
+print("  -> 1.6 (1 + g1/sqrt(D)) A/Ca=",1.6* (1 + Leaf.g1/np.sqrt(VPD))*A/Cs)
+print()
+print("Fick's law of diffusion:")
+print("Ci = Cs - 1.6*A/gs")
+print("  -> Ci =",Ci*1e6)
+print("  -> Cs - 1.6*A/gs =",(Cs - 1.6*A/gs)*1e6)
+
+# %%
+Vqmax = fT_arrheniuspeaked(Leaf.Vqmax_opt,T,E_a=Leaf.Vqmax_Ea,H_d=Leaf.Vqmax_Hd,DeltaS=Leaf.Vqmax_DeltaS)       # Maximum Cyt b6f activity, mol e-1 m-2 s-1
+Vcmax = fT_arrheniuspeaked(Leaf.Vcmax_opt,T,E_a=Leaf.Vcmax_Ea,H_d=Leaf.Vcmax_Hd,DeltaS=Leaf.Vcmax_DeltaS)       # Maximum Rubisco activity, mol CO2 m-2 s-1
+TPU = fT_Q10(Leaf.TPU_opt_rVcmax*Leaf.Vcmax_opt,T,Q10=Leaf.TPU_Q10) 
+Rd = fT_Q10(Vcmax*Leaf.Rds,T,Q10=Leaf.Rd_Q10)
+S = fT_arrhenius(Leaf.spfy_opt,T,E_a=Leaf.spfy_Ea)
+Kc = fT_arrhenius(Leaf.Kc_opt,T,E_a=Leaf.Kc_Ea)
+Ko = fT_arrhenius(Leaf.Ko_opt,T,E_a=Leaf.Ko_Ea)
+phi1P_max = Leaf.Kp1/(Leaf.Kp1+Leaf.Kd+Leaf.Kf)  # Maximum photochemical yield PS I
+Gamma_star   = 0.5 / S * O      # compensation point in absence of Rd
+
+## Establish PSII and PS I cross-sections, mol PPFD abs PS2/PS1 mol-1 PPFD
+## TODO: consider moving this to a separate function
+if Leaf.alpha_opt == 'static':
+    a2 = Leaf.Abs*Leaf.beta
+    a1 = Leaf.Abs - a2
+
+VPD = Site.compute_VPD(T,RH)*1e-3
+
+# Compute stomatal conductance and Ci based on optimal stomatal theory (Medlyn et al., 2011)
+A, gs, Ci = Leaf.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
+print("Optimal calculated values where A is light-limited i.e. A=Aj, not A=min{Aj,Ac}:")
+print(" A =",A*1e6)
+print(" gs =",gs)
+print(" Ci =", Ci)
+print()
+print("Using light-limited A in the formulation")
+print("Medlyn et al. (2011) equation:")
+print("gs = 1.6 (1 + g1/sqrt(D)) A/Ca")
+print("  -> gs =",gs)
+print("  -> 1.6 (1 + g1/sqrt(D)) A/Ca=",1.6* (1 + Leaf.g1/np.sqrt(VPD))*A/Cs)
+print()
+print("Fick's law of diffusion:")
+print("Ci = Cs - 1.6*A/gs")
+print("  -> Ci =",Ci*1e6)
+print("  -> Cs - 1.6*A/gs =",(Cs - 1.6*A/gs)*1e6)
 
 # %% [markdown]
 # ### Simulate a light-response curve
@@ -105,24 +176,29 @@ RH = 65.0*np.ones(n)
 
 A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
 
-fig, axes = plt.subplots(1,2,figsize=(10,4))
-axes[0].plot(Q*1e6,A*1e6,label="Anet",c="0.5")
-axes[0].plot(Q*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+axes[0].plot(Q*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
+# axes[0].plot(Q*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
 axes[0].plot(Q*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Q*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
 # axes[0].set_ylim([-5,70])
 axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].grid(True)
 
-axes[1].plot(Q*1e6,gs)
+axes[1].plot(Q*1e6,gs,c="0.5")
 axes[1].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].grid(True)
 
-axes[0].set_title("Light-response curve: Photosynthetic rate")
-axes[1].set_title("Light-response curve: Stomatal conductance")
+axes[0].set_title("Light-response curve")#: Photosynthetic rate")
+axes[1].set_title("Light-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_light-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.show()
+
 
 # %% [markdown]
 # ### Simulate a CO2-response curve
@@ -139,10 +215,10 @@ RH = 65.0*np.ones(n)
 
 A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
 
-fig, axes = plt.subplots(1,2,figsize=(10,4))
+fig, axes = plt.subplots(1,2,figsize=(8,3))
 
-axes[0].plot(Cs*1e6,A*1e6,label="Anet",c="0.5")
-axes[0].plot(Cs*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(Cs*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
+# axes[0].plot(Cs*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
 axes[0].plot(Cs*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Cs*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
@@ -151,15 +227,19 @@ axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
 axes[0].grid(True)
 
-axes[1].plot(Cs*1e6,gs)
+axes[1].plot(Cs*1e6,gs,c="0.5")
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
 axes[1].grid(True)
 
-axes[0].set_title("CO2-response curve: Photosynthetic rate")
-axes[1].set_title("CO2-response curve: Stomatal conductance")
+axes[0].set_title("CO2-response curve")#: Photosynthetic rate")
+axes[1].set_title("CO2-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_CO2-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.show()
+
+
 
 # %% [markdown]
 # ### Simulate a temperature response curve
@@ -178,8 +258,8 @@ A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
 
 fig, axes = plt.subplots(1,2,figsize=(10,4))
 
-axes[0].plot(T,A*1e6,label="Anet",c="0.5")
-axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(T,A*1e6,label=r"$\rm A_n$",c="0.5")
+# axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
 axes[0].plot(T,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(T,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
@@ -188,16 +268,55 @@ axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
 axes[0].grid(True)
 
-axes[1].plot(T,gs)
+axes[1].plot(T,gs,c="0.5")
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
 axes[1].grid(True)
 
-axes[0].set_title("Temperature-response curve: Photosynthetic rate")
-axes[1].set_title("Temperature-response curve: Stomatal conductance")
+axes[0].set_title("Temperature-response curve")#: Photosynthetic rate")
+axes[1].set_title("Temperature-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_temp-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.show()
+
 
 # %%
+
+# %% [markdown]
+# ### Test supply and demand functions 
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = 25.0*np.ones(n)  # degrees Celcius
+Cs = np.linspace(60,800,n)*(p/1e5)*1e-6   #   400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)
+
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+
+
+## Supply
+# An_supply = Leaf.Ficks_diffusion_An(Cs, Ci, gs)
+An_supply = gs/1.6 * (Cs-Ci)
+
+## Demand
+Vqmax = fT_arrheniuspeaked(Leaf.Vqmax_opt,T,E_a=Leaf.Vqmax_Ea,H_d=Leaf.Vqmax_Hd,DeltaS=Leaf.Vqmax_DeltaS)       # Maximum Cyt b6f activity, mol e-1 m-2 s-1
+Vcmax = fT_arrheniuspeaked(Leaf.Vcmax_opt,T,E_a=Leaf.Vcmax_Ea,H_d=Leaf.Vcmax_Hd,DeltaS=Leaf.Vcmax_DeltaS)       # Maximum Rubisco activity, mol CO2 m-2 s-1
+TPU = fT_Q10(Leaf.TPU_opt_rVcmax*Leaf.Vcmax_opt,T,Q10=Leaf.TPU_Q10) 
+Rd = fT_Q10(Vcmax*Leaf.Rds,T,Q10=Leaf.Rd_Q10)
+S = fT_arrhenius(Leaf.spfy_opt,T,E_a=Leaf.spfy_Ea)
+Kc = fT_arrhenius(Leaf.Kc_opt,T,E_a=Leaf.Kc_Ea)
+Ko = fT_arrhenius(Leaf.Ko_opt,T,E_a=Leaf.Ko_Ea)
+phi1P_max = Leaf.Kp1/(Leaf.Kp1+Leaf.Kd+Leaf.Kf)  # Maximum photochemical yield PS I
+Gamma_star   = 0.5 / S * O      # compensation point in absence of Rd
+An_demand, _, _, _, _ = Leaf.compute_A(Ci, O, Q, Vcmax, Vqmax, TPU, Gamma_star, Rd, S, Kc, Ko, a1, phi1P_max)
+
+# %%
+plt.plot(Ci*1e6,An_supply*1e6)
+plt.plot(Ci*1e6,An_demand*1e6+Rd*1e6)
 
 # %%

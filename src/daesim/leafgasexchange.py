@@ -106,6 +106,10 @@ class LeafGasExchangeModule:
         phi1P_max = self.Kp1/(self.Kp1+self.Kd+self.Kf)  # Maximum photochemical yield PS I
         Gamma_star   = 0.5 / S * O      # compensation point in absence of Rd
 
+        # g1 and g0 are input ALWAYS IN UNITS OF H20
+        # G0 must be converted to CO2 (but not G1, see below)
+        g0 = self.g0/1.6
+
         ## Establish PSII and PS I cross-sections, mol PPFD abs PS2/PS1 mol-1 PPFD
         ## TODO: consider moving this to a separate function
         if self.alpha_opt == 'static':
@@ -238,6 +242,10 @@ class LeafGasExchangeModule:
     def Ficks_diffusion_Ci(self,Cs,An,gs):
         Ci = Cs - 1.6*An/gs
         return Ci
+
+    def Ficks_diffusion_An(self,Cs,Ci,gs):
+        An = gs/1.6 * (Cs - Cs)
+        return An
         
     def solve_Ci_conditional(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Ci=0.01):
         """

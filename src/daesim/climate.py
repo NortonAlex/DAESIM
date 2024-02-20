@@ -292,6 +292,45 @@ class ClimateModule:
             Note: This is given as the Local Standard Time – Daylight Savings Time is not used
         """
 
+        eqtime, houranglesunrise, theta = self._solar_calcs(year,doy)
+
+        solarnoon_t = (
+            720 - 4 * self.CLonDeg - eqtime + self.timezone * 60) / 1440
+        sunrise_t = solarnoon_t - houranglesunrise * 4 / 1440
+        sunset_t = solarnoon_t + houranglesunrise * 4 / 1440
+
+        return (24*sunrise_t,24*solarnoon_t,24*sunset_t)
+
+
+    def _solar_calcs(self,year,doy):
+        """
+        Calculate sunrise, solar noon and sunset time based on equations from NOAA: http://www.srrb.noaa.gov/highlights/sunrise/calcdetails.html
+        Also see Python code implementation code at: https://michelanders.blogspot.com/2010/12/calulating-sunrise-and-sunset-in-python.html
+
+        Parameters
+        ----------
+        year: int
+            Year in format YYYY
+
+        doy: float
+            Ordinal day of year plus fractional day (e.g. midday on Jan 1 = 1.5; 6am on Feb 1 = 32.25)
+
+        latitude: float
+            Latitude in degrees (north is positive)
+
+        longitude: float
+            Longitude in degrees (east is positive)
+
+        timezone: int
+            Time zone in hours relative to UTC (positive to the East). Must be Local Standard Time – Daylight Savings Time is not used. 
+
+        Returns
+        -------
+        (sunrise_t, solarnoon_t, sunset_t): tuple of floats
+            Returned values are the sunrise, solar noon, and sunset times given in units of 24 hour time (e.g. midday = 12).
+            Note: This is given as the Local Standard Time – Daylight Savings Time is not used
+        """
+
         #print(year,type(year))
         #print(doy,type(doy))
         s = str(int(year))+str(int(doy))  # convert year and fractional doy to string format
@@ -326,19 +365,27 @@ class ClimateModule:
         eqtime = 4 * np.rad2deg(vary * np.sin(2 * np.deg2rad(Mlong)) - 2 * Eccent * np.sin(np.deg2rad(Manom)) + 4 * Eccent * vary * np.sin(np.deg2rad(Manom))
                          * np.cos(2 * np.deg2rad(Mlong)) - 0.5 * vary * vary * np.sin(4 * np.deg2rad(Mlong)) - 1.25 * Eccent * Eccent * np.sin(2 * np.deg2rad(Manom)))
 
-        hourangle = np.rad2deg(np.arccos(np.cos(np.deg2rad(90.833)) /
+        # hour angle sunrise
+        houranglesunrise = np.rad2deg(np.arccos(np.cos(np.deg2rad(90.833)) /
                              (np.cos(np.deg2rad(self.CLatDeg)) *
                               np.cos(np.deg2rad(declination))) -
                              np.tan(np.deg2rad(self.CLatDeg)) *
                              np.tan(np.deg2rad(declination))))
 
-        solarnoon_t = (
-            720 - 4 * self.CLonDeg - eqtime + self.timezone * 60) / 1440
-        sunrise_t = solarnoon_t - hourangle * 4 / 1440
-        sunset_t = solarnoon_t + hourangle * 4 / 1440
+        solarnoon = (720-4*self.CLonDeg-eqtime+self.timezone*60)/1440
 
-        return (24*sunrise_t,24*solarnoon_t,24*sunset_t)
+        truesolartime = (time*1440+eqtime+4*self.CLonDeg-60*self.timezone) % 1440
 
+        hourangle = (truesolartime / 4 + 180) if (truesolartime / 4 < 0) else (truesolartime / 4 - 180)
+
+        theta = np.rad2deg(np.arccos(np.sin(np.deg2rad(self.CLatDeg))*np.sin(np.deg2rad(declination))+np.cos(np.deg2rad(self.CLatDeg))*np.cos(np.deg2rad(declination))*np.cos(np.deg2rad(hourangle))))  # solar zenith angle
+
+        return (eqtime, houranglesunrise, theta)
+
+    def solar_calcs(self,year,doy):
+        _vfunc = np.vectorize(self._solar_calcs)
+        (eqtime, houranglesunrise, theta) = _vfunc(year,doy)
+        return (eqtime, houranglesunrise, theta)
 
     def sunlight_duration(self,year,doy):
         """

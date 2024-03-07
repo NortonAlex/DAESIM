@@ -568,12 +568,215 @@ class ClimateModule:
         sunlight_duration_hrs = sunset_t-sunrise_t
         return sunlight_duration_hrs
 
-    # def compute_extraterrestrial_radiation(self,doy):
-    #     G_sc = 0.082    # solar constant (MJ m-2 min-1)
-    #     d_r = 1 + 0.033 * np.cos(2*np.pi/365 * doy)
+    def calculate_solarradiation_Ra(self,year,doy):
+        """
+        Daily extraterrestrial radiation, Ra, for a given time (day of the year, year) and for a given latitude. Estimated
+        from the solar constant, the solar declination and the time of the year according to Allen et al. (1998).
 
-    #     eqtime, houranglesunrise, theta = self._solar_calcs(year,doy)
-    #     np.arccos(-np.tan(np.deg2rad(self.CLatDeg) * np.tan())
+        Parameters
+        ----------
+        year: int
+            Year in format YYYY
 
-    #     Ra = (24 * 60) / np.pi * Gsc
+        doy: float or ndarray
+            Ordinal day of year plus fractional day (e.g. midday on Jan 1 = 1.5; 6am on Feb 1 = 32.25)
 
+        Returns
+        -------
+        Ra: float
+            Local extraterrestrial radiation (MJ m-2 d-1)
+
+        Notes
+        -----
+        For sub-daily periods (e.g. hourly) a different formulation is required. See p. 47 of Allen et al. (1998).
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        # compute solar declination angle
+        eqtime, houranglesunrise, theta, declination = self.solar_calcs(year,doy,return_declination=True)
+
+        # compute inverse relative distance Earth-Sun
+        d_r = 1 + 0.033 * np.cos(2*np.pi/365 * doy)
+
+        # compute hour angle at sunset (radians)
+        houranglesunset = np.arccos(-np.tan(np.deg2rad(self.CLatDeg) * np.tan(np.deg2rad(declination))))
+
+        # compute daily extraterrestrial radiation
+        Ra = (24 * 60) / np.pi * self.S0_MJm2min * d_r * (houranglesunset * np.sin(np.deg2rad(self.CLatDeg)) * np.sin(np.deg2rad(declination)) + np.cos(np.deg2rad(self.CLatDeg)) * np.cos(np.deg2rad(declination)) * np.sin(houranglesunset))
+
+        return Ra
+
+    def calculate_solarradiation_clearsky(self,Ra):
+        """
+        Calculates the incoming surface solar radiation assuming clear-sky conditions.
+        This ignores atmospheric water vapor and turbity effects.
+
+        Parameters
+        ----------
+        Ra: float
+            Daily extraterrestrial incoming solar radiation (MJ m-2 d-1)
+
+        Returns
+        -------
+        Rso: float
+            Clear-sky downward shortwave radiation (MJ m-2 d-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        Rso = (0.75 + 2 * 10e-5 * self.Elevation) * Ra
+        return Rso
+
+    def calculate_solarradiation_Rs(self,year,doy,Ra,fsunhrs,a_s=0.25,b_s=0.50):
+        """
+        Calculate daily incoming surface solar radiation based on the Angstrom formula with empirical adjustment for
+        sunny/cloudy conditions. This relates solar radiation to extraterrestrial radiation and relative daily sunshine
+        duration.
+
+        Parameters
+        ----------
+        year: int
+            Year in format YYYY
+
+        doy: float or ndarray
+            Ordinal day of year plus fractional day (e.g. midday on Jan 1 = 1.5; 6am on Feb 1 = 32.25)
+
+        Ra: float
+            Daily extraterrestrial incoming solar radiation (MJ m-2 d-1)
+
+        fsunhrs: float
+            Fraction of sunshine within the day (hours), i.e. number of hours without cloud or overcast conditions divided by total daylight hours; fsunhrs=1 on a completely clear-sky day
+
+        a_s: float
+            Angstrom parameter (see Notes)
+
+        b_s: float
+            Angstrom parameter (see Notes)
+
+        Returns
+        -------
+        Rs: float
+            Incoming surface solar radiation (MJ m-2 d-1)
+
+        Notes
+        -----
+        a_s is a regression constant expressing the fraction of extraterrestrial radiation reaching the earth on an overcast day (n=0).
+        a_s + b_s is the fraction of extraterrestrial radiation reaching the earth on a clear-sky day (i.e. n=N).
+        According to Allen et al. (1998) "Depending on atmospheric conditions (humidity, dust) and solar declination (latitude and month),
+        the Angstrom values a_s and b_s will vary. Where no actual solar radiation data are available and no calibration has been carried
+        out for improved as and bs parameters, the values a_s = 0.25 and b_s = 0.50 are recommended."
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        a_s = 0.25
+        b_s = 0.5
+
+        Rs = (a_s + b_s * fsunhrs) * Ra
+        return Rs
+
+    def calculate_radiation_netshortwave(self,Rs,albedo):
+        """
+        Calculates the daily surface net shortwave radiation.
+
+        Parameters
+        ----------
+        Rs: float
+            Incoming surface shortwave radiation (MJ m-2 d-1)
+
+        albedo: float
+            albedo or canopoy reflection coefficient (-)
+
+        Returns
+        -------
+        Rns: float
+            Surface net shortwave radiation, (MJ m-2 d-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        Rns = (1 - albedo) * Rs
+        return Rns
+
+    def calculate_radiation_netlongwave(self, Rs, Rso, Tmin, Tmax, RH):
+        """
+        Calculates the daily surface net longwave radiation based on temperature and relative humidity.
+
+        Parameters
+        ----------
+        Rs: float
+            Incoming surface shortwave radiation (MJ m-2 d-1)
+
+        Rso: float
+            Incoming surface shortwave radiation under clear-sky conditions (MJ m-2 d-1)
+
+        Tmin: float
+            Minimum daily air temperature (degrees Celsius)
+
+        Tmax: float
+            Maximum daily air temperature (degrees Celsius)
+
+        RH: float
+            Relative humidity (%)
+
+        Returns
+        -------
+        Rnl: float
+            Surface net longwave radiation, (MJ m-2 d-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        e_a = self.compute_actual_vapor_pressure((Tmax-Tmin)/2,RH)/1e3  ## actual vapor pressure (kPa)
+        Rnl = (self.StefanBoltzmannConstant / 1e6 * 60 * 60 * 24) * (((Tmax+273.15)**4 + (Tmin+273.15)**4)/2) * (0.34 - 0.14 * np.sqrt(e_a)) * (1.35 * Rs/Rso - 0.35)
+        return Rnl
+
+    def calculate_radiation_net(self,year,doy,Tmin,Tmax,RH,albedo,fsunhrs):
+        """
+        Calculates daily surface net radiation according to time, location, meteorology, and surface albedo.
+
+        Parameters
+        ----------
+        year: int or ndarray
+            Year in format YYYY
+
+        doy: float or ndarray
+            Ordinal day of year plus fractional day (e.g. midday on Jan 1 = 1.5; 6am on Feb 1 = 32.25)
+
+        Tmin: float or ndarray
+            Minimum daily air temperature (degrees Celsius)
+
+        Tmax: float or ndarray
+            Maximum daily air temperature (degrees Celsius)
+
+        RH: float or ndarray
+            Relative humidity (%)
+
+        albedo: float or ndarray
+            albedo or canopoy reflection coefficient (-)
+
+        fsunhrs: float or ndarray
+            Fraction of sunshine within the day (hours), i.e. number of hours without cloud or overcast conditions divided by total daylight hours; fsunhrs=1 on a completely clear-sky day  #Actual duration of sunshine within the day (hours), i.e. number of hours without cloud or overcast conditions; n=N on a completely clear-sky day
+
+        Returns
+        -------
+        Rnet: float
+            Net radiation (MJ m-2 d-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+        """
+        Ra = self.calculate_solarradiation_Ra(year,doy)  ## extraterrestrial incoming solar radiation
+        Rso = self.calculate_solarradiation_clearsky(Ra)  ## clear-sky surface incoming solar radiation
+        Rs = self.calculate_solarradiation_Rs(year,doy,Ra,fsunhrs)  ## surface incoming solar radiation
+        Rns = self.calculate_radiation_netshortwave(Rs,albedo)  ## net surface shortwave radiation
+        Rnl = self.calculate_radiation_netlongwave(Rs, Rso, Tmin, Tmax, RH)  ## net surface longwave radiation
+        Rnet = Rns - Rnl  ## net surface radiation
+        return Rnet

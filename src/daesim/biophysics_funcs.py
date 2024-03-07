@@ -28,7 +28,7 @@ def fT_arrheniuspeaked(k_25, T_k, E_a=70.0, H_d=200, DeltaS=0.650):
         Rate constant at 25oC
 
     T_k: float
-        Temperature, degrees Celcius
+        Temperature, degrees Celsius
 
     E_a: float
         Activation energy, kJ mol-1. Describes the rate of exponential increase of the function below the optimum
@@ -73,7 +73,7 @@ def fT_arrhenius(k_25, T_k, E_a=70.0, T_opt=298.15):
         Rate constant at 25oC
 
     T_k: float
-        Temperature, degrees Celcius
+        Temperature, degrees Celsius
 
     E_a: float
         Activation energy, kJ mol-1, gives the rate of exponential increase of the function
@@ -107,7 +107,7 @@ def fT_Q10(k_25, T_k, Q10=2.0):
         Rate constant at 25oC
 
     T_k: float
-        Temperature, K
+        Temperature, degrees Celsius
 
     Q10: float
         Q10 coefficient (factor change per 10oC increments), unitless
@@ -127,10 +127,10 @@ def _diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
     Parameters
     ----------
     Tmin: float
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     t_sunrise: float
         Time of sunrise (24 hour time, e.g. at 6:30 am, t = 6.5)
@@ -182,10 +182,10 @@ def diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
     Parameters
     ----------
     Tmin: float or ndarray
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float or ndarray
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     t_sunrise: float or ndarray
         Time of sunrise (24 hour time, e.g. at 6:30 am, t = 6.5)
@@ -230,13 +230,13 @@ def growing_degree_days_HTT(Th,Tb,Tu,Topt):
     Parameters
     ----------
     Th : float
-        Hourly temperature (degrees Celcius)
+        Hourly temperature (degrees Celsius)
     Tb : float
-        Minimum threshold temperature or "base" temperature (degrees Celcius)
+        Minimum threshold temperature or "base" temperature (degrees Celsius)
     Tu : float
-        Upper threshold temperature or "upper" temperature (degrees Celcius)
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
     Topt : float
-        Thermal optimum temperature (degrees Celcius)
+        Thermal optimum temperature (degrees Celsius)
 
     Returns
     -------
@@ -267,10 +267,10 @@ def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
     Parameters
     ----------
     Tmin: float or ndarray
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float or ndarray
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     t_sunrise: float or ndarray
         Time of sunrise (24 hour time, e.g. at 6:30 am, t = 6.5)
@@ -279,18 +279,18 @@ def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
         Time of sunset (24 hour time, e.g. at 8:15 pm, t = 20.25)
 
     Tb : float
-        Minimum threshold temperature or "base" temperature (degrees Celcius)
+        Minimum threshold temperature or "base" temperature (degrees Celcsius)
 
     Tu : float
-        Upper threshold temperature or "upper" temperature (degrees Celcius)
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
 
     Topt : float
-        Thermal optimum temperature (degrees Celcius)
+        Thermal optimum temperature (degrees Celsius)
 
     Returns
     -------
     Daily thermal time (DTT): float or ndarray
-        Daily thermal time (degrees Celcius)
+        Daily thermal time (degrees Celsius)
     """
     T_diurnal_profile = _diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset)
     _vfunc = np.vectorize(growing_degree_days_HTT,otypes=[float])
@@ -308,21 +308,21 @@ def growing_degree_days_DTT_linear1(Tmin,Tmax,Tb,Tu):
     Parameters
     ----------
     Tmin: float or ndarray
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float or ndarray
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     Tb : float
-        Minimum threshold temperature or "base" temperature (degrees Celcius)
+        Minimum threshold temperature or "base" temperature (degrees Celsius)
 
     Tu : float
-        Upper threshold temperature or "upper" temperature (degrees Celcius)
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
 
     Returns
     -------
     Daily thermal time (DTT): float or ndarray
-        Daily thermal time (degrees Celcius)
+        Daily thermal time (degrees Celsius)
     """
     Tavg = (Tmin+Tmax)/2
     if Tavg < Tb:
@@ -342,21 +342,21 @@ def growing_degree_days_DTT_linear2(Tmin,Tmax,Tb,Tu):
     Parameters
     ----------
     Tmin: float or ndarray
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float or ndarray
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     Tb : float
-        Minimum threshold temperature or "base" temperature (degrees Celcius)
+        Minimum threshold temperature or "base" temperature (degrees Celsius)
 
     Tu : float
-        Upper threshold temperature or "upper" temperature (degrees Celcius)
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
 
     Returns
     -------
     Daily thermal time (DTT): float or ndarray
-        Daily thermal time (degrees Celcius)
+        Daily thermal time (degrees Celsius)
     """
     if Tmax < Tb:
         Tmax = Tb
@@ -384,21 +384,21 @@ def growing_degree_days_DTT_linear3(Tmin,Tmax,Tb,Tu):
     Parameters
     ----------
     Tmin: float or ndarray
-        Minimum daily air temperature (degrees Celcius)
+        Minimum daily air temperature (degrees Celsius)
 
     Tmax: float or ndarray
-        Maximum daily air temperature (degrees Celcius)
+        Maximum daily air temperature (degrees Celsius)
 
     Tb : float
-        Minimum threshold temperature or "base" temperature (degrees Celcius)
+        Minimum threshold temperature or "base" temperature (degrees Celsius)
 
     Tu : float
-        Upper threshold temperature or "upper" temperature (degrees Celcius)
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
 
     Returns
     -------
     Daily thermal time (DTT): float or ndarray
-        Daily thermal time (degrees Celcius)
+        Daily thermal time (degrees Celsius)
     """
     Tavg = (Tmin+Tmax)/2
     if Tavg <= Tb:

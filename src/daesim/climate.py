@@ -16,10 +16,10 @@ class ClimateModule:
     ## Location/site details
     CLatDeg: float = field(
         default=-33.715
-    )  ## latitude of site in degrees; Beltsville = 39.0; min = 64.; max = 20.
+    )  ## latitude of site (degrees)
     CLonDeg: float = field(
         default=-76.922
-    )  ## longitude of site in degrees
+    )  ## longitude of site (degrees)
     timezone: float = field(
         default=-5
         ) ## Time zone in hours relative to UTC (positive to the East). Must be Local Standard Time – Daylight Savings Time is not used. 
@@ -35,17 +35,23 @@ class ClimateModule:
     iniSoilDepth: float = field(
         default=0.09
     )  ## initial soil depth (m)
-    cellArea = 1  ## area of the unit considered m2
+    cellArea = 1  ## area of the unit considered (m2)
 
 
     ## Unit conversion factors
     rainConv: float = 0.001  ## conversion factor for mm/day to m/day
-    T_K0: float = 273.15 ## conversion factor for degrees Celcius to Kelvin
+    T_K0: float = 273.15 ## conversion factor for degrees Celsius to Kelvin
 
     ## Constants
-    L: float = 2.25e6 ## latent heat of vaporization (approx. 2250 kJ kg-1, temperature-dependent!)
-    R_w_mol: float = 8.31446 ## specific gas constant for water vapor, J mol-1 K-1
-    R_w_mass: float = 0.4615 ## specific gas constant for water vapor, J g-1 K-1 (=>R_w_mol * M_H2O = 8.31446/18.01)
+    L: float = 2450 ## latent heat of vaporization (J g-1) (technically this is temperature-dependent)
+    R_w_mol: float = 8.31446 ## specific gas constant for water vapor (J mol-1 K-1)
+    R_w_mass: float = 0.4615 ## specific gas constant for water vapor (J g-1 K-1) (=>R_w_mol * M_H2O = 8.31446/18.01)
+    MW_ratio_H2O: float = 0.622  ## ratio molecular weight of water vapor to dry air
+    rho_air: float = 1.293  ## mean dry air density at constant pressure (kg m-3)
+    cp_air: float = 1.013 ## specific heat of air at constant pressure (J g-1 K-1)
+    StefanBoltzmannConstant: float = 5.6704e-8  ## Stefan-Boltzmann constant (W m-2 K-4)
+    S0_Wm2: float = 1370  ## Solar constant (W m-2), incoming solar radiation at the top of Earth's atmosphere
+    S0_MJm2min: float = 0.0822  ## Solar constant (MJ m-2 min-1), incoming solar radiation at the top of Earth's atmosphere
 
     def time_discretisation(self, start_doy, start_year, nrundays=None, end_doy=None, end_year=None, dt=1):
         """
@@ -186,6 +192,33 @@ class ClimateModule:
         e_a = e_s * RH/100  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
         return e_a
 
+    def compute_actual_vapor_pressure_daily(self,Tmin,Tmax,RH):
+        """
+        Computes the actual vapor pressure from relative humidity, minimum and maximum temperature. 
+        This is necessary due to the non-linearity of the saturation vapor pressure calculation.
+        This formula can be applied to any averaging period that includes minimum and maximum temperatures
+        e.g. daily, weekly, monthly.
+
+        Parameters
+        ----------
+        Tmin : scalar or ndarray
+            Array containing minimum air temperature (degC).
+        Tmax : scalar or ndarray
+            Array containing maximum air temperature (degC).
+        RH : scalar or ndarray
+            Array containing relative humidity (%).
+
+        Returns
+        -------
+        e_a : scalar or ndarray (see dtype of parameters)
+            Array of actual vapor pressure (Pa)
+        """
+        e_s_min = self.compute_sat_vapor_pressure(Tmin)
+        e_s_max = self.compute_sat_vapor_pressure(Tmax)
+        e_s = (e_s_min + e_s_max)/2
+        e_a = e_s * RH/100  ## Modification: This way of calculating e_a is correct but it differs to the formula used in Stella code
+        return e_a
+
     def compute_VPD(self,T,RH):
         """
         Computes the vapor pressure deficit.
@@ -206,6 +239,116 @@ class ClimateModule:
         e_a = e_s * RH/100
         VPD = e_s - e_a
         return VPD
+
+    def compute_VPD_daily(self,Tmin,Tmax,RH):
+        """
+        Computes the mean vapor pressure deficit given minimum and maximum air temperatures 
+        and relative humidity. This is necessary due to the non-linearity of the 
+        saturation vapor pressure calculation. This formula can be applied to any averaging 
+        period that includes minimum and maximum temperatures e.g. daily, weekly, monthly.
+
+        Parameters
+        ----------
+        Tmin : scalar or ndarray
+            Array containing minimum air temperature (degC).
+        Tmax : scalar or ndarray
+            Array containing maximum air temperature (degC).
+        RH : scalar or ndarray
+            Array containing relative humidity (%).
+
+        Returns
+        -------
+        VPD : scalar or ndarray (see dtype of parameters)
+            Array of vapor pressure deficit (Pa)
+        """
+        e_s_min = self.compute_sat_vapor_pressure(Tmin)
+        e_s_max = self.compute_sat_vapor_pressure(Tmax)
+        e_s = (e_s_min + e_s_max)/2
+        e_a = e_s * RH/100
+        VPD = e_s - e_a
+        return VPD
+
+    def compute_psychometric_constant(self,P):
+        """
+        Computes the psychometric constant. This relates the partial pressure of water in the air 
+        to the air temperature. Another way to describe the psychrometric constant is the ratio of 
+        specific heat of moist air at constant pressure (Cp) to latent heat of vaporization. 
+
+        Parameters
+        ----------
+        P: float
+            atmospheric pressure, Pa
+
+        Returns
+        -------
+        gamma: float
+            psychometric constant, kPa K-1 (=kPa oC-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+
+        Zotarelli et al., 2009, AE459: Step by Step Calculation of the Penman-Monteith Evapotranspiration 
+        (FAO-56 Method), University of Florida
+
+        """
+        gamma = 1000 * (self.cp_air*1e-3 * P/1e3)/(self.L * self.MW_ratio_H2O)
+        return gamma
+
+    def compute_slope_sat_vapor_press_curve(self,T):
+        """
+        Computes the slope of the relationship between the saturation vapor pressure and temperature. 
+
+        Parameters
+        ----------
+        T: float
+            air temperature, degrees Celsius
+
+        Returns
+        -------
+        Delta: float
+            slope of saturation vapor pressure curve, kPa K-1 (=kPa oC-1)
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+
+        Zotarelli et al., 2009, AE459: Step by Step Calculation of the Penman-Monteith Evapotranspiration 
+        (FAO-56 Method), University of Florida
+
+        """
+        e_s = 1e-3 * self.compute_sat_vapor_pressure(T)
+        Delta = (4098 * e_s) / (T + 237.3)**2
+        return Delta
+
+    def compute_wind_speed_height_z(self,u_zmeas,z_meas,z_height=2):
+        """
+        Estimate the wind speed at a specified height given the speed at a defined measurement height and 
+        assuming the wind speed profile is logarithmic.
+
+        Parameters
+        ----------
+        u_zmeas: float
+            wind speed at specified measurement height, m s-1
+
+        z_meas: float
+            measurement height for wind speed, m
+
+        z_height: float
+            target height to estimate wind speed, m
+
+        Returns
+        -------
+        u_zheight: float
+            wind speed at specified target height, m s-1
+
+        References
+        ----------
+        Allen et al. (1998) FAO Irrigation and Drainage Paper No. 56
+
+        """
+        u_zheight = u_zmeas * 4.87 / (np.log(67.8 * z_meas - 5.42))
+        return u_zheight
 
     def compute_Cloudy(self,precipM,vapPress):
         """
@@ -302,7 +445,7 @@ class ClimateModule:
         return (24*sunrise_t,24*solarnoon_t,24*sunset_t)
 
 
-    def _solar_calcs(self,year,doy):
+    def _solar_calcs(self,year,doy,return_declination=False):
         """
         Calculate sunrise, solar noon and sunset time based on equations from NOAA: http://www.srrb.noaa.gov/highlights/sunrise/calcdetails.html
         Also see Python code implementation code at: https://michelanders.blogspot.com/2010/12/calulating-sunrise-and-sunset-in-python.html
@@ -380,12 +523,19 @@ class ClimateModule:
 
         theta = np.rad2deg(np.arccos(np.sin(np.deg2rad(self.CLatDeg))*np.sin(np.deg2rad(declination))+np.cos(np.deg2rad(self.CLatDeg))*np.cos(np.deg2rad(declination))*np.cos(np.deg2rad(hourangle))))  # solar zenith angle
 
-        return (eqtime, houranglesunrise, theta)
+        if return_declination:
+            return (eqtime, houranglesunrise, theta, declination)
+        else:
+            return (eqtime, houranglesunrise, theta)
 
-    def solar_calcs(self,year,doy):
+    def solar_calcs(self,year,doy,return_declination=False):
         _vfunc = np.vectorize(self._solar_calcs)
-        (eqtime, houranglesunrise, theta) = _vfunc(year,doy)
-        return (eqtime, houranglesunrise, theta)
+        if return_declination:
+            (eqtime, houranglesunrise, theta, declination) = _vfunc(year,doy,return_declination=return_declination)
+            return (eqtime, houranglesunrise, theta, declination)
+        else:
+            (eqtime, houranglesunrise, theta) = _vfunc(year,doy,return_declination=return_declination)
+            return (eqtime, houranglesunrise, theta)
 
     def sunlight_duration(self,year,doy):
         """
@@ -417,3 +567,13 @@ class ClimateModule:
         sunrise_t,solarnoon_t,sunset_t = self.solar_day_calcs(year,doy)
         sunlight_duration_hrs = sunset_t-sunrise_t
         return sunlight_duration_hrs
+
+    # def compute_extraterrestrial_radiation(self,doy):
+    #     G_sc = 0.082    # solar constant (MJ m-2 min-1)
+    #     d_r = 1 + 0.033 * np.cos(2*np.pi/365 * doy)
+
+    #     eqtime, houranglesunrise, theta = self._solar_calcs(year,doy)
+    #     np.arccos(-np.tan(np.deg2rad(self.CLatDeg) * np.tan())
+
+    #     Ra = (24 * 60) / np.pi * Gsc
+

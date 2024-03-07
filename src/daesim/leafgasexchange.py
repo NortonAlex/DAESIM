@@ -88,7 +88,7 @@ class LeafGasExchangeModule:
     def calculate(
         self,
         Q,    ## Absorbed PPFD, mol PAR m-2 s-1
-        T,    ## Leaf temperature, degrees Celcius
+        T,    ## Leaf temperature, degrees Celsius
         Cs,   ## Leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         O,    ## Leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         RH,   ## Relative humidity, %

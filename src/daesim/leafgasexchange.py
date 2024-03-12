@@ -64,6 +64,9 @@ class LeafGasExchangeModule:
     g0: float = field(default=0.0)   ## g0, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
     g1: float = field(default=3.0)   ## g1, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
 
+    ## Mesophyll conductance constants
+    gm_opt: float = field(default=1e6)   ## mesophyll conductance to CO2 diffusion, mol m-2 s-1 bar-1 
+
     alpha_opt: str = field(default='static') ## Model choice of static or dynamic absorption cross-section calculations
 
     ## Temperature dependence functions
@@ -123,6 +126,7 @@ class LeafGasExchangeModule:
 
         # Compute stomatal conductance and Ci based on optimal stomatal theory (Medlyn et al., 2011)
         A, gs, Ci = self.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
+        #A, gs, Ci = self.solve_Cc(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S,max_iterations=20)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
 
         # Update photosynthetic rate with optimal Ci
         (A, Ag, Vc, Ve, Vs) = self.compute_A(Ci, O, Q, Vcmax, Vqmax, TPU, Gamma_star, Rd, S, Kc, Ko, a1, phi1P_max)
@@ -243,6 +247,10 @@ class LeafGasExchangeModule:
         Ci = Cs - 1.6*An/gs
         return Ci
 
+    def Ficks_diffusion_Cc(self,Ci,An,gm):
+        Cc = Ci - 1.6*An/gm
+        return Cc
+
     def Ficks_diffusion_An(self,Cs,Ci,gs):
         An = gs/1.6 * (Cs - Cs)
         return An
@@ -274,6 +282,35 @@ class LeafGasExchangeModule:
         _vfunc = np.vectorize(self.solve_Ci_conditional)
         A, gs, Ci = _vfunc(Cs,Q,O,D,Vqmax,a1,phi1P_max,S)
         return (A, gs, Ci)
+
+    def solve_Cc_conditional(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Cc=0.01):
+        """
+
+        Notes
+        -----
+        To determine Cc the photosynthetic rate is represented as the RuBP-regeneration limited (light-limited)
+        rate, following Medlyn et al. (2011, doi:10.1111/j.1365-2486.2010.02375.x and Corrigendum doi:10.1111/j.1365-2486.2012.02790.x)
+        and Medlyn et al. (2013, doi:10.1016/j.agrformet.2013.04.019).
+        """
+        #rtol_Cc: tolerance limit for Cc convergence expressed as a fraction of Cs
+        # Step 1 - Initial estimate of Cc
+        Cc =  0.7*Cs
+        tol = rtol_Cc*Cs
+        
+        for i in range(max_iterations):
+            A = self.JB21_A_j(Q,Cc,O,Vqmax,a1,phi1P_max,S)      # Step 2 - Calculate A with estimate of Ci
+            gs = self.gs_Medlyn(Cs,D,A)    # Step 3 - Update gs using the Medlyn formulation
+            Ci_new = self.Ficks_diffusion_Ci(Cs,A,gs)   # Step 4 - Update Ci using the formulation
+            Cc_new = self.Ficks_diffusion_Cc(Ci_new,A,self.gm_opt)  ## Step 5 - Update Cc using the formulation
+            if abs(Cc - Cc_new) < tol:   # Convergence criterion
+                break
+            Cc = Cc_new
+        return (A, gs, Cc)
+
+    def solve_Cc(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Cc=0.01):
+        _vfunc = np.vectorize(self.solve_Cc_conditional)
+        A, gs, Cc = _vfunc(Cs,Q,O,D,Vqmax,a1,phi1P_max,S)
+        return (A, gs, Cc)
 
     def compute_A(self, C, O, Q, Vcmax, Vqmax, TPU, Gamma_star, Rd, S, Kc, Ko, a1, phi1P_max):
         """NOTES HERE"""

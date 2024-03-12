@@ -74,7 +74,7 @@ from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 # ### Initialise the Leaf Gas Exchange model
 
 # %%
-Leaf = LeafGasExchangeModule()
+Leaf = LeafGasExchangeModule(gm_opt=0.5)
 
 # %%
 Site = ClimateModule()
@@ -161,6 +161,8 @@ print("Ci = Cs - 1.6*A/gs")
 print("  -> Ci =",Ci*1e6)
 print("  -> Cs - 1.6*A/gs =",(Cs - 1.6*A/gs)*1e6)
 
+# %%
+
 # %% [markdown]
 # ### Simulate a light-response curve
 
@@ -182,7 +184,7 @@ axes[0].plot(Q*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
 axes[0].plot(Q*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Q*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
-# axes[0].set_ylim([-5,70])
+axes[0].set_ylim([-5,45])
 axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].grid(True)
@@ -190,13 +192,14 @@ axes[0].grid(True)
 axes[1].plot(Q*1e6,gs,c="0.5")
 axes[1].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_ylim([0,0.7])
 axes[1].grid(True)
 
 axes[0].set_title("Light-response curve")#: Photosynthetic rate")
 axes[1].set_title("Light-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_light-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_light-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 
@@ -222,7 +225,7 @@ axes[0].plot(Cs*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
 axes[0].plot(Cs*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Cs*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
-axes[0].set_ylim([-5,50])
+axes[0].set_ylim([-5,45])
 axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
 axes[0].grid(True)
@@ -230,13 +233,14 @@ axes[0].grid(True)
 axes[1].plot(Cs*1e6,gs,c="0.5")
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
+axes[1].set_ylim([0,0.7])
 axes[1].grid(True)
 
 axes[0].set_title("CO2-response curve")#: Photosynthetic rate")
 axes[1].set_title("CO2-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_CO2-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_CO2-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 
@@ -256,14 +260,14 @@ RH = 65.0*np.ones(n)
 
 A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
 
-fig, axes = plt.subplots(1,2,figsize=(10,4))
+fig, axes = plt.subplots(1,2,figsize=(8,3))
 
 axes[0].plot(T,A*1e6,label=r"$\rm A_n$",c="0.5")
 # axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
 axes[0].plot(T,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(T,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
-axes[0].set_ylim([-5,50])
+axes[0].set_ylim([-5,45])
 axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
 axes[0].grid(True)
@@ -271,13 +275,14 @@ axes[0].grid(True)
 axes[1].plot(T,gs,c="0.5")
 axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
 axes[1].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
+axes[1].set_ylim([0,0.7])
 axes[1].grid(True)
 
 axes[0].set_title("Temperature-response curve")#: Photosynthetic rate")
 axes[1].set_title("Temperature-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_temp-response_A-gsw.png",dpi=300,bbox_inches="tight")
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_temp-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 

@@ -150,9 +150,15 @@ class WaterModule:
         This assumes that the measurement height for humidity measurements is the same as those for wind speed. 
         See details on p. 20-21 in Allen et al. (1998)
         """
-        d = h*2/3  ## zero-plant displacement height (m)
+        d = h*2/3  ## zero-plane displacement height (m)
+        if z_meas <= d:
+            raise ValueError("Specified meteorological measurement height (z_meas=%1.1f) must be greater than zero-plane displacement height (d=h*2/3=%1.1f)" % (z_meas,d))
         z_om = 0.123 * h  ## roughness length governing momentum transfer (m)
         z_oh = 0.1 * z_om  ## roughness length governing heat and vapor transfer (m)
+        if (z_meas - d)/z_om <= 1:
+            raise ValueError("The ratio (z_meas - d):z_om must be greater than 1. It equals %1.2f. Check defined meteorological measurement height (z_meas=%1.1fm) and canopy height (h=%1.1fm)" % ((z_meas - d)/z_om,z_meas,h))
+        elif (z_meas - d)/z_oh <= 1:
+            raise ValueError("The ratio (z_meas - d):z_oh must be greater than 1. It equals %1.2f. Check defined meteorological measurement height (z_meas=%1.1fm) and canopy height (h=%1.1fm)" % ((z_meas - d)/z_oh,z_meas,h))
         r_a = (np.log((z_meas - d)/z_om) * np.log((z_meas - d)/z_oh))/(k**2 * u_z)
         return r_a
     

@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 # %%
 from daesim.climate import ClimateModule
 from daesim.water import WaterModule
+from daesim.boundarylayer import BoundaryLayerModule
 
 # %% [markdown]
 # ## Potential Evapotranspiration and Net Radiation Calculations
@@ -32,6 +33,7 @@ from daesim.water import WaterModule
 # %%
 site = ClimateModule(CLatDeg=-35.0,CLonDeg=0.0,timezone=0)
 water = WaterModule()
+boundarylayer = BoundaryLayerModule()
 
 # %% [markdown]
 # #### Define a set of inputs including time, radiation and meteorological variables. 
@@ -90,18 +92,18 @@ _ET0_hargreaves = water.calculate_Hargreaves_ET0(year,doy,T,Tmin,Tmax,site)
 # %%
 ## A simple empirical approach to determine the aerodynamic resistance is via wind speed and canopy height
 canopy_height = 0.12
-r_a = water.calculate_aerodynamic_resistance(u_2,2.0,canopy_height)
+r_a = boundarylayer.calculate_aerodynamic_resistance(u_2,2.0,canopy_height)
 
 ## A simple empirical approach to determine the surfacee resistance is via bulk canopy conductance (via stomata) and "active" leaf area index
 r_1 = 100.0
 LAI_active = 0.5*(24*canopy_height)
-r_s = water.calculate_surface_resistance(r_1, LAI_active)
+r_s = boundarylayer.calculate_surface_resistance(r_1, LAI_active)
 
 ## Calculate evapotranspiration
 _ETPM = water.calculate_PenmanMonteith_ET(year,doy,T,Tmin,Tmax,RH,u_2,P,G,albedo,fsunhrs,r_a,r_s,site)
 
 # %% [markdown]
-# ### Create plots
+# ### Create Plots
 
 # %%
 fig, axes = plt.subplots(1,4,figsize=(14,2.5))

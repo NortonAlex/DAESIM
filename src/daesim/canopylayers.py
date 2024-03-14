@@ -5,7 +5,7 @@ from scipy.stats import beta
 @define
 class CanopyLayers:
     """
-    Canopy discretisation into layers components, including indexing and vertical ditribution of parameters.
+    Canopy discretisation into layers components, including indexing and vertical distribution of parameters.
     """
     nlevmlcan: int = field(default=None)  ## Number of layers in multilayer canopy model. Note: Initialised as None, so it must be assigned after instance is created by set_nlayers method.
     nleaf: int = field(default=2)      ## Number of leaf types (sunlit and shaded)

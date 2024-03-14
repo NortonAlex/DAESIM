@@ -9,7 +9,7 @@ class CanopyRadiation:
     chil_min: float = field(default=-0.4)  ## Minimum value for xl leaf angle orientation parameter         
     chil_max: float = field(default=0.6)  ## Maximum value for xl leaf angle orientation parameter
     kb_max: float = field(default=40.0)  ## Maximum value for direct beam extinction coefficient               
-    J_to_umol: float = field(default=4.6)  ## PAR conversion from W/m2 to umol/m2/s (umol/J)
+    J_to_umol: float = field(default=4.6)  ## Conversion factor of shortwave irradiance (W/m2) to PPFD (umol photons/m2/s) (umol/J)
 
     # Constants for Two Stream Radiative Transfer Model
     unitd: float = field(default=1.0)  ## Unit direct beam radiation (W/m2)
@@ -22,12 +22,12 @@ class CanopyRadiation:
     taul: float = field(default=0.1)  # Leaf transmittance (-)
     rhos: float = field(default=0.1)  # Stem reflectance (-)
     taus: float = field(default=0.0)  # Stem transmittance (-)
-    clump_fac: float = field(default=0.5)  # Foliage clumping index (-) TODO: In future, could consider this as vertically varying parameter
 
-    def calculate(
+    def calculateRTProperties(
         self,
         LAI,    ## Leaf area index, m2/m2
         SAI,    ## Stem area index, m2/m2
+        clump_fac,  ## Foliage clumping index (-)
         z,      ## Canopy height, m
         sza,    ## Solar zenith angle, degrees
         Canopy=CanopyLayers(),  ## 
@@ -45,6 +45,8 @@ class CanopyRadiation:
             Leaf area index, representing the total one-sided area of leaf tissue per unit ground surface area.
         SAI : float
             Stem area index, representing the total one-sided area of stem tissue per unit ground surface area.
+        clump_fac : float
+            Foliage clumping index.
         z : float
             Canopy height, measured in meters.
         sza : float
@@ -105,7 +107,7 @@ class CanopyRadiation:
         avmu = Canopy.cast_parameter_over_layers_uniform(0.0)
         betab = Canopy.cast_parameter_over_layers_uniform(0.0)
         betad = Canopy.cast_parameter_over_layers_uniform(0.0)
-        clump_fac = Canopy.cast_parameter_over_layers_uniform(self.clump_fac)
+        clump_fac = Canopy.cast_parameter_over_layers_uniform(clump_fac)
         
         for ic in range(ntop, nbot - 1, -1):
 

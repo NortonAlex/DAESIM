@@ -53,6 +53,9 @@ class ClimateModule:
     S0_Wm2: float = 1370  ## Solar constant (W m-2), incoming solar radiation at the top of Earth's atmosphere
     S0_MJm2min: float = 0.0822  ## Solar constant (MJ m-2 min-1), incoming solar radiation at the top of Earth's atmosphere
 
+    D_H2O_T20: float = 2.42e-5  ## diffusion coefficient for water vapor at 20 degrees Celsius (m2 s-1)
+    D_CO2_T20: float = 1.51e-5  ## diffusion coefficient for carbon dioxide at 20 degrees Celsius (m2 s-1)
+
     def time_discretisation(self, start_doy, start_year, nrundays=None, end_doy=None, end_year=None, dt=1):
         """
         Initialise the time dimension of a simulation. Calculates the consecutive simulation day (nday), 
@@ -780,3 +783,40 @@ class ClimateModule:
         Rnl = self.calculate_radiation_netlongwave(Rs, Rso, Tmin, Tmax, RH)  ## net surface longwave radiation
         Rnet = Rns - Rnl  ## net surface radiation
         return Rnet
+
+    def diffusion_coefficient_powerlaw(self,D_ref,T,p,Tref=298.15,pref=101300,alpha=1.8):
+        """
+        Empirical equation for determining the binary diffusion coefficient of a gas species in air. 
+
+        Parameters
+        ----------
+        D_ref: float
+            Reference diffusivity value of gas species (m2 s-1)
+
+        T: float
+            Air temperature (K)
+
+        p: float
+            Atmospheric pressure (Pa)
+
+        Tref: float
+            Reference air temperature for corresponding D_ref value (K)
+
+        pref: float
+            Reference atmospheric pressure for corresponding D_ref value (Pa)
+
+        Returns
+        -------
+        D_Tp: float
+            Diffusivity value corrected for temperature and pressure (m2 s-1)
+
+        Notes
+        -----
+
+        References
+        ----------
+        Nobel (2009) Physicochemical and Environmental Plant Physiology, Ch. 8, pp. 379
+        Massman (1998) Atmospheric Environment Vol. 32, No. 6, pp. 1111—1127, doi:10.1016/S1352-2310(97)00391-9
+        """
+        D_Tp = D_ref * (pref/p) * (T/Tref)**alpha
+        return D_Tp

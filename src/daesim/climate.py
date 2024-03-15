@@ -164,6 +164,30 @@ class ClimateModule:
         e_s = 1000 * 0.61078 * np.exp( (17.269*T) / (237.3+T) )  ## Modification: Slightly different formula than that used in Stella code, same result to within <0.1%
         return e_s
 
+    def compute_sat_vapor_pressure_daily(self,Tmin,Tmax):
+        """
+        Computes the saturation vapor pressure using Tetens' formula and minimum and maximum temperature. 
+        This is necessary due to the non-linearity of the saturation vapor pressure calculation.
+        This formula can be applied to any averaging period that includes minimum and maximum temperatures
+        e.g. daily, weekly, monthly.
+
+        Parameters
+        ----------
+        Tmin : scalar or ndarray
+            Array containing minimum air temperature (degC).
+        Tmax : scalar or ndarray
+            Array containing maximum air temperature (degC).
+
+        Returns
+        -------
+        e_a : scalar or ndarray (see dtype of parameters)
+            Array of actual vapor pressure (Pa)
+        """
+        e_s_min = self.compute_sat_vapor_pressure(Tmin)
+        e_s_max = self.compute_sat_vapor_pressure(Tmax)
+        e_s = (e_s_min+e_s_max)/2
+        return e_s
+
     def compute_relative_humidity(self,e_a,e_s):
         """
         Computes the relative humidity (RH) in units of percent (%).

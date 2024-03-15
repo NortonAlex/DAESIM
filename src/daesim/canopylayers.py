@@ -7,7 +7,7 @@ class CanopyLayers:
     """
     Canopy discretisation into layers components, including indexing and vertical distribution of parameters.
     """
-    nlevmlcan: int = field(default=None)  ## Number of layers in multilayer canopy model. Note: Initialised as None, so it must be assigned after instance is created by set_nlayers method.
+    nlevmlcan: int = field(default=5)  ## Number of layers in multilayer canopy model. Note: Initialised as None, so it must be assigned after instance is created by set_nlayers method.
     nleaf: int = field(default=2)      ## Number of leaf types (sunlit and shaded)
     isun: int = field(default=0)        ## Sunlit leaf index
     isha: int = field(default=1)        ## Shaded leaf index
@@ -54,51 +54,51 @@ class CanopyLayers:
         self.ntop = ntop
         self.nbot = nbot
 
-    def nlayers(self, L, z):
-        """
-        Determines the number of discrete canopy layers.
+    # def nlayers(self, L, z):
+    #     """
+    #     Determines the number of discrete canopy layers.
 
-        Parameters
-        ----------
-        L : float
-            Canopy leaf area index, m2 m-2
-        z : float
-            Canopy height, m
+    #     Parameters
+    #     ----------
+    #     L : float
+    #         Canopy leaf area index, m2 m-2
+    #     z : float
+    #         Canopy height, m
 
-        Returns
-        -------
-        nlayers : int
-            Number of canopy layers
-        """
-        if self.nlevmlcan_enforce != None:
-            nlayers = self.nlevmlcan_enforce
-        elif (z <= 0.3) or (L <=0.5):
-            nlayers = self.nlevmlcan_min
-        else:
-            nlayers_height = min(np.ceil(z/self.dz_param),self.nlevmlcan_max)
-            nlayers_lai = min(np.ceil(L/self.dL_param),self.nlevmlcan_max)
-            nlayers = max(nlayers_height,nlayers_lai)
+    #     Returns
+    #     -------
+    #     nlayers : int
+    #         Number of canopy layers
+    #     """
+    #     if self.nlevmlcan_enforce != None:
+    #         nlayers = self.nlevmlcan_enforce
+    #     elif (z <= 0.3) or (L <=0.5):
+    #         nlayers = self.nlevmlcan_min
+    #     else:
+    #         nlayers_height = min(np.ceil(z/self.dz_param),self.nlevmlcan_max)
+    #         nlayers_lai = min(np.ceil(L/self.dL_param),self.nlevmlcan_max)
+    #         nlayers = max(nlayers_height,nlayers_lai)
     
-        return int(nlayers)
+    #     return int(nlayers)
 
-    def set_nlayers(self, L, z):
-        """
-        Class method to set the number of layers in multilayer canopy model class.
-        This updates the class attribute called "nlevmlcan" with a value assigned by 
-        the nlayers method. 
+    # def set_nlayers(self, L, z):
+    #     """
+    #     Class method to set the number of layers in multilayer canopy model class.
+    #     This updates the class attribute called "nlevmlcan" with a value assigned by 
+    #     the nlayers method. 
 
-        Parameters
-        ----------
-        L : float
-            Canopy leaf area index, m2 m-2
-        z : float
-            Canopy height, m
+    #     Parameters
+    #     ----------
+    #     L : float
+    #         Canopy leaf area index, m2 m-2
+    #     z : float
+    #         Canopy height, m
 
-        Returns
-        -------
-        N/A
-        """
-        self.nlevmlcan = self.nlayers(L,z)
+    #     Returns
+    #     -------
+    #     N/A
+    #     """
+    #     self.nlevmlcan = self.nlayers(L,z)
 
 
     def cast_parameter_over_layers_uniform(self,p):

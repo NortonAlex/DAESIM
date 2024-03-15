@@ -115,8 +115,7 @@ print("Canopy GPP = %1.1f" % ((A+Rd)*1e6),"umol m-2 s-1")
 
 # %%
 ## Instance of CanopyLayers class
-canopy = CanopyLayers(nlevmlcan_enforce=8)#beta_lai_a=1,beta_lai_b=1,beta_sai_a=1,beta_sai_b=1)
-canopy.set_nlayers(LAI,canopy_height)
+canopy = CanopyLayers(nlevmlcan=8)
 canopy.set_index()
 
 ## Instance of CanopyRadiation class
@@ -269,8 +268,6 @@ conversion_factor = p/(Site.R_w_mol*T)  ## this is the molar density of water va
 print("  Sum of rs over canopy layers = %1.4f" % (conversion_factor/gs_multilayer),"s m-1")
 print()
 
-
-# %%
 
 # %% [markdown]
 # #### Compare big-leaf to multi-layer canopy approaches

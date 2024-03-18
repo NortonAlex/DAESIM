@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -28,18 +28,15 @@ from daesim.canopyradiation import CanopyRadiation
 
 # %%
 ## Instance of class
-Canopy = CanopyLayers()
+Canopy = CanopyLayers(nlevmlcan=8)
+
 ## input variables
 LAI = 3.0
 SAI = 0.2
 canopy_height = 1.0
 
 # %%
-print("Run the set_nlayers method to assign the number of layers as a class attribute.")
-print("This allows the number of layers to be used as an attribute for all other class methods.")
-## Set new attribute for the class
-Canopy.set_nlayers(LAI,canopy_height)
-print(" --> Number of canopy layers:",Canopy.nlevmlcan)
+print("Number of canopy layers:",Canopy.nlevmlcan)
 
 # %% [markdown]
 # #### Distribute leaf area index over canopy layers
@@ -63,7 +60,7 @@ ax.set_ylabel("Canopy layer")
 Vcmax25_ml = Canopy.cast_parameter_over_layers_exp(80,0.15,LAI)
 
 fig, ax = plt.subplots(1,1,figsize=(4,3))
-ax.plot(Vcmax25_ml,np.arange(Canopy.nlayers(LAI,canopy_height)))
+ax.plot(Vcmax25_ml,np.arange(Canopy.nlevmlcan))
 ax.set_xlabel("Layer Vcmax25")
 ax.set_ylabel("Canopy layer")
 plt.show()
@@ -77,9 +74,7 @@ PAI = 0.0
 canopy_height = 1.0
 sza = 10.0
 
-Canopy = CanopyLayers()
-Canopy.set_nlayers(LAI,canopy_height)
-Canopy.set_index()
+Canopy = CanopyLayers(nlevmlcan=8)
 ntop, nbot = Canopy.index_canopy()
 print("ntop, nbot =",ntop,",", nbot)
 
@@ -113,7 +108,7 @@ print("albd_below:",albd_below)
 
 
 # %%
-(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculate(LAI,SAI,canopy_height,sza,Canopy=Canopy)
+(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculateRTProperties(LAI,SAI,0.5,canopy_height,sza,Canopy=Canopy)
 
 fig, axes = plt.subplots(2,3,figsize=(8,5),sharey=True)
 

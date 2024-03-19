@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -51,8 +51,7 @@ Site = ClimateModule()
 
 # %%
 ## Instance of CanopyLayers class
-canopy = CanopyLayers(nlevmlcan_enforce=8)#beta_lai_a=1,beta_lai_b=1,beta_sai_a=1,beta_sai_b=1)
-canopy.set_nlayers(LAI,canopy_height)
+canopy = CanopyLayers(nlevmlcan=8)
 canopy.set_index()
 
 # %% [markdown]

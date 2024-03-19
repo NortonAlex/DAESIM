@@ -84,8 +84,7 @@ class CanopyRadiation:
         ----------
         Bonan et al., 2021, doi:10.1016/j.agrformet.2021.108435
         """
-        ## Make sure to run set_nlayers which assigns the number of layers for the given canopy structure, leaf area index and canopy height
-        #Canopy.set_nlayers(LAI,z)
+        ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
         Canopy.set_index()
 
         # Radiative transfer parameters per layer (input)

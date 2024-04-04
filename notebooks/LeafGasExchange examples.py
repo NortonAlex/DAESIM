@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -199,7 +199,6 @@ axes[0].set_title("Light-response curve")#: Photosynthetic rate")
 axes[1].set_title("Light-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_light-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 
@@ -240,7 +239,6 @@ axes[0].set_title("CO2-response curve")#: Photosynthetic rate")
 axes[1].set_title("CO2-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_CO2-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 
@@ -282,7 +280,6 @@ axes[0].set_title("Temperature-response curve")#: Photosynthetic rate")
 axes[1].set_title("Temperature-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESIM/daesim/results/LeafGasExchange_temp-response_A-gsw.png",dpi=300,bbox_inches="tight")
 plt.show()
 
 

@@ -378,3 +378,9 @@ class LeafGasExchangeModule:
         _vfunc = np.vectorize(self.sel_root)
         x = _vfunc(a,b,c,dsign)
         return x
+
+    def set_Vcmax_for_layer(self, Vcmax_opt, adjustment_factor):
+        self.Vcmax_opt =  Vcmax_opt * adjustment_factor
+
+    def set_Vqmax_for_layer(self, Vqmax_opt, adjustment_factor):
+        self.Vqmax_opt =  Vqmax_opt * adjustment_factor

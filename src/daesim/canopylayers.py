@@ -141,7 +141,7 @@ class CanopyLayers:
             
         Notes
         -----
-        Certain canopy traits (e.g. leaf nitrogne content) are known to decrease exponentially from 
+        Certain canopy traits (e.g. leaf nitrogen content) are known to decrease exponentially from 
         the top to the bottom of the canopy. This can be expressed as: $P(L) = N_0 exp^{-k L} 
         where $L$ is the canopy layer leaf area index. 
 
@@ -168,6 +168,33 @@ class CanopyLayers:
             return layer_p
         else:
             return layer_p[::-1]
+
+    def cast_scalefactor_to_layer_exp(self,k,L_C,cumulative_LAI):
+        """
+        Calculate the scaling factor across canopy layers based on an exponential decay function 
+        and relative cumulative LAI from the top of the canopy.
+
+        Parameters
+        ----------
+        k : float
+            Exponential function shape parameter (exponential decay rate).
+        L_C : float
+            Canopy leaf area index (total LAI over the whole canopy), m2 m-2.
+        cumulative_LAI : array_like
+            Relative cumulative leaf area index from the top of the canopy to the bottom of the canopy, m2 m-2, where 
+            the first value in the array corresponds to the top-of-canopy. 
+
+
+        Returns
+        -------
+        scaling factor : float
+            Scaling factor for the given canopy layer.
+        """
+        # Calculate the relative cumulative LAI from the top of the canopy
+        relative_LAI = cumulative_LAI / L_C
+        # Determine the adjusted parameter value for the current layer using an exponentially declining function
+        layer_scalefactor = np.exp(-k * relative_LAI)
+        return layer_scalefactor
 
     def cast_parameter_over_layers_betacdf(self,p,alpha_param,beta_param,method="total"):
         """

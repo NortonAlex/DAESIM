@@ -21,7 +21,7 @@ class PlantGrowthPhases:
     default_allocation_coeffs = [
         [0.0, 0.1, 0.9, 0.0, 0.0],  # Phase 1
         [0.48, 0.1, 0.4, 0.0, 0.02],  # Phase 2
-        [0.05, 0.0, 0.05, 0.5, 0.0],  # Phase 3
+        [0.25, 0.0, 0.25, 0.5, 0.0],  # Phase 3
         [0.0, 0.0, 0.0, 1.0, 0.0]  # Phase 4
     ]
     default_turnover_rates = [
@@ -54,6 +54,9 @@ class PlantGrowthPhases:
             raise ValueError("The number of developmental phases does not match across phases, GDD requirements, allocation coefficients, and turnover rates. Please correct the attributes to ensure they all match the number of developmental phases.")
         if not (np.shape(self.allocation_coeffs)[0] == np.shape(self.turnover_rates)[0]):
             raise ValueError("The number of developmental phases does not match across phases, GDD requirements, allocation coefficients, and turnover rates. Please correct the attributes to ensure they all match the number of developmental phases.")
+        for i, coeffs in enumerate(self.allocation_coeffs):
+            if not np.isclose(sum(coeffs), 1):
+                raise ValueError(f"The allocation coefficients for phase {i+1}, {self.phases[i]}, do not sum to 1. Please correct this.")
             
     def set_ndevphases(self):
         """Sets the number of development phases based on the GDD requirements array."""

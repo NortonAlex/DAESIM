@@ -348,7 +348,6 @@ axes[1].legend()
 axes[1].set_xlim([0,0.07])
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/canopy_layer_An_gs_mlVcmaxopt.png")
 plt.show()
 
 # %%
@@ -444,7 +443,7 @@ print("  Canopy sunlit gs = %1.2f" % (np.sum(dlai*fracsun*_gs[:,canopy.isun])),"
 print("  Canopy shaded gs = %1.2f" % (np.sum(dlai*(1-fracsun)*_gs[:,canopy.isha])),"mol m-2 s-1")
 print("  Sum of gs over canopy layers = %1.3f" % gs_multilayer,"mol m-2 s-1")
 print("  Sum of rs over canopy layers = %1.3f" % (1/gs_multilayer),"m2 s mol-1")
-conversion_factor = p/(Site.R_w_mol*T)  ## this is the molar density of water vapor at the given temperature and pressure
+conversion_factor = p/(Site.R_w_mol*(T+273.15))  ## this is the molar density of water vapor at the given temperature and pressure
 print("  Sum of rs over canopy layers = %1.4f" % (conversion_factor/gs_multilayer),"s m-1")
 print()
 

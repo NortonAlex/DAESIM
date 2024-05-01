@@ -91,7 +91,9 @@ Cs = 400*(p/1e5)*1e-6 # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
 RH = 65.0  # relative humidity, %
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+fgsw = 1.0
+
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 # %% [markdown]
 # #### - Checking optimal vs actual A, gs and Ci
@@ -104,8 +106,9 @@ T = 25.0  # leaf temperature, degrees Celcius
 Cs = 400*(p/1e5)*1e-6 # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
 RH = 65.0  # relative humidity, %
+fgsw = 1.0
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 print("Final calculated values:")
 print(" A =",A*1e6)
@@ -144,7 +147,7 @@ if Leaf.alpha_opt == 'static':
 VPD = Site.compute_VPD(T,RH)*1e-3
 
 # Compute stomatal conductance and Ci based on optimal stomatal theory (Medlyn et al., 2011)
-A, gs, Ci = Leaf.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
+A, gs, Ci = Leaf.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S,fgsw)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
 print("Optimal calculated values where A is light-limited i.e. A=Aj, not A=min{Aj,Ac}:")
 print(" A =",A*1e6)
 print(" gs =",gs)
@@ -174,9 +177,10 @@ Q = np.linspace(50,2400,n)*1e-6  #1200*np.ones(n)  # umol PAR m-2 s-1
 T = 25.0*np.ones(n)  # degrees Celcius
 Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
-RH = 65.0*np.ones(n)
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 fig, axes = plt.subplots(1,2,figsize=(8,3))
 axes[0].plot(Q*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
@@ -213,9 +217,10 @@ Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
 T = 25.0*np.ones(n)  # degrees Celcius
 Cs = np.linspace(60,800,n)*(p/1e5)*1e-6   #   400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
-RH = 65.0*np.ones(n)
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 fig, axes = plt.subplots(1,2,figsize=(8,3))
 
@@ -254,9 +259,10 @@ Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
 T = np.linspace(0,50,n)  # degrees Celcius
 Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
-RH = 65.0*np.ones(n)
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 fig, axes = plt.subplots(1,2,figsize=(8,3))
 
@@ -282,6 +288,46 @@ axes[1].set_title("Temperature-response curve")#: Stomatal conductance")
 plt.tight_layout()
 plt.show()
 
+
+# %% [markdown]
+# ### Simulate a leaf water potential response curve
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = 25.0*np.ones(n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = np.linspace(0,1,n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+axes[0].plot(fgsw,A*1e6,label=r"$\rm A_n$",c="0.5")
+# axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(fgsw,Vc*1e6,label="Vc",linestyle=":")
+axes[0].plot(fgsw,Ve*1e6,label="Ve",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm Tuzet \; f_{sv}$"+"\n"+r"(unitless)");
+axes[0].grid(True)
+
+axes[1].plot(fgsw,gs,c="0.5")
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm Tuzet \; f_{sv}$"+"\n"+r"(unitless)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("Leaf water potential response curve")#: Photosynthetic rate")
+axes[1].set_title("Leaf water potential response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
 
 # %%
 

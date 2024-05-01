@@ -95,6 +95,7 @@ class LeafGasExchangeModule:
         Cs,   ## Leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         O,    ## Leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         RH,   ## Relative humidity, %
+        fgsw, ## Leaf water potential limitation factor on stomatal conductance, unitless
         Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
     ) -> Tuple[float]:
 
@@ -125,7 +126,7 @@ class LeafGasExchangeModule:
         VPD = Site.compute_VPD(T,RH)*1e-3
 
         # Compute stomatal conductance and Ci based on optimal stomatal theory (Medlyn et al., 2011)
-        A, gs, Ci = self.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
+        A, gs, Ci = self.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S,fgsw)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
         #A, gs, Ci = self.solve_Cc(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S,max_iterations=20)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 
 
         # Update photosynthetic rate with optimal Ci
@@ -216,7 +217,7 @@ class LeafGasExchangeModule:
         """
         return Ag - Rd
         
-    def gs_Medlyn(self,Cs,D,An):
+    def gs_Medlyn(self,Cs,D,An,fgsw):
         """
         Model for the optimal stomatal conductance to water vapour following Medlyn et al. (2011)
         
@@ -228,6 +229,8 @@ class LeafGasExchangeModule:
             Leaf-to-air vapour pressure deficit, kPa
         An: float
             Net assimilation rate of CO2, umol CO2 m-2 s-1
+        fgsw: float
+            Leaf water potential limitation factor on stomatal conductance, unitless, e.g. soil moisture limitation, Tuzet et al. (2003, doi: 10.1046/j.1365-3040.2003.01035.x)
         g1, g0: float
             Fitted parameters according to the Medlyn et al. (2011) model
 
@@ -240,7 +243,7 @@ class LeafGasExchangeModule:
         ----------
         See original paper and corrigendum: Medlyn et al., 2011, doi: 10.1111/j.1365-2486.2012.02790.x
         """
-        gs = self.g0 + 1.6*(1 + self.g1/np.sqrt(D))*An/Cs
+        gs = self.g0 + fgsw*1.6*(1 + self.g1/np.sqrt(D))*An/Cs
         return gs
 
     def Ficks_diffusion_Ci(self,Cs,An,gs):
@@ -255,7 +258,7 @@ class LeafGasExchangeModule:
         An = gs/1.6 * (Cs - Cs)
         return An
         
-    def solve_Ci_conditional(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Ci=0.01):
+    def solve_Ci_conditional(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,fgsw,max_iterations=50,rtol_Ci=0.01):
         """
 
         Notes
@@ -271,16 +274,16 @@ class LeafGasExchangeModule:
         
         for i in range(max_iterations):
             A = self.JB21_A_j(Q,Ci,O,Vqmax,a1,phi1P_max,S)      # Step 2 - Calculate A with estimate of Ci
-            gs = self.gs_Medlyn(Cs,D,A)    # Step 3 - Update gs using the Medlyn formulation
+            gs = self.gs_Medlyn(Cs,D,A,fgsw)    # Step 3 - Update gs using the Medlyn formulation
             Ci_new = self.Ficks_diffusion_Ci(Cs,A,gs)   # Step 4 - Update Ci using the formulation
             if abs(Ci - Ci_new) < tol:   # Convergence criterion
                 break
             Ci = Ci_new
         return (A, gs, Ci)
 
-    def solve_Ci(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Ci=0.01):
+    def solve_Ci(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,fgsw,max_iterations=50,rtol_Ci=0.01):
         _vfunc = np.vectorize(self.solve_Ci_conditional)
-        A, gs, Ci = _vfunc(Cs,Q,O,D,Vqmax,a1,phi1P_max,S)
+        A, gs, Ci = _vfunc(Cs,Q,O,D,Vqmax,a1,phi1P_max,S,fgsw)
         return (A, gs, Ci)
 
     def solve_Cc_conditional(self,Cs,Q,O,D,Vqmax,a1,phi1P_max,S,max_iterations=10,rtol_Cc=0.01):

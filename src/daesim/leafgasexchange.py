@@ -212,8 +212,19 @@ class LeafGasExchangeModule:
 
     def net_co2_assimilation(self,Ag,Rd):
         """
-        Ag = gross photosynthetic CO2 assimilation, mol CO2 m-2 s-1
-        Rd = Mitochondrial respiration, mol CO2 m-2 s-1
+        Calculates the net CO2 assimilation rate as the difference between gross assimilation and mitochondrial respiration
+
+        Parameters
+        ----------
+        Ag: float
+            Gross photosynthetic CO2 assimilation, mol CO2 m-2 s-1
+        Rd: float
+            Mitochondrial respiration, mol CO2 m-2 s-1
+
+        Returns
+        -------
+        An: float
+            Net photosynthetic CO2 assimation, mol CO2 m-2 s-1
         """
         return Ag - Rd
         
@@ -320,15 +331,6 @@ class LeafGasExchangeModule:
         
         eta = (1-(self.nl/self.nc)+(3+7*Gamma_star/C)/((4+8*Gamma_star/C)*self.nc))  # Calculate PS I/II ETR
 
-        # This is equation 16.5 in Bonan (2015) Ecological Climatology
-        # Ve          = Je * CO2_per_electron
-        # JB21 Model
-        # Expressions for potential Cytochrome b6f-limited rates (_j)
-        #   N.B., see Eqns. 30-31
-        #ETR_eta     = (1-(self.nl/self.nc)+(3+7.*Gamma_star/Ci)/((4+8.*Gamma_star/Ci)*self.nc)); # PS I/II ETR, Eqn. 15c
-        #JP700_j = (Q*Vqmax)/(Q+Vqmax/(a1*phi1P_max))
-        #JP680_j = JP700_j/ETR_eta
-        #Ve      = JP680_j * CO2_per_electron    # Ve == Ag_j in JB21 model_fun.m
         Ve  = self.JB21_A_j(Q, C, O, Vqmax, a1, phi1P_max, S)
 
         # Expressions for potential Rubisco-limited rates (_c)
@@ -359,20 +361,38 @@ class LeafGasExchangeModule:
 
     def sel_root(self, a, b, c, dsign):
         """
-        sel_root - select a root based on the fourth arg (dsign = discriminant sign) for the eqn ax^2 + bx + c,
-        if dsign is:
-            -1, 0: choose the smaller root
-            +1: choose the larger root
-        NOTE: technically, we should check a, but in biochemical, a is always > 0
+        Selects and calculates one of the roots of the quadratic equation ax^2 + bx + c based on the sign of the discriminant.
+        
+        Parameters
+        ----------
+        a : float 
+            Coefficient of x^2. Assumed to be non-zero in biochemical contexts, but handled if zero.
+        b : float
+            Coefficient of x.
+        c : float
+            Constant term.
+        dsign : int
+            Indicates which root to select based on the sign of the discriminant:
+            -1 or 0 for the smaller root, +1 for the larger root.
+        
+        Returns
+        -------
+        x : float
+            The selected root of the quadratic equation. If a = 0, it solves bx + c = 0.
+        
+        Notes
+        -----
+        - If `dsign` is 0, it defaults to -1 to consistently select the smaller root,
+          assuming b^2 - 4ac = 0 implies a degenerate case of the quadratic equation.
+        - This function uses numpy for the square root calculation for consistency and performance in vectorized operations.
         """
-        if a == 0:  #% note: this works because 'a' is a scalar parameter!
+        if a == 0:
             x      = -c/b
         else:
             if dsign == 0:            
-                dsign = -1  #% technically, dsign==0 iff b = c = 0, so this isn't strictly necessary except, possibly for ill-formed cases)
+                dsign = -1   # Default to smaller root when discriminant is zero
             
-            #%disc_root = sqrt(b.^2 - 4.*a.*c); % square root of the discriminant (doesn't need a separate line anymore)
-            #%  in MATLAB (2013b) assigning the intermediate variable actually slows down the code! (~25%)
+            # Calculate the root based on the discriminant sign
             x = (-b + dsign* np.sqrt(b**2 - 4*a*c))/(2*a)
         
         return x

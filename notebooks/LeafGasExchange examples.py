@@ -27,7 +27,7 @@ from daesim.climate import *
 from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 
 # %% [markdown]
-# ### Photosynthesis Model
+# ## Photosynthesis Model - Farquhar et al. (1981) and Johnson and Berry (2021)
 #
 # We use the mechanistic C3 photosynthesis model described by Johnson and Berry (2021, doi: 10.1007/s11120-021-00840-4). This model extends the Farquhar et al. (1980, 149:78–90) model of C3 photosynthesis by incorporating a mechanistic description of steady-state electron transport rate. In the new model, the dark reactions of photosynthesis (carbon metabolism) are described by the traditional Farquhar et al. (1980, 149:78–90) model while light reactions of photosynthesis (electron transport) are described by the new Johnson and Berry (2021, doi: 10.1007/s11120-021-00840-4) model. This new model also derives fluorescence parameters from the mechanistic gas-exchange and electron transport expressions which can be compared to pulse-amplitude-modulated fluorescence measurements. 
 #
@@ -329,10 +329,69 @@ axes[1].set_title("Leaf water potential response curve")#: Stomatal conductance"
 plt.tight_layout()
 plt.show()
 
+# %% [markdown]
+# ## Photosynthesis Model - Farquhar et al. (1981)
+
 # %%
+from daesim.leafgasexchange2 import LeafGasExchangeModule2
+
+# %%
+Leaf = LeafGasExchangeModule2(Jmax_opt=250e-6)
+
+# %%
+p = 101325 # air pressure, Pa
+
+Q = 1200e-6  # absorbed PPFD, umol PAR m-2 s-1
+T = 25.0  # leaf temperature, degrees Celcius
+Cs = 400*(p/1e5)*1e-6 # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6 # oxygen partial pressure, bar
+RH = 65.0  # relative humidity, %
+
+fgsw = 1.0
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
 
 # %% [markdown]
-# ### Test supply and demand functions 
+# ### Simulate a light-response curve
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = np.linspace(50,2400,n)*1e-6  #1200*np.ones(n)  # umol PAR m-2 s-1
+T = 25.0*np.ones(n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+axes[0].plot(Q*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
+# axes[0].plot(Q*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(Q*1e6,Ac*1e6,label="Ac",linestyle=":")
+axes[0].plot(Q*1e6,Aj*1e6,label="Aj",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].grid(True)
+
+axes[1].plot(Q*1e6,gs,c="0.5")
+axes[1].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("Light-response curve")#: Photosynthetic rate")
+axes[1].set_title("Light-response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ### Simulate a CO2-response curve
 
 # %%
 n = 50
@@ -342,29 +401,116 @@ Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
 T = 25.0*np.ones(n)  # degrees Celcius
 Cs = np.linspace(60,800,n)*(p/1e5)*1e-6   #   400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
 O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
-RH = 65.0*np.ones(n)
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
 
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+axes[0].plot(Cs*1e6,A*1e6,label=r"$\rm A_{n}$",c="0.5")
+# axes[0].plot(Cs*1e6,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(Cs*1e6,Ac*1e6,label="Ac",linestyle=":")
+axes[0].plot(Cs*1e6,Aj*1e6,label="Ae",linestyle=":")
+axes[0].plot(Cs*1e6,Ap*1e6,label="Ap",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
+axes[0].grid(True)
+
+axes[1].plot(Cs*1e6,gs,c="0.5")
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("CO2-response curve")#: Photosynthetic rate")
+axes[1].set_title("CO2-response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
 
 
-## Supply
-# An_supply = Leaf.Ficks_diffusion_An(Cs, Ci, gs)
-An_supply = gs/1.6 * (Cs-Ci)
 
-## Demand
-Vqmax = fT_arrheniuspeaked(Leaf.Vqmax_opt,T,E_a=Leaf.Vqmax_Ea,H_d=Leaf.Vqmax_Hd,DeltaS=Leaf.Vqmax_DeltaS)       # Maximum Cyt b6f activity, mol e-1 m-2 s-1
-Vcmax = fT_arrheniuspeaked(Leaf.Vcmax_opt,T,E_a=Leaf.Vcmax_Ea,H_d=Leaf.Vcmax_Hd,DeltaS=Leaf.Vcmax_DeltaS)       # Maximum Rubisco activity, mol CO2 m-2 s-1
-TPU = fT_Q10(Leaf.TPU_opt_rVcmax*Leaf.Vcmax_opt,T,Q10=Leaf.TPU_Q10) 
-Rd = fT_Q10(Vcmax*Leaf.Rds,T,Q10=Leaf.Rd_Q10)
-S = fT_arrhenius(Leaf.spfy_opt,T,E_a=Leaf.spfy_Ea)
-Kc = fT_arrhenius(Leaf.Kc_opt,T,E_a=Leaf.Kc_Ea)
-Ko = fT_arrhenius(Leaf.Ko_opt,T,E_a=Leaf.Ko_Ea)
-phi1P_max = Leaf.Kp1/(Leaf.Kp1+Leaf.Kd+Leaf.Kf)  # Maximum photochemical yield PS I
-Gamma_star   = 0.5 / S * O      # compensation point in absence of Rd
-An_demand, _, _, _, _ = Leaf.compute_A(Ci, O, Q, Vcmax, Vqmax, TPU, Gamma_star, Rd, S, Kc, Ko, a1, phi1P_max)
+# %% [markdown]
+# ### Simulate a temperature response curve
 
 # %%
-plt.plot(Ci*1e6,An_supply*1e6)
-plt.plot(Ci*1e6,An_demand*1e6+Rd*1e6)
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = np.linspace(0,50,n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+axes[0].plot(T,A*1e6,label=r"$\rm A_n$",c="0.5")
+# axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(T,Ac*1e6,label="Ac",linestyle=":")
+axes[0].plot(T,Aj*1e6,label="Ae",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
+axes[0].grid(True)
+
+axes[1].plot(T,gs,c="0.5")
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("Temperature-response curve")#: Photosynthetic rate")
+axes[1].set_title("Temperature-response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ### Simulate a leaf water potential response curve
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = 25.0*np.ones(n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = 65.0*np.ones(n)   # relative humidity, %
+fgsw = np.linspace(0,1,n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+axes[0].plot(fgsw,A*1e6,label=r"$\rm A_n$",c="0.5")
+# axes[0].plot(T,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(fgsw,Ac*1e6,label="Ac",linestyle=":")
+axes[0].plot(fgsw,Aj*1e6,label="Ae",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm Tuzet \; f_{sv}$"+"\n"+r"(unitless)");
+axes[0].grid(True)
+
+axes[1].plot(fgsw,gs,c="0.5")
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm Tuzet \; f_{sv}$"+"\n"+r"(unitless)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("Leaf water potential response curve")#: Photosynthetic rate")
+axes[1].set_title("Leaf water potential response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
 
 # %%

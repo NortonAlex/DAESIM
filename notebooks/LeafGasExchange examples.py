@@ -246,8 +246,6 @@ axes[1].set_title("CO2-response curve")#: Stomatal conductance")
 plt.tight_layout()
 plt.show()
 
-
-
 # %% [markdown]
 # ### Simulate a temperature response curve
 
@@ -430,8 +428,6 @@ axes[1].set_title("CO2-response curve")#: Stomatal conductance")
 
 plt.tight_layout()
 plt.show()
-
-
 
 # %% [markdown]
 # ### Simulate a temperature response curve

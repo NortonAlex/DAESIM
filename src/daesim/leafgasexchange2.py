@@ -54,14 +54,10 @@ class LeafGasExchangeModule2:
     TPU_Q10: float = field(default=1.8)  ## Q10 coefficient for the temperature response of TPU
     spfy_Ea: float = field(default=-29.0)  ## activation energy for the specificity factor (Medlyn et al., 2002, p. 1170)
 
-    Abs: float = field(default=0.85)  ## Total leaf absorptance to PAR, mol PPFD absorbed mol-1 PPFD incident
-    beta: float = field(default=0.52)  ## PSII fraction of total leaf absorptance, mol PPFD absorbed by PSII mol-1 PPFD absorbed
     Rds: float = field(default=0.01)  ## Scalar for dark respiration, dimensionless
 
-    nl: float = field(default=0.75) ## ATP per e- in linear flow, ATP/e-
-    nc: float = field(default=1.00) ## ATP per e- in cyclic flow, ATP/e-
     effcon: float = field(default=0.25)  ## Efficiency of conversion. TODO: Add better notes here
-    atheta: float = field(default=1)  ## Empirical smoothing parameter to allow for co-limitation of Vc and Ve. In Johnson and Berry (2021) model this must equal 1 (i.e. no smoothing). 
+    atheta: float = field(default=1-1e-04)  ## Empirical smoothing parameter to allow for co-limitation of Vc and Ve. In Johnson and Berry (2021) model this must equal 1 (i.e. no smoothing). 
 
     ## Stomatal conductance constants
     g0: float = field(default=0.0)   ## g0, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
@@ -298,7 +294,7 @@ class LeafGasExchangeModule2:
     def hyperbolic_min_Ac_Aj(self, Ac, Aj):
         """Hyperbolic minimum between Ac and Aj"""
         _vfunc = np.vectorize(self.quadp)
-        Am = -_vfunc(1 - 1E-04, Ac+Aj, Ac*Aj)
+        Am = -_vfunc(self.atheta, Ac+Aj, Ac*Aj)
         return Am
         
     def hyperbolic_min_Ap_Am_conditional(self, Ap, Am):

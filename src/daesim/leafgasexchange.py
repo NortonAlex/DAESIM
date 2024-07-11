@@ -69,9 +69,6 @@ class LeafGasExchangeModule:
 
     alpha_opt: str = field(default='static') ## Model choice of static or dynamic absorption cross-section calculations
 
-    ## Temperature dependence functions
-    tempcor_type: str = field(default='PeakedArrhenius')  ## Temperature scaling function choice
-
     ## Photochemical constants
     Kf: float = field(default=0.05e09) ## Rate constant for fluoresence at PSII and PSI, s-1
     Kd: float = field(default=0.55e09) ## Rate constant for constitutive heat loss at PSII and PSI, s-1

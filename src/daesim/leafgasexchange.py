@@ -345,62 +345,59 @@ class LeafGasExchangeModule:
         # Here we allow for co-limitation of Vc and Ve, providing a smooth transition between the 
         # two potentially limiting rates. This takes the smaller root of a quadratic equation,  
         # where 0.98 is the empirical smoothing parameter. See Bonan (2019) Eq. 11.31-11.33
-        V    = self.sel_root_conditional( self.atheta, -(Vc+Ve), Vc*Ve, np.sign(-Vc) )
+        V    = self.hyperbolic_min_Ac_Aj(Vc, Ve)
 
-        Ag   = self.sel_root_conditional( self.atheta, -(V+Vs), V*Vs, -1 )
+        Ag   = self.hyperbolic_min_Ap_Am(Vs, V)
 
         A    = Ag - Rd
 
         # Select minimum PS1 ETR
-        #JP700_a = self.sel_root_conditional( self.atheta, -(JP700_j+JP700_c), JP700_j*JP700_c, np.sign(-Vc) )
+        #JP700_a = self.hyperbolic_min_Ac_Aj(JP700_j, JP700_c)
 
         # Select minimum PS2 ETR 
-        #JP680_a = self.sel_root_conditional( self.atheta, -(JP680_j+JP680_c), JP680_j*JP680_c, np.sign(-Vc) )
+        #JP680_a = self.hyperbolic_min_Ac_Aj(JP680_j, JP680_c)
 
         return (A, Ag, Vc, Ve, Vs) # , JP680_a, JP700_a)
 
-    def sel_root(self, a, b, c, dsign):
-        """
-        Selects and calculates one of the roots of the quadratic equation ax^2 + bx + c based on the sign of the discriminant.
-        
-        Parameters
-        ----------
-        a : float 
-            Coefficient of x^2. Assumed to be non-zero in biochemical contexts, but handled if zero.
-        b : float
-            Coefficient of x.
-        c : float
-            Constant term.
-        dsign : int
-            Indicates which root to select based on the sign of the discriminant:
-            -1 or 0 for the smaller root, +1 for the larger root.
-        
-        Returns
-        -------
-        x : float
-            The selected root of the quadratic equation. If a = 0, it solves bx + c = 0.
-        
-        Notes
-        -----
-        - If `dsign` is 0, it defaults to -1 to consistently select the smaller root,
-          assuming b^2 - 4ac = 0 implies a degenerate case of the quadratic equation.
-        - This function uses numpy for the square root calculation for consistency and performance in vectorized operations.
-        """
-        if a == 0:
-            x      = -c/b
-        else:
-            if dsign == 0:            
-                dsign = -1   # Default to smaller root when discriminant is zero
-            
-            # Calculate the root based on the discriminant sign
-            x = (-b + dsign* np.sqrt(b**2 - 4*a*c))/(2*a)
-        
-        return x
+    def hyperbolic_min_Ac_Aj(self, Ac, Aj):
+        """Hyperbolic minimum between Ac and Aj"""
+        _vfunc = np.vectorize(self.quadp)
+        Am = -_vfunc(self.atheta, Ac+Aj, Ac*Aj)
+        return Am
 
-    def sel_root_conditional(self, a, b, c, dsign):
-        _vfunc = np.vectorize(self.sel_root)
-        x = _vfunc(a,b,c,dsign)
-        return x
+    def hyperbolic_min_Ap_Am_conditional(self, Ap, Am):
+        """Hyperbolic minimum with TPU limitation, applied only if Ap is less than Am"""
+        if Ap < Am:
+            _vfunc = np.vectorize(self.quadp)
+            Am = -_vfunc(1 - 1E-07, Am+Ap, Am*Ap)
+            return Am
+        else: 
+            return Am
+
+    def hyperbolic_min_Ap_Am(self, Ap, Am):
+        """Hyperbolic minimum with TPU limitation, applied only if Ap is less than Am"""
+        _vfunc = np.vectorize(self.hyperbolic_min_Ap_Am_conditional)
+        Am = _vfunc(Ap,Am)
+        return Am
+
+    def quadp(self, a, b, c):
+        """
+        Returns the larger root of the quadratic equation ax^2 + bx + c = 0.
+        If the roots are imaginary, prints a warning and returns 0.
+        Handles cases when a or b are zero.
+        """
+        discriminant = b**2 - 4*a*c
+        if discriminant < 0:
+            print("IMAGINARY ROOTS IN QUADRATIC")
+            return 0
+        
+        if a == 0:
+            if b == 0:
+                return 0
+            else:
+                return -c / b
+        else:
+            return (-b + np.sqrt(discriminant)) / (2 * a)
 
     def set_Vcmax_for_layer(self, Vcmax_opt, adjustment_factor):
         self.Vcmax_opt =  Vcmax_opt * adjustment_factor

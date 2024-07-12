@@ -128,7 +128,13 @@ canopy.set_index()
 canopysolar = CanopyRadiation(rhol=leafreflectance)
 
 # %% [markdown]
-# ### Run radiative transfer calculations
+# ## Run radiative transfer calculations
+
+# %%
+swleaf, swveg, swvegsun, swvegsha = canopysolar.calculate(LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Canopy=canopy)
+
+# %% [markdown]
+# ### Run radiative transfer calculations - broken down into parts
 
 # %%
 (fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza,Canopy=canopy)
@@ -170,6 +176,11 @@ for ileaf in range(canopy.nleaf):
         _An[ic,ileaf] = An
         _gs[ic,ileaf] = gs
         _Rd[ic,ileaf] = Rd
+
+# %%
+
+# %%
+np.shape(swleaf)
 
 
 # %% [markdown]

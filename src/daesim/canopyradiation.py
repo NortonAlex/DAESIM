@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 from attrs import define, field
 from daesim.canopylayers import CanopyLayers
 
@@ -22,6 +23,52 @@ class CanopyRadiation:
     taul: float = field(default=0.1)  # Leaf transmittance (-)
     rhos: float = field(default=0.1)  # Stem reflectance (-)
     taus: float = field(default=0.0)  # Stem transmittance (-)
+    albsoib: float = field(default=0.2)  # Soil background albedo for beam radiation (-)
+    albsoid: float = field(default=0.2)  # Soil background albedo for diffuse radiation (-)
+
+    def calculate(
+        self,
+        LAI,    ## Leaf area index, m2/m2
+        SAI,    ## Stem area index, m2/m2
+        clumping_factor,  ## Foliage clumping index (-)
+        z,      ## Canopy height, m
+        sza,    ## Solar zenith angle, degrees
+        swskyb, ## Atmospheric direct beam solar radiation, W/m2
+        swskyd, ## Atmospheric diffuse solar radiation, W/m2
+        Canopy=CanopyLayers(),  ## It is optional to define Canopy for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers(). Note that this may be important as it defines many canopy structure specific variables used in the calculations.
+    ) -> Tuple[float]:
+
+        ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
+        Canopy.set_index()
+
+        ## Calculate RT properties
+        (fracsun, kb, omega, avmu, betab, betad, tbi) = self.calculateRTProperties(LAI,SAI,clumping_factor,z,sza,Canopy=Canopy)
+
+        dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
+        dsai = Canopy.cast_parameter_over_layers_betacdf(SAI,Canopy.beta_sai_a,Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
+        dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
+        clump_fac = Canopy.cast_parameter_over_layers_uniform(clumping_factor)
+
+        ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
+        swleaf = self.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,self.albsoib,self.albsoid,Canopy=Canopy)
+
+        ## Determine total canopy absorbed shortwave radiation
+        swveg = 0
+        swvegsun = 0
+        swvegsha = 0
+        for ic in range(Canopy.nbot, Canopy.ntop + 1):
+            sun = swleaf[ic,Canopy.isun] * fracsun[ic] * dlai[ic]
+            sha = swleaf[ic,Canopy.isha] * (1.0 - fracsun[ic]) * dlai[ic]
+            swveg += (sun + sha)
+            swvegsun += sun
+            swvegsha += sha
+
+        ## Determine absorbed PPFD for canopy elements
+        for ileaf in range(Canopy.nleaf):
+            for ic in range(Canopy.nbot, Canopy.ntop+1):
+                Q = 1e-6 * swleaf[ic,ileaf] * self.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
+
+        return swleaf, swveg, swvegsun, swvegsha
 
     def calculateRTProperties(
         self,

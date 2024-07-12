@@ -28,7 +28,7 @@ from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 from daesim.boundarylayer import BoundaryLayerModule
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
-from daesim.leafgasexchange import LeafGasExchangeModule
+from daesim.leafgasexchange2 import LeafGasExchangeModule2
 from daesim.climate import *
 from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 from daesim.boundarylayer import BoundaryLayerModule
@@ -76,7 +76,7 @@ RH = 65.0    ## relative humidity (%)
 # ### Create instance of LeafGasExchange class
 
 # %%
-Leaf = LeafGasExchangeModule()
+Leaf = LeafGasExchangeModule2()
 
 # %% [markdown]
 # ## Big-Leaf Approach
@@ -103,7 +103,7 @@ print("Absorbed shortwave irradiance = %1.3f" % (fAPAR*swdown),"W m-2")
 
 # %%
 Q = 1e-6 * (swdown*fAPAR) * CanopyRadiation().J_to_umol  # absorbed PPFD, umol PAR m-2 s-1
-A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+A, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,1.0)
 
 # %%
 Anet_bigleaf = A*1e6
@@ -166,18 +166,18 @@ _Rd = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 for ileaf in range(canopy.nleaf):
     for ic in range(canopy.nbot, canopy.ntop+1):
         Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
-        An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH)
+        An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,1.0)
         _An[ic,ileaf] = An
         _gs[ic,ileaf] = gs
         _Rd[ic,ileaf] = Rd
 
 
 # %% [markdown]
-# ### Optional: Account for vertical variation in leaf gas exchange parameters (e.g. Vqmax)
+# ### Optional: Account for vertical variation in leaf gas exchange parameters (e.g. Vcmax)
 
 # %%
 def calculate_leaf_variables(Q, T, Cs, O, RH, Leaf):
-    return Leaf.calculate(Q, T, Cs, O, RH)
+    return Leaf.calculate(Q, T, Cs, O, RH, 1.0)
 
 _An_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 _gs_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
@@ -187,24 +187,20 @@ _Rd_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 ## Relative LAI from top-of-canopy down
 relative_LAI = np.cumsum(dlai[::-1]) / LAI
 ## Ensure we store the leaf property attribute before it is modified. I assume this represents the top-of-canopy value. 
-Vqmax_opt_toc = Leaf.Vqmax_opt
-Vqmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
-# Vcmax_opt_toc = Leaf.Vcmax_opt
-# Vcmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
+Vcmax_opt_toc = Leaf.Vcmax_opt
+Vcmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
 
 ## Loop over canopy layers, set leaf parameter and calculate gas exchange
 for ileaf in range(canopy.nleaf):
     for ic in range(canopy.nbot, canopy.ntop+1):
         Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
         An, gs, Ci, Vc, Ve, Vs, Rd = calculate_leaf_variables(Q, T, Cs, O, RH, Leaf)
-        Leaf.set_Vqmax_for_layer(Vqmax_opt_toc, Vqmax_opt_ml_scalefactor[ic])  # Adjust Vqmax_opt for the layer
-        # Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, Vcmax_opt_ml_scalefactor[ic])  # Adjust Vcmax_opt for the layer
+        Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, Vcmax_opt_ml_scalefactor[ic])  # Adjust Vcmax_opt for the layer
         _An_mlp[ic,ileaf] = An
         _gs_mlp[ic,ileaf] = gs
         _Rd_mlp[ic,ileaf] = Rd
 
-Leaf.set_Vqmax_for_layer(Vqmax_opt_toc, 1)  # Reset leaf Vcmax_opt to its top-of-canopy value
-# Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, 1)  # Reset leaf Vcmax_opt to its top-of-canopy value
+Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, 1)  # Reset leaf Vcmax_opt to its top-of-canopy value
 
 
 # %%
@@ -231,7 +227,7 @@ ax.set_xlabel("Scaling factor for leaf parameter")
 ax.set_ylabel("Cumulative relative LAI")
 
 ax = axes[1]
-ax.plot(Vqmax_opt_ml_scalefactor,np.arange(canopy.nlevmlcan))
+ax.plot(Vcmax_opt_ml_scalefactor,np.arange(canopy.nlevmlcan))
 ax.set_xlabel("Scaling factor for leaf parameter")
 ax.set_ylabel("Canopy layer")
 ax.set_xlim([0,1])
@@ -246,27 +242,27 @@ plt.show()
 fig, axes = plt.subplots(2,2,figsize=(5.33,5))
 
 ax = axes[0,0]
-ax.plot(1e6*_An[:,0],np.arange(canopy.nlevmlcan),label=r"Uniform $\rm V_{qmax,opt}$")
-ax.plot(1e6*_An_mlp[:,0],np.arange(canopy.nlevmlcan),label=r"Exp $\rm V_{qmax,opt}$",c='crimson')
+ax.plot(1e6*_An[:,0],np.arange(canopy.nlevmlcan),label=r"Uniform $\rm V_{cmax,opt}$")
+ax.plot(1e6*_An_mlp[:,0],np.arange(canopy.nlevmlcan),label=r"Exp $\rm V_{cmax,opt}$",c='crimson')
 ax.set_xlabel(r"$\rm A_{net}$ per leaf"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
 ax.set_ylabel("Canopy layer")
 ax.legend(handlelength=0.7,fontsize=9)
 
 ax = axes[0,1]
-ax.plot(_gs[:,0],np.arange(canopy.nlevmlcan),label="Uniform Vqmax")
-ax.plot(_gs_mlp[:,0],np.arange(canopy.nlevmlcan),label="Exp Vqmax",c='crimson')
+ax.plot(_gs[:,0],np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(_gs_mlp[:,0],np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
 ax.set_xlabel(r"$\rm g_{sw}$ per leaf"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
 ax.set_ylabel("Canopy layer")
 
 ax = axes[1,0]
-ax.plot(1e6*_An[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vqmax")
-ax.plot(1e6*_An_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vqmax",c='crimson')
+ax.plot(1e6*_An[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(1e6*_An_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
 ax.set_xlabel(r"$\rm A_{net}$ per layer"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
 ax.set_ylabel("Canopy layer")
 
 ax = axes[1,1]
-ax.plot(_gs[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vqmax")
-ax.plot(_gs_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vqmax",c='crimson')
+ax.plot(_gs[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(_gs_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
 ax.set_xlabel(r"$\rm g_{sw}$ per layer"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
 ax.set_ylabel("Canopy layer")
 

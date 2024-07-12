@@ -733,6 +733,16 @@ plt.tight_layout()
 # $u_k = \frac{max(0,\frac{marginal gain_k}{marginal cost_k})}{\sum_j max(0,\frac{marginal gain_j}{marginal cost_j})}$
 #
 # where $j$ is the vector of $k$ carbon pools.
+#
+# **Next: Develop more biophysical constraints**
+#
+# These can be used to define different species types. 
+#
+# There are biophysical constraints on the amount of biomass in each pool. First, leaf area index is defined by the multiplication of leaf dry structural biomass ($W_L$; g d.wt m-2) and the specific leaf area ($SLA$; m2 g d.wt-1), there is a parameter for the maximum potential LAI, which constrains the maximum of $W_L$. 
+#
+# I want a similar biophysical constraint on the amount of biomass in the root pool. Can we define a parameter for the maximum potential root to shoot ratio, which defines the maximum amount of root biomass per unit of shoot biomass ($r_{r,s}$, unitless). 
+#
+# <!-- Finally, I want a biophysical constraint that defines the amount of stem biomass. This includes a constraint of stem growth, defined by a parameter for the increment of stem structural dry weight per unit growth of leaves ($Phi_L$; dimensionless; typical range [0.1-1]), and a constraint on maximum amount of biomass in the stem pool -->
 
 # %%
 @define 

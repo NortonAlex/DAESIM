@@ -410,3 +410,14 @@ def growing_degree_days_DTT_linear3(Tmin,Tmax,Tb,Tu):
         return Tavg_prime - Tb
     elif Tu < Tavg:
         return Tu - Tb
+
+def MinQuadraticSmooth(x, y, eta=0.99):
+    # Ensuring x, y, and eta can be numpy arrays for vector operations
+    x = np.asarray(x)
+    y = np.asarray(y)
+    eta = np.asarray(eta)
+    
+    z = np.power(x + y, 2) - 4.0 * eta * x * y
+    z = np.maximum(z, 1e-18)  # Ensure z doesn't go below 1e-18
+    mins = (x + y - np.sqrt(z)) / (2.0 * eta)
+    return mins

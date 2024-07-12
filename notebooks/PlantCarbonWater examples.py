@@ -708,3 +708,297 @@ plt.tight_layout()
 
 
 # %%
+
+# %% [markdown]
+# ## Optimal Allocation
+#
+# This approach to carbon allocation is modified from Potkay et al. (2021) "Coupled whole-tree optimality and xylem hydraulics explain dynamic biomass partitioning". 
+#
+# The instantaneous allocation fraction to pool $k$ is proportional to the ratio of the marginal gain divided by the marginal cost:
+#
+# $u_k \propto \frac{marginal gain_k}{marginal cost_k}$
+#
+# where $u_k$ is the instantaneous allocation fraction to pool $k$. The marginal gain per pool is equal to 
+#
+# $marginal \; gain_k = \frac{d}{dC_k} [ a_L(A_n + R_d) - R_m] = \frac{d}{dC_k} [ GPP - R_m]$
+#
+# while the marginal cost per pool is equal to
+#
+# $marginal \; cost_k = \frac{dS_k}{dC_k} = \tau_i$
+#
+# where $\tau$ is the carbon pool mean lifespan. 
+#
+# In practice, when the economic gain is negative, the allocation is set to zero. Furthermore, to ensure all allocation fraction to all pools sum to unity, each marginal gain-cost ratio is normalised to the sum of marginal gain-cost ratios for all pools:
+#
+# $u_k = \frac{max(0,\frac{marginal gain_k}{marginal cost_k})}{\sum_j max(0,\frac{marginal gain_j}{marginal cost_j})}$
+#
+# where $j$ is the vector of $k$ carbon pools.
+
+# %%
+@define 
+class PlantOptimalAllocation:
+    """
+    Calculator of plant allocation based on optimal trajectory principle
+    """
+
+    ## Class parameters
+    
+    ## Biomass pool step size (defined as a factor or 'multiplier') for evaluating marginal gain and marginal cost with finite difference method
+    dWL_factor: float = field(default=1.01)    ## Step size for leaf biomass pool
+    dWR_factor: float = field(default=1.01)    ## Step size for leaf biomass pool
+
+
+    def calculate(
+        self,
+        W_L,         ## leaf structural dry biomass (g d.wt m-2)
+        W_R,         ## root structural dry biomass (g d.wt m-2)
+        soilTheta,   ## volumetric soil water content (m3 m-3)
+        Tleaf,   ## leaf temperature (deg C)
+        Tair,    ## air temperature (deg C), outside leaf boundary layer 
+        RH,      ## relative humidity of air (%), outside leaf boundary layer
+        Q,       ## absorbed photosynthetically active radiation (APAR) (mol m-2 s-1)
+        airCO2,  ## leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
+        airO2,   ## leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
+        airP,    ## air pressure, Pa, (in leaf boundary layer)
+        Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
+        Leaf=LeafGasExchangeModule2(),    ## It is optional to define Leaf for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule().
+        Plant=PlantModel(),    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
+    ) -> Tuple[float]:
+
+        ## Calculate control run
+        GPP_0, Rml_0, Rmr_0, E_0, f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+        
+        ## Calculate sensitivity run for leaf biomass
+        GPP_L, Rml_L, Rmr_L, E_L, f_Psil_L, Psil_L, Psir_L, Psis_L, K_s_L, K_sr_L, k_srl_L = plant.calculate(W_L*self.dWL_factor,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+        
+        ## Calculate sensitivity run for root biomass
+        GPP_R, Rml_R, Rmr_R, E_R, f_Psil_R, Psil_R, Psir_R, Psis_R, K_s_R, K_sr_R, k_srl_R = plant.calculate(W_L,W_R*self.dWR_factor,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+        
+        ## Calculate change in GPP per unit change in biomass pool
+        dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
+        dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
+        
+        ## Calculate change in GPP-Rm per unit change in biomass pool
+        dGPPRmdWleaf = ((GPP_L - Rml_L)-(GPP_0 - Rml_0))/(W_L*self.dWL_factor - W_L)
+        dGPPRmdWroot = ((GPP_R - Rmr_R)-(GPP_0 - Rmr_0))/(W_R*self.dWR_factor - W_R)
+        
+        ## Calculate allocation coefficients
+        u_L = np.maximum(0,dGPPdWleaf)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
+        u_R = np.maximum(0,dGPPdWroot)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
+
+        return u_L, u_R, dGPPdWleaf, dGPPdWroot, dGPPRmdWleaf, dGPPRmdWroot
+
+# %%
+## Leaf biomass
+n = 50
+_W_L = np.linspace(20,400,n)
+
+## initialise model
+plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
+plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
+
+## Fixed inputs
+soilTheta = 0.30
+Tleaf = 20.0
+Tair = 20.0
+airCO2 = 400e-6
+airO2 = 209e-3
+airP = 101325
+RH = 70.0
+Q = 800e-6
+
+## Define model inputs
+# W_L = 80
+W_R = 80
+
+u_L = np.zeros(n)
+u_R = np.zeros(n)
+dGPPdWleaf = np.zeros(n)
+dGPPdWroot = np.zeros(n)
+dGPPRmdWleaf = np.zeros(n)
+dGPPRmdWroot = np.zeros(n)
+GPP_0_ = np.zeros(n)
+E_0_ = np.zeros(n)
+
+for ix,xW_L in enumerate(_W_L):
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site,leaf,plant)
+    
+fig, axes = plt.subplots(1,4,figsize=(16,3))
+
+ax = axes[0]
+ax.plot(_W_L,GPP_0_,label=r"$\rm GPP$")
+ax.plot(_W_L,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[1]
+ax.plot(_W_L,dGPPdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_L,dGPPdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[2]
+ax.plot(_W_L,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_L,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[3]
+ax.plot(_W_L,u_L,label=r"$\rm u_L$")
+ax.plot(_W_L,u_R,label=r"$\rm u_R$")
+ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Allocation coefficient")
+ax.legend(handlelength=0.7)
+ax.set_ylim([0,1])
+
+plt.tight_layout()
+
+
+
+# %%
+## Root biomass
+n = 50
+_W_R = np.linspace(20,400,n)
+
+## initialise model
+plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
+plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
+
+## Fixed inputs
+soilTheta = 0.30
+Tleaf = 20.0
+Tair = 20.0
+airCO2 = 400e-6
+airO2 = 209e-3
+airP = 101325
+RH = 70.0
+Q = 800e-6
+
+## Define model inputs
+W_L = 80
+# W_R = 80
+
+u_L = np.zeros(n)
+u_R = np.zeros(n)
+dGPPdWleaf = np.zeros(n)
+dGPPdWroot = np.zeros(n)
+dGPPRmdWleaf = np.zeros(n)
+dGPPRmdWroot = np.zeros(n)
+GPP_0_ = np.zeros(n)
+E_0_ = np.zeros(n)
+
+for ix,xW_R in enumerate(_W_R):
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site,leaf,plant)
+    
+fig, axes = plt.subplots(1,4,figsize=(16,3))
+
+ax = axes[0]
+ax.plot(_W_R,GPP_0_,label=r"$\rm GPP$")
+ax.plot(_W_R,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[1]
+ax.plot(_W_R,dGPPdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_R,dGPPdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[2]
+ax.plot(_W_R,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_R,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[3]
+ax.plot(_W_R,u_L,label=r"$\rm u_L$")
+ax.plot(_W_R,u_R,label=r"$\rm u_R$")
+ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
+ax.set_ylabel(r"Allocation coefficient")
+ax.legend(handlelength=0.7)
+ax.set_ylim([0,1])
+
+plt.tight_layout()
+
+
+
+# %%
+## Soil moisture
+n = 50
+_soilTheta = np.linspace(0.2,plant.soilThetaMax,n)
+
+## initialise model
+plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
+plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
+
+## Fixed inputs
+soilTheta = 0.30
+Tleaf = 20.0
+Tair = 20.0
+airCO2 = 400e-6
+airO2 = 209e-3
+airP = 101325
+RH = 70.0
+Q = 800e-6
+
+## Define model inputs
+W_L = 80
+W_R = 80
+
+u_L = np.zeros(n)
+u_R = np.zeros(n)
+dGPPdWleaf = np.zeros(n)
+dGPPdWroot = np.zeros(n)
+dGPPRmdWleaf = np.zeros(n)
+dGPPRmdWroot = np.zeros(n)
+GPP_0_ = np.zeros(n)
+E_0_ = np.zeros(n)
+
+for ix,xsoilTheta in enumerate(_soilTheta):
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site,leaf,plant)
+    
+fig, axes = plt.subplots(1,4,figsize=(16,3))
+
+ax = axes[0]
+ax.plot(_soilTheta,GPP_0_,label=r"$\rm GPP$")
+ax.plot(_soilTheta,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
+ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[1]
+ax.plot(_soilTheta,dGPPdWleaf,label=r"$\rm W_L$")
+ax.plot(_soilTheta,dGPPdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[2]
+ax.plot(_soilTheta,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_soilTheta,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
+ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[3]
+ax.plot(_soilTheta,u_L,label=r"$\rm u_L$")
+ax.plot(_soilTheta,u_R,label=r"$\rm u_R$")
+ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
+ax.set_ylabel(r"Allocation coefficient")
+ax.legend(handlelength=0.7)
+ax.set_ylim([0,1])
+
+plt.tight_layout()
+
+
+
+# %%

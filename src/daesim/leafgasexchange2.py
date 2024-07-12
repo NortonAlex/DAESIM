@@ -139,8 +139,8 @@ class LeafGasExchangeModule2:
         # Actual electron transport rate
         #Ja = Ag / ((Ci - Gamma_star) / (Ci + 2 * Gamma_star)) / self.effcon
 
-        # Stomatal resistance
-        rcw    = ( self.rhoa / (self.Mair*1.0e3) )/gsw
+        # Stomatal resistance to water vapor
+        # r_ws    = ( self.rhoa / (self.Mair*1.0e3) )/gsw  ## TODO: Check this and cross-check it with calculations of transpiration
 
         return (An, gsw, Ci, Ac, Aj, Ap, Rd)
 

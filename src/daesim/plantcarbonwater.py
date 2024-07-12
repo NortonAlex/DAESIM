@@ -89,15 +89,6 @@ class PlantModel:
 
         ## Calculate actual transpiration
         E = LAI * self.leaf_transpiration(gsw,Tleaf,Tair,airP,RH,Site)
-        # Wi = Site.compute_sat_vapor_pressure(Tleaf)   ## Pa
-        # Wa = Site.compute_actual_vapor_pressure(Tair,RH)   ## Pa
-        # Wi_molconc = Wi/(Site.R_w_mol * (Tleaf+273.15))   ## converts Pa to mol m-3
-        # Wa_molconc = Wa/(Site.R_w_mol * (Tair+273.15))   ## converts Pa to mol m-3
-        # r_ws = (airP/(Site.R_w_mol*(Tleaf+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)
-        # r_cs = r_ws/1.6    ## resistance to carbon dioxide across leaf surface (stomata); 1.6 converts stomatal resistance to water vapor to carbon dioxide by accounting for the ratio of the diffusivities of H2O to CO2 in air
-        # r_ca = 18.08       ## resistance to carbon dioxide across leaf boundary layer (s m-1)
-        # r_w = 0.607*r_ca + 0.704*r_cs
-        # E = (Wi_molconc - Wa_molconc)/r_w
 
         ## Calculate root water potential
         Psi_r = self.root_water_potential(Psi_s,E,k_srl)

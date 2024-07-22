@@ -11,6 +11,9 @@ from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import MinQuadraticSmooth
 from daesim.climate import ClimateModule
 from daesim.leafgasexchange2 import LeafGasExchangeModule2
+from daesim.canopygasexchange import CanopyGasExchange
+from daesim.canopylayers import CanopyLayers
+from daesim.canopyradiation import CanopyRadiation
 
 @define
 class PlantModel:
@@ -49,15 +52,24 @@ class PlantModel:
         Tleaf,   ## leaf temperature (deg C)
         Tair,    ## air temperature (deg C), outside leaf boundary layer 
         RH,      ## relative humidity of air (%), outside leaf boundary layer
-        Q,       ## absorbed photosynthetically active radiation (APAR) (mol m-2 s-1)
         airCO2,  ## leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         airO2,   ## leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         airP,    ## air pressure, Pa, (in leaf boundary layer)
+        swskyb, ## Atmospheric direct beam solar radiation, W/m2
+        swskyd, ## Atmospheric diffuse solar radiation, W/m2
         Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
         Leaf=LeafGasExchangeModule2(),    ## It is optional to define Leaf for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule().
+        CanopyGasExchange=CanopyGasExchange(),    ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
+        Canopy=CanopyLayers(),    ## It is optional to define Canopy for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers().
+        CanopySolar=CanopyRadiation(),    ## It is optional to define CanopySolar for this method. If no argument is passed in here, then default setting for CanopySolar is the default CanopyRadiation().
     ) -> Tuple[float]:
         
         LAI = self.calculate_LAI(W_L)
+        ## TODO: Add these as inputs to this module (instead of constants)
+        SAI = 0.0  ## Stem area index, m2/m2
+        CI = 0.5   ## Foliage clumping index (-)
+        z = 1.0    ## Canopy height, m
+        sza = 30.0  ## Solar zenith angle, degrees
 
         ## Calculate soil water potential
         Psi_s = self.soil_water_potential(soilTheta)
@@ -72,23 +84,24 @@ class PlantModel:
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
 
         ## Initial estimate of GPP without leaf water potential limitation
-        GPP, gsw = self.calculate_An_gs(LAI,1.0,Q,Tleaf,airCO2,airO2,RH,Leaf)
+        #GPP, gsw = self.calculate_An_gs(LAI,1.0,Q,Tleaf,airCO2,airO2,RH,Leaf)
+        GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, RH, airP, 1.0, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Determine the total leaf-area specific conductance from soil-to-root-to-leaf
         ## - assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship 1/k_tot = 1/k_srl + 1/k_rl
         k_tot = (k_srl*self.k_rl)/(self.k_rl+k_srl)
 
         ## Calculate leaf water potential
-        Psi_l = self.leaf_water_potential_solve(LAI, Psi_s,k_tot,Q,Tleaf,Tair,airCO2,airO2,airP,RH,Leaf,Site)
+        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, Tair, Tleaf, airCO2, airO2, RH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Calculate actual leaf water potential scaling factor on photosynthesis/dry-matter production
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
         ## Calculate actual gpp and stomatal conductance
-        GPP, gsw = self.calculate_An_gs(LAI,f_Psi_l,Q,Tleaf,airCO2,airO2,RH,Leaf)
+        GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, RH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Calculate actual transpiration
-        E = LAI * self.leaf_transpiration(gsw,Tleaf,Tair,airP,RH,Site)
+        E = LAI * E
 
         ## Calculate root water potential
         Psi_r = self.root_water_potential(Psi_s,E,k_srl)
@@ -100,7 +113,7 @@ class PlantModel:
         return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
-    def leaf_water_potential_solve(self,LAI,Psi_s,k_tot,Q,Tleaf,Tair,airCO2,airO2,airP,airRH,Leaf,Site):
+    def leaf_water_potential_solve(self, Psi_s, k_tot, Tair, Tleaf, airCO2, airO2, airRH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
         """
         Calculate leaf water potential that balances water supply (root uptake) and water loss (transpiration) using the bisection method.
     
@@ -138,6 +151,10 @@ class PlantModel:
         water supply from roots and water loss from stomata. It internally defines functions for
         calculating the components of the leaf water potential balance equation based on given
         environmental and leaf-specific parameters.
+
+        It is assumed that the rate of water loss from the canopy is balanced by the rate of water 
+        uptake from the roots (Meinzer, 2002, doi:10.1046/j.1365-3040.2002.00781.x). Also see 
+        Bonan et al. (2014, doi:10.5194/gmd-7-2193-2014).
         """
         
         ## First function
@@ -149,8 +166,9 @@ class PlantModel:
         ## Second function
         def f2(Psi_l): #, Q, Tleaf, Tair, airCO2, airO2, airRH, leaf):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, gsw = self.calculate_An_gs(LAI,f_Psi_l,Q,Tleaf,airCO2,airO2,airRH,Leaf)
-            E = self.leaf_transpiration(gsw,Tleaf,Tair,airP,airRH,Site)
+            GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
+            #GPP, gsw = self.calculate_An_gs(LAI,f_Psi_l,Q,Tleaf,airCO2,airO2,airRH,Leaf)
+            #E = self.leaf_transpiration(gsw,Tleaf,Tair,airP,airRH,Site)
             # Wi = Site.compute_sat_vapor_pressure(Tleaf)   ## Pa
             # Wa = Site.compute_actual_vapor_pressure(Tair,airRH)   ## Pa
             # Wi_molconc = Wi/(Site.R_w_mol * (Tleaf+273.15))   ## converts Pa to mol m-3
@@ -179,7 +197,7 @@ class PlantModel:
         Psi_l = bisect(fpartial,a,b,xtol=1e-4)
         
         return Psi_l
-    
+
     def soil_water_potential_conditional(self,soilTheta):
         """
         Parameters
@@ -453,6 +471,17 @@ class PlantModel:
         An, gsw, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, airTempC, airCO2, airO2, airRH, f_Psi_l)
         GPP = 12.01 * (60*60*24) * LAI * (An + Rd)
         return GPP, gsw
+
+    def calculate_canopygasexchange(self, Tair, Tleaf, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
+
+        An_ml, gs_ml, Rd_ml = CanopyGasExchange.calculate(Tleaf,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,z,sza,swskyb,swskyd,Leaf=Leaf,Canopy=Canopy,CanopySolar=CanopySolar)
+
+        GPP = np.sum(An_ml + Rd_ml)*1e6
+
+        E_ml = self.leaf_transpiration(gs_ml,Tleaf,Tair,airP,airRH,Site)
+        E = np.sum(E_ml)
+
+        return GPP, E
         
     def calculate_Rm_k(self,C_k,m_r):
         """

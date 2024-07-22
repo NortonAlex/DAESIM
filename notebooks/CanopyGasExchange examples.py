@@ -23,12 +23,13 @@ import matplotlib.pyplot as plt
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
 from daesim.leafgasexchange import LeafGasExchangeModule
+from daesim.leafgasexchange2 import LeafGasExchangeModule2
+from daesim.canopygasexchange import CanopyGasExchange
 from daesim.climate import *
 from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 from daesim.boundarylayer import BoundaryLayerModule
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
-from daesim.leafgasexchange2 import LeafGasExchangeModule2
 from daesim.climate import *
 from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 from daesim.boundarylayer import BoundaryLayerModule
@@ -42,6 +43,7 @@ from daesim.boundarylayer import BoundaryLayerModule
 #
 #  - The canopy itself. This is discretized into layers and requires inputs of leaf area index (LAI), stem area index (SAI) and their vertical distributions.
 #  - The canopy radiation scheme. This includes a description of the absorption of radiation by canopy foliage, a key driver of canopy gas exchange.
+#  - The leaf gas exchange scheme. This includes equations for photosynthesis and stomatal conductance. 
 
 # %% [markdown]
 # ## First, create an instance of a site
@@ -127,28 +129,95 @@ canopy.set_index()
 ## Instance of CanopyRadiation class
 canopysolar = CanopyRadiation(rhol=leafreflectance)
 
+## Instance of CanopyGasExchange class
+canopygasexchange = CanopyGasExchange()
+
 # %% [markdown]
 # ## Run radiative transfer calculations
 
 # %%
-swleaf, swveg, swvegsun, swvegsha = canopysolar.calculate(LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Canopy=canopy)
+An_ml, gs_ml, Rd_ml = canopygasexchange.calculate(T,Cs,O,RH,1.0,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
 
-# %% [markdown]
-# ### Run radiative transfer calculations - broken down into parts
+An_total = np.sum(1e6*An_ml)
+gs_total = np.sum(gs_ml)
+Rd_total = np.sum(1e6*Rd_ml)
+
+fig, axes = plt.subplots(1,3,figsize=(12,3))
+
+axes[0].plot(1e6*An_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[0].set_xlabel("Net photosynthetic rate (umol m-2 s-1)\non ground area basis")
+axes[0].set_ylabel("Canopy layer")
+
+axes[1].plot(gs_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[1].set_xlabel("Stomatal conductance (mol m-2 s-1)\non ground area basis")
+axes[1].set_ylabel("Canopy layer")
+
+axes[2].plot(1e6*Rd_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[2].set_xlabel("Mitochondrial respiration (umol m-2 s-1)\non ground area basis")
+axes[2].set_ylabel("Canopy layer")
+
+plt.show()
+
+print("Sum of An_ml over canopy layers = %1.2f umol m-2 s-1" % (An_ml.sum()*1e6))
+print("Sum of gs_ml over canopy layers = %1.2f mol m-2 s-1" % (gs_ml.sum()))
+print("Sum of Rd_ml over canopy layers = %1.2f umol m-2 s-1" % (Rd_ml.sum()*1e6))
+
 
 # %%
+## Option: Prescribe selected forcing data per canopy element (by layer and sunlit/shaded leaves)
+## - vertical gradient in leaf water potential effect on stomatal conductance
+fgsw_ml = np.zeros((canopy.nlevmlcan, canopy.nleaf))
+fgsw_ml[:,0] = canopy.cast_parameter_over_layers_exp(1,0.3,1)[::-1]
+fgsw_ml[:,1] = canopy.cast_parameter_over_layers_exp(1,0.3,1)[::-1]
+
+An_ml1, gs_ml1, Rd_ml1 = canopygasexchange.calculate(T,Cs,O,RH,fgsw_ml,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
+
+
+fig, axes = plt.subplots(1,3,figsize=(12,3))
+
+axes[0].plot(1e6*An_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[0].plot(1e6*An_ml1,np.arange(1,canopy.nlevmlcan+1),c='crimson',alpha=0.5)
+axes[0].set_xlabel("Net photosynthetic rate (umol m-2 s-1)\non ground area basis")
+axes[0].set_ylabel("Canopy layer")
+
+axes[1].plot(gs_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[1].plot(gs_ml1,np.arange(1,canopy.nlevmlcan+1),c='crimson',alpha=0.5)
+axes[1].set_xlabel("Stomatal conductance (mol m-2 s-1)\non ground area basis")
+axes[1].set_ylabel("Canopy layer")
+
+axes[2].plot(1e6*Rd_ml,np.arange(1,canopy.nlevmlcan+1),c='k',alpha=0.5)
+axes[2].plot(1e6*Rd_ml1,np.arange(1,canopy.nlevmlcan+1),c='crimson',alpha=0.5)
+axes[2].set_xlabel("Mitochondrial respiration (umol m-2 s-1)\non ground area basis")
+axes[2].set_ylabel("Canopy layer")
+
+plt.show()
+
+print("Sum of An_ml over canopy layers = %1.2f umol m-2 s-1" % (An_ml1.sum()*1e6))
+print("Sum of gs_ml over canopy layers = %1.2f mol m-2 s-1" % (gs_ml1.sum()))
+print("Sum of Rd_ml over canopy layers = %1.2f umol m-2 s-1" % (Rd_ml1.sum()*1e6))
+
+
+# %% [markdown]
+# ### Show steps involved in canopy gas exchange calculations
+
+# %%
+## Calculate radiative transfer properties of the canopy
 (fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza,Canopy=canopy)
 
 # %%
+## Determine vertical distribution of canopy properties such as LAI, SAI and clumping index
 dlai = canopy.cast_parameter_over_layers_betacdf(LAI,canopy.beta_lai_a,canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
 dsai = canopy.cast_parameter_over_layers_betacdf(SAI,canopy.beta_sai_a,canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
 dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
 clump_fac = canopy.cast_parameter_over_layers_uniform(clumping_factor)
 
+# %%
+## Calculate two stream approximation calculations
 ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
 swleaf = canopysolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid,Canopy=canopy)
 
 # %%
+## Calculate total absorbed shortwave radiation by sunlit and shaded vegetation
 swveg = 0
 swvegsun = 0
 swvegsha = 0
@@ -159,12 +228,13 @@ for ic in range(canopy.nbot, canopy.ntop + 1):
     swvegsun += sun
     swvegsha += sha
 
-print("Absorbed shortwave radiation = %1.3f" % swveg)
-print("Absorbed shortwave radiation by sunlit leaves = %1.3f" % swvegsun)
-print("Absorbed shortwave radiation by sunlit leaves = %1.3f" % swvegsha)
+print("Absorbed shortwave radiation = %1.3f W m-2" % swveg)
+print("Absorbed shortwave radiation by sunlit leaves = %1.3f W m-2" % swvegsun)
+print("Absorbed shortwave radiation by sunlit leaves = %1.3f W m-2" % swvegsha)
 
 
 # %%
+## Run leaf gas exchange calculations over each canopy element
 _An = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 _gs = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 _Rd = np.zeros((canopy.nlevmlcan,canopy.nleaf))
@@ -176,111 +246,6 @@ for ileaf in range(canopy.nleaf):
         _An[ic,ileaf] = An
         _gs[ic,ileaf] = gs
         _Rd[ic,ileaf] = Rd
-
-# %%
-
-# %%
-np.shape(swleaf)
-
-
-# %% [markdown]
-# ### Optional: Account for vertical variation in leaf gas exchange parameters (e.g. Vcmax)
-
-# %%
-def calculate_leaf_variables(Q, T, Cs, O, RH, Leaf):
-    return Leaf.calculate(Q, T, Cs, O, RH, 1.0)
-
-_An_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
-_gs_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
-_Rd_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
-
-## Here we define the leaf property scaling factor for each layer of the canopy
-## Relative LAI from top-of-canopy down
-relative_LAI = np.cumsum(dlai[::-1]) / LAI
-## Ensure we store the leaf property attribute before it is modified. I assume this represents the top-of-canopy value. 
-Vcmax_opt_toc = Leaf.Vcmax_opt
-Vcmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
-
-## Loop over canopy layers, set leaf parameter and calculate gas exchange
-for ileaf in range(canopy.nleaf):
-    for ic in range(canopy.nbot, canopy.ntop+1):
-        Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
-        An, gs, Ci, Vc, Ve, Vs, Rd = calculate_leaf_variables(Q, T, Cs, O, RH, Leaf)
-        Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, Vcmax_opt_ml_scalefactor[ic])  # Adjust Vcmax_opt for the layer
-        _An_mlp[ic,ileaf] = An
-        _gs_mlp[ic,ileaf] = gs
-        _Rd_mlp[ic,ileaf] = Rd
-
-Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, 1)  # Reset leaf Vcmax_opt to its top-of-canopy value
-
-
-# %%
-fig, axes = plt.subplots(1,2,figsize=(6,2.5))
-
-ax = axes[0]
-relative_LAI = np.cumsum(dlai[::-1]) / LAI
-
-scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
-ax.plot(scalefactor,relative_LAI,label='k=0.5')
-
-scalefactor = canopy.cast_scalefactor_to_layer_exp(0.7,LAI,relative_LAI)[::-1]
-ax.plot(scalefactor,relative_LAI,label='k=0.7')
-
-scalefactor = canopy.cast_scalefactor_to_layer_exp(0.9,LAI,relative_LAI)[::-1]
-ax.plot(scalefactor,relative_LAI,label='k=0.9')
-ax.legend(title="Extinction\ncoefficient",fontsize=9,handlelength=0.7,loc=3)
-
-ax.hlines(y=1,xmin=0,xmax=1,color='0.25',lw=1)
-ax.text(0.5, 1.0, 'top of canopy', horizontalalignment='center',verticalalignment='bottom')#, transform=ax.transAxes)
-ax.set_xlim([0,1])
-ax.set_ylim([0,1.1])
-ax.set_xlabel("Scaling factor for leaf parameter")
-ax.set_ylabel("Cumulative relative LAI")
-
-ax = axes[1]
-ax.plot(Vcmax_opt_ml_scalefactor,np.arange(canopy.nlevmlcan))
-ax.set_xlabel("Scaling factor for leaf parameter")
-ax.set_ylabel("Canopy layer")
-ax.set_xlim([0,1])
-ax.set_ylim([0,1.1*(canopy.nlevmlcan-1)])
-ax.hlines(y=canopy.nlevmlcan-1,xmin=0,xmax=1,color='0.25',lw=1)
-ax.text(0.5, canopy.nlevmlcan-1, 'top of canopy', horizontalalignment='center',verticalalignment='bottom')#, transform=ax.transAxes)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-fig, axes = plt.subplots(2,2,figsize=(5.33,5))
-
-ax = axes[0,0]
-ax.plot(1e6*_An[:,0],np.arange(canopy.nlevmlcan),label=r"Uniform $\rm V_{cmax,opt}$")
-ax.plot(1e6*_An_mlp[:,0],np.arange(canopy.nlevmlcan),label=r"Exp $\rm V_{cmax,opt}$",c='crimson')
-ax.set_xlabel(r"$\rm A_{net}$ per leaf"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
-ax.set_ylabel("Canopy layer")
-ax.legend(handlelength=0.7,fontsize=9)
-
-ax = axes[0,1]
-ax.plot(_gs[:,0],np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
-ax.plot(_gs_mlp[:,0],np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
-ax.set_xlabel(r"$\rm g_{sw}$ per leaf"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
-ax.set_ylabel("Canopy layer")
-
-ax = axes[1,0]
-ax.plot(1e6*_An[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
-ax.plot(1e6*_An_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
-ax.set_xlabel(r"$\rm A_{net}$ per layer"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
-ax.set_ylabel("Canopy layer")
-
-ax = axes[1,1]
-ax.plot(_gs[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
-ax.plot(_gs_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
-ax.set_xlabel(r"$\rm g_{sw}$ per layer"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
-ax.set_ylabel("Canopy layer")
-
-plt.tight_layout()
-plt.show()
-
-# %%
 
 # %% [markdown]
 # ### Plot results
@@ -298,11 +263,8 @@ axes[1].plot(dpai,np.arange(canopy.nlevmlcan),label="total",c='k')
 axes[1].set_xlabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[1].legend()
 
-
 plt.tight_layout()
 plt.show()
-
-
 
 
 fig, axes = plt.subplots(1,2,figsize=(5.33,2.5),sharey=True)
@@ -319,7 +281,6 @@ axes[1].legend()
 
 plt.tight_layout()
 plt.show()
-
 
 
 fig, axes = plt.subplots(1,2,figsize=(5.33,2.5),sharey=True)
@@ -476,6 +437,102 @@ axes[1].legend()
 
 plt.tight_layout()
 
+
+# %% [markdown]
+# ### Optional: Account for vertical variation in leaf gas exchange parameters (e.g. Vcmax)
+
 # %%
+def calculate_leaf_variables(Q, T, Cs, O, RH, Leaf):
+    return Leaf.calculate(Q, T, Cs, O, RH, 1.0)
+
+_An_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
+_gs_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
+_Rd_mlp = np.zeros((canopy.nlevmlcan,canopy.nleaf))
+
+## Here we define the leaf property scaling factor for each layer of the canopy
+## Relative LAI from top-of-canopy down
+relative_LAI = np.cumsum(dlai[::-1]) / LAI
+## Ensure we store the leaf property attribute before it is modified. I assume this represents the top-of-canopy value. 
+Vcmax_opt_toc = Leaf.Vcmax_opt
+Vcmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
+
+## Loop over canopy layers, set leaf parameter and calculate gas exchange
+for ileaf in range(canopy.nleaf):
+    for ic in range(canopy.nbot, canopy.ntop+1):
+        Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
+        An, gs, Ci, Vc, Ve, Vs, Rd = calculate_leaf_variables(Q, T, Cs, O, RH, Leaf)
+        Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, Vcmax_opt_ml_scalefactor[ic])  # Adjust Vcmax_opt for the layer
+        _An_mlp[ic,ileaf] = An
+        _gs_mlp[ic,ileaf] = gs
+        _Rd_mlp[ic,ileaf] = Rd
+
+Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, 1)  # Reset leaf Vcmax_opt to its top-of-canopy value
+
+
+# %%
+fig, axes = plt.subplots(1,2,figsize=(6,2.5))
+
+ax = axes[0]
+relative_LAI = np.cumsum(dlai[::-1]) / LAI
+
+scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative_LAI)[::-1]
+ax.plot(scalefactor,relative_LAI,label='k=0.5')
+
+scalefactor = canopy.cast_scalefactor_to_layer_exp(0.7,LAI,relative_LAI)[::-1]
+ax.plot(scalefactor,relative_LAI,label='k=0.7')
+
+scalefactor = canopy.cast_scalefactor_to_layer_exp(0.9,LAI,relative_LAI)[::-1]
+ax.plot(scalefactor,relative_LAI,label='k=0.9')
+ax.legend(title="Extinction\ncoefficient",fontsize=9,handlelength=0.7,loc=3)
+
+ax.hlines(y=1,xmin=0,xmax=1,color='0.25',lw=1)
+ax.text(0.5, 1.0, 'top of canopy', horizontalalignment='center',verticalalignment='bottom')#, transform=ax.transAxes)
+ax.set_xlim([0,1])
+ax.set_ylim([0,1.1])
+ax.set_xlabel("Scaling factor for leaf parameter")
+ax.set_ylabel("Cumulative relative LAI")
+
+ax = axes[1]
+ax.plot(Vcmax_opt_ml_scalefactor,np.arange(canopy.nlevmlcan))
+ax.set_xlabel("Scaling factor for leaf parameter")
+ax.set_ylabel("Canopy layer")
+ax.set_xlim([0,1])
+ax.set_ylim([0,1.1*(canopy.nlevmlcan-1)])
+ax.hlines(y=canopy.nlevmlcan-1,xmin=0,xmax=1,color='0.25',lw=1)
+ax.text(0.5, canopy.nlevmlcan-1, 'top of canopy', horizontalalignment='center',verticalalignment='bottom')#, transform=ax.transAxes)
+
+plt.tight_layout()
+plt.show()
+
+# %%
+fig, axes = plt.subplots(2,2,figsize=(5.33,5))
+
+ax = axes[0,0]
+ax.plot(1e6*_An[:,0],np.arange(canopy.nlevmlcan),label=r"Uniform $\rm V_{cmax,opt}$")
+ax.plot(1e6*_An_mlp[:,0],np.arange(canopy.nlevmlcan),label=r"Exp $\rm V_{cmax,opt}$",c='crimson')
+ax.set_xlabel(r"$\rm A_{net}$ per leaf"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
+ax.set_ylabel("Canopy layer")
+ax.legend(handlelength=0.7,fontsize=9)
+
+ax = axes[0,1]
+ax.plot(_gs[:,0],np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(_gs_mlp[:,0],np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
+ax.set_xlabel(r"$\rm g_{sw}$ per leaf"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
+ax.set_ylabel("Canopy layer")
+
+ax = axes[1,0]
+ax.plot(1e6*_An[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(1e6*_An_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
+ax.set_xlabel(r"$\rm A_{net}$ per layer"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)")
+ax.set_ylabel("Canopy layer")
+
+ax = axes[1,1]
+ax.plot(_gs[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Uniform Vcmax")
+ax.plot(_gs_mlp[:,0]*dlai*fracsun,np.arange(canopy.nlevmlcan),label="Exp Vcmax",c='crimson')
+ax.set_xlabel(r"$\rm g_{sw}$ per layer"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
+ax.set_ylabel("Canopy layer")
+
+plt.tight_layout()
+plt.show()
 
 # %%

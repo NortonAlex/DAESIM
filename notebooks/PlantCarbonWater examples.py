@@ -54,9 +54,6 @@ canopy_height = 1.0     ## canopy height (m)
 sza = 30.0       ## solar zenith angle (degrees)
 swskyb = 200.0   ## Atmospheric direct beam solar radiation (W/m2)
 swskyd = 80.0    ## Atmospheric diffuse solar radiation (W/m2)
-albsoib = 0.2    ## Soil background albedo for beam radiation
-albsoid = 0.2    ## Soil background albedo for diffuse radiation
-leafreflectance = 0.10  ## leaf reflectance (-)
 
 ## input variables for leaf gas exchange model
 leafTempC = 20.0
@@ -121,7 +118,6 @@ for ix, xWR in enumerate(_W_R):
     
     for ix,xWL in enumerate(_W_L):
         W_L = xWL
-        # GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -206,7 +202,6 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xWR in enumerate(_W_R):
         W_R = xWR
-        #GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -293,7 +288,6 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         soilTheta = xsoilTheta
-        #GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -355,17 +349,6 @@ plt.tight_layout()
 
 # %% [markdown]
 # ### - Parameter sensitivity tests
-
-# %%
-# ## Fixed inputs
-# soilTheta = 0.26
-# Tleaf = 20.0
-# Tair = 20.0
-# airCO2 = 400e-6
-# airO2 = 209e-3
-# airP = 101325
-# RH = 70.0
-# Q = 800e-6
 
 # %%
 ## initialise plant model
@@ -790,9 +773,9 @@ class PlantOptimalAllocation:
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
         W_R,         ## root structural dry biomass (g d.wt m-2)
         soilTheta,   ## volumetric soil water content (m3 m-3)
-        Tleaf,   ## leaf temperature (deg C)
-        Tair,    ## air temperature (deg C), outside leaf boundary layer 
-        RH,      ## relative humidity of air (%), outside leaf boundary layer
+        leafTempC,   ## leaf temperature (deg C)
+        airTempC,    ## air temperature (deg C), outside leaf boundary layer 
+        airRH,      ## relative humidity of air (%), outside leaf boundary layer
         airCO2,  ## leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         airO2,   ## leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         airP,    ## air pressure, Pa, (in leaf boundary layer)
@@ -807,16 +790,13 @@ class PlantOptimalAllocation:
     ) -> Tuple[float]:
 
         ## Calculate control run
-        #GPP_0, Rml_0, Rmr_0, E_0, f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
         
         ## Calculate sensitivity run for leaf biomass
-        #GPP_L, Rml_L, Rmr_L, E_L, f_Psil_L, Psil_L, Psir_L, Psis_L, K_s_L, K_sr_L, k_srl_L = plant.calculate(W_L*self.dWL_factor,W_R,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
-        GPP_L, Rml_L, Rmr_L, E_L, f_Psil_L, Psil_L, Psir_L, Psis_L, K_s_L, K_sr_L, k_srl_L = plant.calculate(W_L*self.dWL_factor,W_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
+        GPP_L, Rml_L, Rmr_L, E_L, f_Psil_L, Psil_L, Psir_L, Psis_L, K_s_L, K_sr_L, k_srl_L = plant.calculate(W_L*self.dWL_factor,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
         
         ## Calculate sensitivity run for root biomass
-        # GPP_R, Rml_R, Rmr_R, E_R, f_Psil_R, Psil_R, Psir_R, Psis_R, K_s_R, K_sr_R, k_srl_R = plant.calculate(W_L,W_R*self.dWR_factor,soilTheta,Tleaf,Tair,RH,Q,airCO2,airO2,airP,site)
-        GPP_R, Rml_R, Rmr_R, E_R, f_Psil_R, Psil_R, Psir_R, Psis_R, K_s_R, K_sr_R, k_srl_R = plant.calculate(W_L,W_R*self.dWR_factor,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
+        GPP_R, Rml_R, Rmr_R, E_R, f_Psil_R, Psil_R, Psir_R, Psis_R, K_s_R, K_sr_R, k_srl_R = plant.calculate(W_L,W_R*self.dWR_factor,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopySolar)
         
         
         ## Calculate change in GPP per unit change in biomass pool
@@ -845,9 +825,9 @@ plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
 plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
 
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
-Tleaf = 20.0
-Tair = 20.0
-RH = 70.0
+leafTempC = 20.0
+airTempC = 20.0
+airRH = 70.0
 airP = 101325    ## air pressure, Pa
 soilTheta = 0.30
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
@@ -869,8 +849,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -917,9 +897,9 @@ plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
 plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
 
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
-Tleaf = 20.0
-Tair = 20.0
-RH = 70.0
+leafTempC = 20.0
+airTempC = 20.0
+airRH = 70.0
 airP = 101325    ## air pressure, Pa
 soilTheta = 0.30
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
@@ -941,8 +921,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -989,9 +969,9 @@ plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
 plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
 
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
-Tleaf = 20.0
-Tair = 20.0
-RH = 70.0
+leafTempC = 20.0
+airTempC = 20.0
+airRH = 70.0
 airP = 101325    ## air pressure, Pa
 soilTheta = 0.30
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
@@ -1013,8 +993,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,Tleaf,Tair,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
 
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1053,12 +1033,6 @@ plt.tight_layout()
 
 
 # %%
-
-
-    
-
-
-# %%
 ## Temperature
 n = 50
 _temperature = np.linspace(10,40,n)
@@ -1068,9 +1042,9 @@ plant = PlantModel(maxLAI=1.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5,Psi_f=-1.0)
 plantalloc = PlantOptimalAllocation(dWL_factor=1.03,dWR_factor=1.03)
 
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
-Tleaf = 20.0
-Tair = 20.0
-RH = 70.0
+leafTempC = 20.0
+airTempC = 20.0
+airRH = 70.0
 airP = 101325    ## air pressure, Pa
 soilTheta = 0.30
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
@@ -1092,8 +1066,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,RH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar)
+    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,site,leaf,canopygasexchange,canopy,canopysolar,plant)
 
     
 fig, axes = plt.subplots(1,3,figsize=(12,3))

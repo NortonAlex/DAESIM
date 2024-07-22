@@ -49,9 +49,9 @@ class PlantModel:
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
         W_R,         ## root structural dry biomass (g d.wt m-2)
         soilTheta,   ## volumetric soil water content (m3 m-3)
-        Tleaf,   ## leaf temperature (deg C)
-        Tair,    ## air temperature (deg C), outside leaf boundary layer 
-        RH,      ## relative humidity of air (%), outside leaf boundary layer
+        leafTempC,   ## leaf temperature (deg C)
+        airTempC,    ## air temperature (deg C), outside leaf boundary layer 
+        airRH,      ## relative humidity of air (%), outside leaf boundary layer
         airCO2,  ## leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         airO2,   ## leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         airP,    ## air pressure, Pa, (in leaf boundary layer)
@@ -84,21 +84,20 @@ class PlantModel:
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
 
         ## Initial estimate of GPP without leaf water potential limitation
-        #GPP, gsw = self.calculate_An_gs(LAI,1.0,Q,Tleaf,airCO2,airO2,RH,Leaf)
-        GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, RH, airP, 1.0, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
+        GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Determine the total leaf-area specific conductance from soil-to-root-to-leaf
         ## - assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship 1/k_tot = 1/k_srl + 1/k_rl
         k_tot = (k_srl*self.k_rl)/(self.k_rl+k_srl)
 
         ## Calculate leaf water potential
-        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, Tair, Tleaf, airCO2, airO2, RH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
+        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Calculate actual leaf water potential scaling factor on photosynthesis/dry-matter production
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
         ## Calculate actual gpp and stomatal conductance
-        GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, RH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
+        GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
 
         ## Calculate actual transpiration
         E = LAI * E
@@ -113,7 +112,7 @@ class PlantModel:
         return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
-    def leaf_water_potential_solve(self, Psi_s, k_tot, Tair, Tleaf, airCO2, airO2, airRH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
+    def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
         """
         Calculate leaf water potential that balances water supply (root uptake) and water loss (transpiration) using the bisection method.
     
@@ -127,9 +126,9 @@ class PlantModel:
             Total leaf-area specific soil-to-leaf hydraulic conductance (mol m-2 s-1 MPa-1).
         Q : float
             Absorbed photosynthetically active radiation (APAR) (mol m-2 s-1).
-        Tleaf : float
+        leafTempC : float
             Leaf temperature (°C).
-        Tair : float
+        airTempC : float
             Air temperature (°C) outside leaf boundary layer.
         airCO2 : float
             CO2 concentration in the air (bar).
@@ -161,27 +160,12 @@ class PlantModel:
         def f1(Psi_l): #,Psi_s,k_tot):
             E = k_tot*(Psi_s - Psi_l)
             return E
-        # f1 = partial(f1, Psi_s=Psi_s, k_tot=k_tot)
 
         ## Second function
-        def f2(Psi_l): #, Q, Tleaf, Tair, airCO2, airO2, airRH, leaf):
+        def f2(Psi_l):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, E = self.calculate_canopygasexchange(Tair, Tleaf, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
-            #GPP, gsw = self.calculate_An_gs(LAI,f_Psi_l,Q,Tleaf,airCO2,airO2,airRH,Leaf)
-            #E = self.leaf_transpiration(gsw,Tleaf,Tair,airP,airRH,Site)
-            # Wi = Site.compute_sat_vapor_pressure(Tleaf)   ## Pa
-            # Wa = Site.compute_actual_vapor_pressure(Tair,airRH)   ## Pa
-            # Wi_molconc = Wi/(Site.R_w_mol * (Tleaf+273.15))   ## converts Pa to mol m-3
-            # Wa_molconc = Wa/(Site.R_w_mol * (Tair+273.15))   ## converts Pa to mol m-3
-            # ## Resistances for CO2 across leaf surface and leaf boundary layer
-            # r_ws = (airP/(Site.R_w_mol*(Tleaf+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)
-            # r_cs = r_ws/1.6    ## resistance to carbon dioxide across leaf surface (stomata); 1.6 converts stomatal resistance to water vapor to carbon dioxide by accounting for the ratio of the diffusivities of H2O to CO2 in air
-            # r_ca = 18.08       ## resistance to carbon dioxide across leaf boundary layer (s m-1)
-            # r_w = 0.607*r_ca + 0.704*r_cs
-            # # E = gsw*(Wi_molconc - Wa_molconc)/(airP/(site.R_w_mol*(Tleaf+273.15)))
-            # E = (Wi_molconc - Wa_molconc)/r_w
+            GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site)
             return E
-        # f2 = partial(f2, Q=Q, Tleaf=Tleaf, Tair=Tair, airCO2=airCO2, airO2=airO2, airRH=airRH, leaf=leaf)
 
         # Define the function for which we want to find the root
         def f(Psi_l, f1, f2):
@@ -379,17 +363,17 @@ class PlantModel:
         Psi_l = Psi_r - E/self.k_rl
         return Psi_l
         
-    def leaf_transpiration(self,gsw,Tleaf,Tair,airP,airRH,Site):
+    def leaf_transpiration(self,gsw,leafTempC,airTempC,airP,airRH,Site):
         """
         Calculates the transpiration rate
 
         Parameters
         ----------
-        gsw = stomatal conductance to water vapor (mol m-2 s-1)
-        Tleaf = leaf temperature (degrees Celsius)
-        Tair = air temperature (degrees Celsius)
-        airP = air pressure (Pa)
-        airRH = relative humidity of canopy air space (%)
+        gsw: stomatal conductance to water vapor (mol m-2 s-1)
+        leafTempC: leaf temperature (degrees Celsius)
+        airTempC: air temperature (degrees Celsius)
+        airP: air pressure (Pa)
+        airRH: relative humidity of canopy air space (%)
     
         Returns
         -------
@@ -408,13 +392,13 @@ class PlantModel:
         """
         
         ## Calculate water vapor concentration gradient between the inside of the leaf (assumed to be saturated) and the air
-        Wi = Site.compute_sat_vapor_pressure(Tleaf)   ## Pa
-        Wa = Site.compute_actual_vapor_pressure(Tair,airRH)   ## Pa
-        Wi_molconc = Wi/(Site.R_w_mol * (Tleaf+273.15))   ## converts Pa to mol m-3
-        Wa_molconc = Wa/(Site.R_w_mol * (Tair+273.15))   ## converts Pa to mol m-3
+        Wi = Site.compute_sat_vapor_pressure(leafTempC)   ## Pa
+        Wa = Site.compute_actual_vapor_pressure(airTempC,airRH)   ## Pa
+        Wi_molconc = Wi/(Site.R_w_mol * (leafTempC+273.15))   ## converts Pa to mol m-3
+        Wa_molconc = Wa/(Site.R_w_mol * (airTempC+273.15))   ## converts Pa to mol m-3
         
         ## Resistances for H2O across leaf surface and leaf boundary layer
-        r_ws = (airP/(Site.R_w_mol*(Tleaf+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)  TODO: Check this and cross-check it with calculations of stomatal resistance in leafgasexchange modules and perhaps also SCOPE model code
+        r_ws = (airP/(Site.R_w_mol*(leafTempC+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)  TODO: Check this and cross-check it with calculations of stomatal resistance in leafgasexchange modules and perhaps also SCOPE model code
         r_wa = self.r_wa    ## resistance to water vapor across the leaf boundary layer (s m-1), see Table 8-1 in Nobel 2009 for typical range of values
         r_w = r_wa + r_ws   ## total resistance to water vapour across stomata and boundary layer, acting in series
         E = (Wi_molconc - Wa_molconc)/r_w   ## 
@@ -467,18 +451,42 @@ class PlantModel:
         LAI = MinQuadraticSmooth(W_L*self.SLA,self.maxLAI)
         return LAI
 
-    def calculate_An_gs(self, LAI, f_Psi_l, Q, airTempC, airCO2, airO2, airRH, Leaf):
-        An, gsw, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, airTempC, airCO2, airO2, airRH, f_Psi_l)
-        GPP = 12.01 * (60*60*24) * LAI * (An + Rd)
-        return GPP, gsw
+    def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
+        """
+        Parameters
+        ----------
+        airTempC : Air temperature (degree Celcius)
+        leafTempC : Leaf temperature (degree Celcius)
+        airCO2 : Leaf surface CO2 partial pressure (bar), corrected for boundary layer effects
+        airO2 : Leaf surface O2 partial pressure (bar), corrected for boundary layer effects
+        airRH : Relative humidity (%)
+        airP : Air pressure (Pa)
+        f_Psi_l : Leaf water potential limitation factor on stomatal conductance (-)
+        LAI : Leaf area index (m2/m2)
+        SAI : Stem area index (m2/m2)
+        CI : Foliage clumping index (-)
+        z : Canopy height (m)
+        sza : Solar zenith angle (degrees)
+        swskyb : Atmospheric direct beam solar radiation (W/m2)
+        swskyd : Atmospheric diffuse solar radiation (W/m2)
+        Leaf : Leaf gas exchange module class
+        Canopy : Canopy module class
+        CanopySolar : Canopy radiation exchange module class
+        CanopyGasExchange : Canopy gas exchange module class
+        Site : Climate module class
 
-    def calculate_canopygasexchange(self, Tair, Tleaf, airCO2, airO2, airRH, airP, f_Psi_l, LAI, SAI, CI, z, sza, swskyb, swskyd, Leaf, Canopy, CanopySolar, CanopyGasExchange, Site):
+        Returns
+        -------
+        GPP : Canopy total gross primary productivity (umol m-2 s-1; on a ground area basis)
+        E : Canopy total transpiration rate (mol m-2 s-1; on a ground area basis)
 
-        An_ml, gs_ml, Rd_ml = CanopyGasExchange.calculate(Tleaf,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,z,sza,swskyb,swskyd,Leaf=Leaf,Canopy=Canopy,CanopySolar=CanopySolar)
+        """
+
+        An_ml, gs_ml, Rd_ml = CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,z,sza,swskyb,swskyd,Leaf=Leaf,Canopy=Canopy,CanopySolar=CanopySolar)
 
         GPP = np.sum(An_ml + Rd_ml)*1e6
 
-        E_ml = self.leaf_transpiration(gs_ml,Tleaf,Tair,airP,airRH,Site)
+        E_ml = self.leaf_transpiration(gs_ml,leafTempC,airTempC,airP,airRH,Site)
         E = np.sum(E_ml)
 
         return GPP, E

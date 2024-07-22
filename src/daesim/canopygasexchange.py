@@ -14,10 +14,10 @@ class CanopyGasExchange:
 
     def calculate(
         self,
-        T,    ## Leaf temperature, degrees Celsius
+        leafTempC,    ## Leaf temperature, degrees Celsius
         Cs,   ## Leaf surface CO2 partial pressure, bar, (corrected for boundary layer effects)
         O,    ## Leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
-        RH,   ## Relative humidity, %
+        airRH,   ## Relative humidity, %
         fgsw, ## Leaf water potential limitation factor on stomatal conductance, unitless
         LAI,    ## Leaf area index, m2/m2
         SAI,    ## Stem area index, m2/m2
@@ -42,7 +42,7 @@ class CanopyGasExchange:
         Q = 1e-6 * swleaf[Canopy.nbot:Canopy.ntop+1, :] * CanopySolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
         
         # Vectorized calculation of An, gs, Rd for all layers and leaves
-        An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, T, Cs, O, RH, fgsw)
+        An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, leafTempC, Cs, O, airRH, fgsw)
         
         # Assign results to the respective arrays
         An_mle[Canopy.nbot:Canopy.ntop+1, :] = An

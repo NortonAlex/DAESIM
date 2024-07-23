@@ -26,6 +26,9 @@ from daesim.leafgasexchange import LeafGasExchangeModule
 from daesim.climate import *
 from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 
+# %%
+Site = ClimateModule()
+
 # %% [markdown]
 # ## Photosynthesis Model - Farquhar et al. (1981) and Johnson and Berry (2021)
 #
@@ -75,9 +78,6 @@ from daesim.biophysics_funcs import fT_Q10, fT_arrhenius, fT_arrheniuspeaked
 
 # %%
 Leaf = LeafGasExchangeModule(gm_opt=0.5)
-
-# %%
-Site = ClimateModule()
 
 # %% [markdown]
 # ### Run the model given input data
@@ -189,7 +189,7 @@ axes[0].plot(Q*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Q*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].grid(True)
 
@@ -230,7 +230,7 @@ axes[0].plot(Cs*1e6,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(Cs*1e6,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
 axes[0].grid(True)
 
@@ -270,7 +270,7 @@ axes[0].plot(T,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(T,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
 axes[0].grid(True)
 
@@ -311,7 +311,7 @@ axes[0].plot(fgsw,Vc*1e6,label="Vc",linestyle=":")
 axes[0].plot(fgsw,Ve*1e6,label="Ve",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Tuzet \; f_{sv}$"+"\n"+r"(unitless)");
 axes[0].grid(True)
 
@@ -372,7 +372,7 @@ axes[0].plot(Q*1e6,Ac*1e6,label="Ac",linestyle=":")
 axes[0].plot(Q*1e6,Aj*1e6,label="Aj",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm Q_{abs}$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].grid(True)
 
@@ -413,7 +413,7 @@ axes[0].plot(Cs*1e6,Aj*1e6,label="Ae",linestyle=":")
 axes[0].plot(Cs*1e6,Ap*1e6,label="Ap",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm C_{s}$"+"\n"+r"($\rm \mu mol \; mol^{-1}$)");
 axes[0].grid(True)
 
@@ -453,7 +453,7 @@ axes[0].plot(T,Ac*1e6,label="Ac",linestyle=":")
 axes[0].plot(T,Aj*1e6,label="Ae",linestyle=":")
 axes[0].legend()
 axes[0].set_ylim([-5,45])
-axes[0].set_ylabel(r"$\rm A$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
 axes[0].set_xlabel(r"$\rm T_{leaf}$"+"\n"+r"($\rm ^{\circ}C$)");
 axes[0].grid(True)
 

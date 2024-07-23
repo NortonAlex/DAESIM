@@ -267,6 +267,34 @@ plt.tight_layout()
 
 # %% [markdown]
 # ### Converting stomatal conductances to resistances
+#
+# **From Nobel (2009) Section 3.2A Flux and Mobility**
+#
+# The flux density of a species $j$ ($J_j$) is proportional to the negative gradient of its chemical potential ($-\delta \mu_j/\delta x$). For the one-dimensional case of crossing a plane perpendicular to the $x$-axis, this is expressed by:
+#
+# $J_j = u_j c_j \big(-\frac{\delta \mu_j}{\delta x} \big) = \overline{\upsilon}_j c_j $
+#
+# Where $u_j$ is a coefficient called the *mobility* of species $j$ and $c_j$ is the concentration of the species, and $\overline{\upsilon}_j$ is the mean velocity of the species. The minus sign means that a net positive flux density occurs in the direction of decreasing chemical potential. 
+#
+# In the example described in Nobel Eq 3.7, $J_j$ is the rate of flow of a species $j$ across a unit area of a plane and can be expressed as a molar flux density ($mol \; m^{-2} \; s^{-1}$). Such a molar flux density of a species j divided by its local concentration, $c_j$, gives the mean velocity, $\overline{\upsilon}_j$, with which this species moves across the plane; when $c_j$ is in $mol \; m^{-3}$, $J_j/c_j$ can have units of ($mol \; m^{-2} \; s^{-1})/(mol \; m^{-3}$), or $m \; s^{-1}$.
+#
+# **From Nobel (2009) Section 8.1F Fick's First Law and Conductances**
+#
+# $J_j = \frac{D_j P}{R T \Delta x}$
+#
+# Where $D_j$ is a fundamental measure of conductivity describing the diffusion of species $j$ in a given medium ($m^2 \; s^{-1}$), $\Delta x$ is the perpendicular distance, $P$ is the total air pressure, $R$ is the gas constant ($J \; K^{-1} \; mol^{-1}$) and $T$ is the temperature ($K$). 
+#
+# Nobel describes a modified form of the above equation that is more appropriate and useful for biological purposes. 
+#
+# $g_j^{\prime} = \frac{D_j P}{R T \Delta x} = g_j \frac{P}{R T}$
+#
+# Where $g_j = D_j/\Delta x$. 
+#
+# $J_j = \frac{D_j P}{R T \Delta x} \Delta N_j = g_j^{\prime} \Delta N_j$
+#
+# Where $N_j$ is the mole fraction of species $j$, equivalent to the partial pressure of that species (note that $\Delta N_j$ is dimensionless), and $g_j^{\prime}$ a conductance. 
+#
+# Also see Nobel (2009) Table 8-1 for example conversions of physiological conductances and resistances. 
 
 # %%
 ## Example of stomatal conductances over layers of the canopy
@@ -281,6 +309,31 @@ _gs_shaded = 0.5*_gs_ml
 R = 8.314    ## gas constant (J K-1 mol-1)
 conversion_factor = p/(R*(T+273.15))
 print("Molar density of water vapor: p/(R*T) = %1.1f" % (conversion_factor),"mol m-3")
+
+# %%
+conductance_mms = np.array([80,8,20,1.8,4,20,1,4,0.1,0.4,0.05,0.2,0.01,0.1])
+conductance_mmolm2s = np.array([3200,320,800, 72, 160, 800, 40, 160, 4, 16,2,8,0.4,4])
+resistance_sm = np.array([13,130,50,560,250,50,1000,250,10000,2500,20000,5000,100000,10000])
+resistance_m2smol = np.array([0.3,3,1.3,14,6,1.3,25,6,250,60,500,125,2500,250])
+
+fig, axes = plt.subplots(2,2,figsize=(8,8))
+axes[0,0].scatter(conductance_mms,conductance_mmolm2s)
+axes[0,0].set_xlabel('Conductance (mm s-1)')
+axes[0,0].set_ylabel('Conductance (mmol m-2 s-1)')
+
+axes[0,1].scatter(conductance_mms,resistance_sm)
+axes[0,1].set_xlabel('Conductance (mm s-1)')
+axes[0,1].set_ylabel('Resistance (s m-1)')
+
+axes[1,0].scatter(conductance_mmolm2s,resistance_m2smol)
+axes[1,0].set_xlabel('Conductance (mmol m-2 s-1)')
+axes[1,0].set_ylabel('Resistance (m2 s-1 mol-1)')
+
+axes[1,1].scatter(resistance_sm,resistance_m2smol)
+axes[1,1].set_xlabel('Resistance (s m-1)')
+axes[1,1].set_ylabel('Resistance (m2 s-1 mol-1)')
+
+plt.tight_layout()
 
 # %%
 fig, axes = plt.subplots(1,2,figsize=(5.33,2.5),sharey=True)

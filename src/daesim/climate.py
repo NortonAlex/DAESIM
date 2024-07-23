@@ -116,7 +116,7 @@ class ClimateModule:
 
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """
-        Computes the actual vapor pressure from relative humidity and temperature.
+        Computes the daily mean air temperature from the daily minimum and daily maximum temperatures.
 
         Parameters
         ----------

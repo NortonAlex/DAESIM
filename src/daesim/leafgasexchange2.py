@@ -69,10 +69,6 @@ class LeafGasExchangeModule2:
     ## Mesophyll conductance constants
     gm_opt: float = field(default=1e6)   ## mesophyll conductance to CO2 diffusion, mol m-2 s-1 bar-1 
 
-    ## Constants
-    rhoa: float = field(default=1.2047)  ## Specific mass of air, kg m-3
-    Mair: float = field(default=28.96)  ## Molecular mass of dry air, g mol-1
-
     def calculate(
         self,
         Q,    ## Absorbed PPFD, mol PAR m-2 s-1
@@ -138,9 +134,6 @@ class LeafGasExchangeModule2:
 
         # Actual electron transport rate
         #Ja = Ag / ((Ci - Gamma_star) / (Ci + 2 * Gamma_star)) / self.effcon
-
-        # Stomatal resistance to water vapor
-        # r_ws    = ( self.rhoa / (self.Mair*1.0e3) )/gsw  ## TODO: Check this and cross-check it with calculations of transpiration
 
         return (An, gsw, Ci, Ac, Aj, Ap, Rd)
 

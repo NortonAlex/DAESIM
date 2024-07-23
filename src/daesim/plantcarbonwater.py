@@ -389,6 +389,12 @@ class PlantModel:
         r_wa = resistance to water vapor flux across leaf boundary layer (s m-1)
         r_ws = resistance to water vapor flux across leaf surface (s m-1)
         r_w = total resistance to water vapor flux across the leaf boundary layer and leaf surface, in series (s m-1)
+
+        For details on the conversion of conductance to resistance see Nobel (2009) Section 8.1F and Table 8-1
+
+        References
+        ----------
+        Nobel (2009) Section 8.1F and Table 8-1, doi:10.1016/B978-0-12-374143-1.X0001-4, ISBN:978-0-12-374143-1
         """
         
         ## Calculate water vapor concentration gradient between the inside of the leaf (assumed to be saturated) and the air
@@ -398,7 +404,7 @@ class PlantModel:
         Wa_molconc = Wa/(Site.R_w_mol * (airTempC+273.15))   ## converts Pa to mol m-3
         
         ## Resistances for H2O across leaf surface and leaf boundary layer
-        r_ws = (airP/(Site.R_w_mol*(leafTempC+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)  TODO: Check this and cross-check it with calculations of stomatal resistance in leafgasexchange modules and perhaps also SCOPE model code
+        r_ws = (airP/(Site.R_w_mol*(leafTempC+273.15)))/gsw    ## converts stomatal conductance (mol H2O m-2 s-1) to stomatal resistance (s m-1)  (see Nobel (2009) Section 8.1F) TODO: Check this and cross-check it with calculations of stomatal resistance in leafgasexchange modules and perhaps also SCOPE model code
         r_wa = self.r_wa    ## resistance to water vapor across the leaf boundary layer (s m-1), see Table 8-1 in Nobel 2009 for typical range of values
         r_w = r_wa + r_ws   ## total resistance to water vapour across stomata and boundary layer, acting in series
         E = (Wi_molconc - Wa_molconc)/r_w   ## 

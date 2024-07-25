@@ -47,7 +47,7 @@ class CanopyRadiation:
         dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
         dsai = Canopy.cast_parameter_over_layers_betacdf(SAI,Canopy.beta_sai_a,Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
         dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
-        clump_fac = Canopy.cast_parameter_over_layers_uniform(clumping_factor)
+        clump_fac = np.full(Canopy.nlevmlcan, clumping_factor)
 
         ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
         swleaf = self.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,self.albsoib,self.albsoid,Canopy=Canopy)
@@ -68,7 +68,7 @@ class CanopyRadiation:
             for ic in range(Canopy.nbot, Canopy.ntop+1):
                 Q = 1e-6 * swleaf[ic,ileaf] * self.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
 
-        return swleaf, swveg, swvegsun, swvegsha
+        return swleaf #, swveg, swvegsun, swvegsha
 
     def calculateRTProperties(
         self,
@@ -143,18 +143,18 @@ class CanopyRadiation:
         dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
         
         # Calculate canopy layer optical properties, structural and radiative variables
-        rho = Canopy.cast_parameter_over_layers_uniform(0.0)
-        tau = Canopy.cast_parameter_over_layers_uniform(0.0)
-        omega = Canopy.cast_parameter_over_layers_uniform(0.0)
-        kb = Canopy.cast_parameter_over_layers_uniform(0.0)
-        fracsun = Canopy.cast_parameter_over_layers_uniform(0.0)
-        tb = Canopy.cast_parameter_over_layers_uniform(0.0)
-        td = Canopy.cast_parameter_over_layers_uniform(0.0)
-        tbi = Canopy.cast_parameter_over_layers_uniform(0.0)
-        avmu = Canopy.cast_parameter_over_layers_uniform(0.0)
-        betab = Canopy.cast_parameter_over_layers_uniform(0.0)
-        betad = Canopy.cast_parameter_over_layers_uniform(0.0)
-        clump_fac = Canopy.cast_parameter_over_layers_uniform(clump_fac)
+        rho = np.full(Canopy.nlevmlcan, 0.0)
+        tau = np.full(Canopy.nlevmlcan, 0.0)
+        omega = np.full(Canopy.nlevmlcan, 0.0)
+        kb = np.full(Canopy.nlevmlcan, 0.0)
+        fracsun = np.full(Canopy.nlevmlcan, 0.0)
+        tb = np.full(Canopy.nlevmlcan, 0.0)
+        td = np.full(Canopy.nlevmlcan, 0.0)
+        tbi = np.full(Canopy.nlevmlcan, 0.0)
+        avmu = np.full(Canopy.nlevmlcan, 0.0)
+        betab = np.full(Canopy.nlevmlcan, 0.0)
+        betad = np.full(Canopy.nlevmlcan, 0.0)
+        clump_fac = np.full(Canopy.nlevmlcan, clump_fac)
         
         for ic in range(ntop, nbot - 1, -1):
 
@@ -200,11 +200,8 @@ class CanopyRadiation:
             # Sunlit fraction of layer. Make sure fracsun > 0 and < 1.
             fracsun[ic] = tbi[ic] / (kb[ic] * dpai[ic]) * (1.0 - np.exp(-kb[ic] * clump_fac[ic] * dpai[ic]))
             
-            if (fracsun[ic] <= 0):
-                print(' ERROR: CanopyRadiation: fracsun is too small')
-            
-            if ((1.0 - fracsun[ic]) <= 0):
-                print(' ERROR: CanopyRadiation: fracsha is too small')
+            if fracsun[ic] <= 0 or (1.0 - fracsun[ic]) <= 0:
+                raise ValueError(f"ERROR: CanopyRadiation: Invalid fracsun ({fracsun[ic]}) or fracsha ({1.0 - fracsun[ic]}) value")
 
             # Special parameters for two-stream radiative transfer
             
@@ -302,14 +299,14 @@ class CanopyRadiation:
         Bonan et al., 2021, doi:10.1016/j.agrformet.2021.108435
         """
         # Calculate layer level radiative fluxes
-        iupwb0 = Canopy.cast_parameter_over_layers_uniform(0.0)
-        idwnb = Canopy.cast_parameter_over_layers_uniform(0.0)
-        iabsb_sun = Canopy.cast_parameter_over_layers_uniform(0.0)
-        iabsb_sha = Canopy.cast_parameter_over_layers_uniform(0.0)
-        iupwd0 = Canopy.cast_parameter_over_layers_uniform(0.0)
-        idwnd = Canopy.cast_parameter_over_layers_uniform(0.0)
-        iabsd_sun = Canopy.cast_parameter_over_layers_uniform(0.0)
-        iabsd_sha = Canopy.cast_parameter_over_layers_uniform(0.0)
+        iupwb0 = np.full(Canopy.nlevmlcan, 0.0)
+        idwnb = np.full(Canopy.nlevmlcan, 0.0)
+        iabsb_sun = np.full(Canopy.nlevmlcan, 0.0)
+        iabsb_sha = np.full(Canopy.nlevmlcan, 0.0)
+        iupwd0 = np.full(Canopy.nlevmlcan, 0.0)
+        idwnd = np.full(Canopy.nlevmlcan, 0.0)
+        iabsd_sun = np.full(Canopy.nlevmlcan, 0.0)
+        iabsd_sha = np.full(Canopy.nlevmlcan, 0.0)
         
         # Initialize albedos below current layer
         albb_below = albsoib

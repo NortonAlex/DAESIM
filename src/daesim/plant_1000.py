@@ -13,7 +13,9 @@ from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
-from daesim.leafgasexchange import LeafGasExchangeModule
+from daesim.leafgasexchange2 import LeafGasExchangeModule2
+from daesim.canopygasexchange import CanopyGasExchange
+from daesim.plantcarbonwater import PlantModel as PlantCH2O
 
 @define
 class PlantModuleCalculator:
@@ -21,6 +23,7 @@ class PlantModuleCalculator:
     Calculator of plant biophysics
     """
 
+    f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     CUE: float = field(default=0.5)  ## Plant carbon-use-efficiency (CUE=NPP/GPP)
     LMA: float = field(default=200)  ## Leaf mass per leaf area (g m-2)
     hc: float = field(default=0.6)   ## Canopy height (m) TODO: make this a dynamic variable at some point. 
@@ -54,29 +57,32 @@ class PlantModuleCalculator:
         Croot,
         Cseed,
         Bio_time,
-        solRadswskyb,        ## Atmospheric direct beam solar radiation (W/m2)
-        solRadswskyd,        ## Atmospheric diffuse solar radiation (W/m2)
+        solRadswskyb,  ## atmospheric direct beam solar radiation (W/m2)
+        solRadswskyd,  ## atmospheric diffuse solar radiation (W/m2)
         airTempCMin,   ## minimum air temperature (degrees Celsius)
         airTempCMax,   ## maximum air temperature (degrees Celsius)
-        airPressure,   ## atmospheric pressure (Pa)
+        airP,          ## air pressure (Pa)
         airRH,         ## relative humidity (%)
         airCO2,        ## partial pressure CO2 (bar)
         airO2,         ## partial pressure O2 (bar)
+        soilTheta,     ## volumetric soil water content (m3 m-3)
         _doy,
         _year,
         Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
         Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
         PlantDev=PlantGrowthPhases(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Management is the default PlantGrowthPhases()
-        Leaf=LeafGasExchangeModule(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule()
+        Leaf=LeafGasExchangeModule2(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule()
         Canopy=CanopyLayers(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers()
         CanopyRad=CanopyRadiation(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for CanopyRad is the default CanopyRadiation()
+        CanopyGasExchange=CanopyGasExchange(),    ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
+        PlantCH2O=PlantCH2O(),    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
     ) -> Tuple[float]:
 
         ## Solar calculations
         eqtime, houranglesunrise, theta = Site.solar_calcs(_year,_doy)
 
         ## Climate calculations
-        airTempC = (airTempCMin+airTempCMax)/2
+        airTempC = Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
 
         ## Calculate leaf area index
         LAI = Cleaf/self.LMA
@@ -92,15 +98,11 @@ class PlantModuleCalculator:
         GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_doy,Management.plantingDay)
         dGDDdt = DTT - GDD_reset
 
+        W_L = Cleaf/self.f_C
+        W_R = Croot/self.f_C
 
-        ## Canopy radiative transfer
-        swleaf, fracsun = self.calculate_canopy_radiative_transfer(LAI, theta, solRadswskyb, solRadswskyd, Canopy, CanopyRad)
-        
-        dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
-
-        An, gs, Rd = self.calculate_gas_exchange_ml(swleaf, airTempC, airCO2, airO2, airRH, Canopy, CanopyRad, Leaf)
-        
-        GPP = self.calculate_total_canopy_gpp(dlai, fracsun, An, Rd, Canopy)
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopyRad)
+        GPP_gCm2d = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         
         # Calculate NPP
         NPP = self.calculate_NPP(GPP)
@@ -120,45 +122,45 @@ class PlantModuleCalculator:
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt)
 
-    def calculate_canopy_radiative_transfer(self, LAI, theta, solRadswskyb, solRadswskyd, Canopy, CanopyRad):
-        # Calculate radiative transfer properties
-        (fracsun, kb, omega, avmu, betab, betad, tbi) = CanopyRad.calculateRTProperties(
-            LAI, self.SAI, self.clumping_factor, self.hc, theta, Canopy=Canopy)
+    # def calculate_canopy_radiative_transfer(self, LAI, theta, solRadswskyb, solRadswskyd, Canopy, CanopyRad):
+    #     # Calculate radiative transfer properties
+    #     (fracsun, kb, omega, avmu, betab, betad, tbi) = CanopyRad.calculateRTProperties(
+    #         LAI, self.SAI, self.clumping_factor, self.hc, theta, Canopy=Canopy)
         
-        # Cast parameters over layers using beta CDF
-        dlai = Canopy.cast_parameter_over_layers_betacdf(LAI, Canopy.beta_lai_a, Canopy.beta_lai_b)
-        dsai = Canopy.cast_parameter_over_layers_betacdf(self.SAI, Canopy.beta_sai_a, Canopy.beta_sai_b)
-        dpai = dlai + dsai  # Canopy layer plant area index (m2/m2)
-        clump_fac = Canopy.cast_parameter_over_layers_uniform(self.clumping_factor)
+    #     # Cast parameters over layers using beta CDF
+    #     dlai = Canopy.cast_parameter_over_layers_betacdf(LAI, Canopy.beta_lai_a, Canopy.beta_lai_b)
+    #     dsai = Canopy.cast_parameter_over_layers_betacdf(self.SAI, Canopy.beta_sai_a, Canopy.beta_sai_b)
+    #     dpai = dlai + dsai  # Canopy layer plant area index (m2/m2)
+    #     clump_fac = Canopy.cast_parameter_over_layers_uniform(self.clumping_factor)
         
-        # Calculate two-stream absorption per leaf area index
-        swleaf = CanopyRad.calculateTwoStream(solRadswskyb, solRadswskyd, dpai, fracsun, kb, clump_fac, omega, avmu, betab, betad, tbi, self.albsoib, self.albsoid, Canopy=Canopy)
+    #     # Calculate two-stream absorption per leaf area index
+    #     swleaf = CanopyRad.calculateTwoStream(solRadswskyb, solRadswskyd, dpai, fracsun, kb, clump_fac, omega, avmu, betab, betad, tbi, self.albsoib, self.albsoid, Canopy=Canopy)
         
-        return swleaf, fracsun
+    #     return swleaf, fracsun
     
-    def calculate_gas_exchange_ml(self, swleaf, airTempC, airCO2, airO2, airRH, Canopy, CanopyRad, Leaf):
-        # Initialize arrays for An, gs, and Rd
-        _An = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
-        _gs = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
-        _Rd = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
+    # def calculate_gas_exchange_ml(self, swleaf, airTempC, airCO2, airO2, airRH, Canopy, CanopyRad, Leaf):
+    #     # Initialize arrays for An, gs, and Rd
+    #     _An = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
+    #     _gs = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
+    #     _Rd = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
         
-        # Loop through leaves and canopy layers to calculate gas exchange
-        for ileaf in range(Canopy.nleaf):
-            for ic in range(Canopy.nbot, Canopy.ntop+1):
-                Q = 1e-6 * swleaf[ic, ileaf] * CanopyRad.J_to_umol  # Absorbed PPFD, mol PAR m-2 s-1
-                An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, airTempC, airCO2, airO2, airRH)
-                _An[ic, ileaf] = An
-                _gs[ic, ileaf] = gs
-                _Rd[ic, ileaf] = Rd
+    #     # Loop through leaves and canopy layers to calculate gas exchange
+    #     for ileaf in range(Canopy.nleaf):
+    #         for ic in range(Canopy.nbot, Canopy.ntop+1):
+    #             Q = 1e-6 * swleaf[ic, ileaf] * CanopyRad.J_to_umol  # Absorbed PPFD, mol PAR m-2 s-1
+    #             An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, airTempC, airCO2, airO2, airRH)
+    #             _An[ic, ileaf] = An
+    #             _gs[ic, ileaf] = gs
+    #             _Rd[ic, ileaf] = Rd
                 
-        return _An, _gs, _Rd
+    #     return _An, _gs, _Rd
 
-    def calculate_total_canopy_gpp(self, dlai, fracsun, An, Rd, Canopy):
-        # Calculate total GPP 
-        # - also convert leaf level molar fluxes per second (mol m-2 s-1) to mass fluxes per ground area per day (g C m-2 d-1)
-        GPP = 12.01 * (60*60*24) * (np.sum(dlai * fracsun * (An[:, Canopy.isun] + Rd[:, Canopy.isun])) + 
-                                    np.sum(dlai * (1 - fracsun) * (An[:, Canopy.isha] + Rd[:, Canopy.isha])))
-        return GPP
+    # def calculate_total_canopy_gpp(self, dlai, fracsun, An, Rd, Canopy):
+    #     # Calculate total GPP 
+    #     # - also convert leaf level molar fluxes per second (mol m-2 s-1) to mass fluxes per ground area per day (g C m-2 d-1)
+    #     GPP = 12.01 * (60*60*24) * (np.sum(dlai * fracsun * (An[:, Canopy.isun] + Rd[:, Canopy.isun])) + 
+    #                                 np.sum(dlai * (1 - fracsun) * (An[:, Canopy.isha] + Rd[:, Canopy.isha])))
+    #     return GPP
 
     def calculate_NPP(self,GPP):
         return self.CUE*GPP
@@ -257,7 +259,7 @@ class PlantModelSolver:
     plantdev: PlantGrowthPhases
     """"Plant Development Phases details"""
 
-    leaf: LeafGasExchangeModule
+    leaf: LeafGasExchangeModule2
     """"Leaf gas exchange details"""
 
     canopy: CanopyLayers
@@ -265,6 +267,12 @@ class PlantModelSolver:
 
     canopyrad: CanopyRadiation
     """"Canopy Radiative Transfer details"""
+
+    canopygasexch: CanopyGasExchange
+    """Canopy gas exchange details"""
+
+    plantch2o: PlantCH2O
+    """Plant warbon and water flux details"""
 
     state1_init: float
     """
@@ -302,10 +310,11 @@ class PlantModelSolver:
         solRadswskyd: Callable[[float], float],
         airTempCMin: Callable[[float], float],
         airTempCMax: Callable[[float], float],
-        airPressure: Callable[[float], float],
+        airP: Callable[[float], float],
         airRH: Callable[[float], float],
         airCO2: Callable[[float], float],
         airO2: Callable[[float], float],
+        soilTheta: Callable[[float], float],
         _doy: Callable[[float], float],
         _year: Callable[[float], float],
         time_axis: float,
@@ -317,14 +326,17 @@ class PlantModelSolver:
             self.leaf,
             self.canopy,
             self.canopyrad,
+            self.canopygasexch,
+            self.plantch2o,
             solRadswskyb,
             solRadswskyd,
             airTempCMin,
             airTempCMax,
-            airPressure,
+            airP,
             airRH,
             airCO2,
             airO2,
+            soilTheta,
             _doy,
             _year,
         )
@@ -400,14 +412,17 @@ class PlantModelSolver:
         Leaf,
         Canopy,
         CanopyRad,
+        CanopyGasExchange,
+        PlantCH2O,
         solRadswskyb: Callable[float, float],
         solRadswskyd: Callable[float, float],
         airTempCMin: Callable[float, float],
         airTempCMax: Callable[float, float],
-        airPressure: Callable[float, float],
+        airP: Callable[float, float],
         airRH: Callable[float, float],
         airCO2: Callable[float, float],
         airO2: Callable[float, float],
+        soilTheta: Callable[float, float],
         _doy: Callable[float, float],
         _year: Callable[float, float],
     ) -> Callable[float, float]:
@@ -431,10 +446,11 @@ class PlantModelSolver:
             solRadswskydh = solRadswskyd(t).squeeze()
             airTempCMinh = airTempCMin(t).squeeze()
             airTempCMaxh = airTempCMax(t).squeeze()
-            airPressureh = airPressure(t).squeeze()
+            airPh = airP(t).squeeze()
             airRHh = airRH(t).squeeze()
             airCO2h = airCO2(t).squeeze()
             airO2h = airO2(t).squeeze()
+            soilThetah = soilTheta(t).squeeze()
             _doyh = _doy(t).squeeze()
             _yearh = _year(t).squeeze()
 
@@ -448,10 +464,11 @@ class PlantModelSolver:
                 solRadswskyd=solRadswskydh,
                 airTempCMin=airTempCMinh,
                 airTempCMax=airTempCMaxh,
-                airPressure=airPressureh,
+                airP=airPh,
                 airRH=airRHh,
                 airCO2=airCO2h,
                 airO2=airO2h,
+                soilTheta=soilThetah,
                 _doy=_doyh,
                 _year=_yearh,
                 Site=Site,
@@ -460,6 +477,8 @@ class PlantModelSolver:
                 Leaf=Leaf,
                 Canopy=Canopy,
                 CanopyRad=CanopyRad,
+                CanopyGasExchange=CanopyGasExchange,
+                PlantCH2O=PlantCH2O,
             )
 
             # TODO: Use this python magic when we have more than one state variable in dydt

@@ -184,7 +184,7 @@ time_axis = np.arange(119, 365, 1)   ## Note: time_axis represents the simulatio
 
 PlantX = PlantModuleCalculator()
 ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
-PlantDevX = PlantGrowthPhases(gdd_requirements=[100,800,300,100])
+PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
 LeafX = LeafGasExchangeModule2()
 CanopyX = CanopyLayers(nlevmlcan=1)
 CanopyRadX = CanopyRadiation()

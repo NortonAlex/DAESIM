@@ -31,7 +31,7 @@ class CanopyGasExchange:
         CanopySolar=CanopyRadiation(),  ## It is optional to define CanopySolar for this method. If no argument is passed in here, then default setting for CanopySolar is the default CanopyRadiation(). Note that this may be important as it defines many canopy structural and optical parameters used in the calculations.
     ) -> Tuple[float]:
 
-        swleaf, swveg, swvegsun, swvegsha = CanopySolar.calculate(LAI,SAI,clumping_factor,z,sza,swskyb,swskyd,Canopy=Canopy)
+        swleaf = CanopySolar.calculate(LAI,SAI,clumping_factor,z,sza,swskyb,swskyd,Canopy=Canopy)
 
         # Calculate gas exchange per canopy multi-layer element (per leaf area basis)
         An_mle = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))

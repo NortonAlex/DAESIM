@@ -85,7 +85,7 @@ class PlantModuleCalculator:
         airTempC = Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
 
         ## Calculate leaf area index
-        LAI = Cleaf/self.LMA
+        LAI = Cleaf/self.LMA    ## TODO: Double check this. Is LAI=Cleaf/LMA or LAI=(Cleaf/f_C)/LMA?
 
         BioPlanting = self.calculate_BioPlanting(_doy,Management.plantingDay,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
@@ -121,46 +121,6 @@ class PlantModuleCalculator:
         dCseeddt = alloc_coeffs[PlantDev.iseed]*NPP - tr_[PlantDev.iseed]*Cseed - BioHarvestSeed
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt)
-
-    # def calculate_canopy_radiative_transfer(self, LAI, theta, solRadswskyb, solRadswskyd, Canopy, CanopyRad):
-    #     # Calculate radiative transfer properties
-    #     (fracsun, kb, omega, avmu, betab, betad, tbi) = CanopyRad.calculateRTProperties(
-    #         LAI, self.SAI, self.clumping_factor, self.hc, theta, Canopy=Canopy)
-        
-    #     # Cast parameters over layers using beta CDF
-    #     dlai = Canopy.cast_parameter_over_layers_betacdf(LAI, Canopy.beta_lai_a, Canopy.beta_lai_b)
-    #     dsai = Canopy.cast_parameter_over_layers_betacdf(self.SAI, Canopy.beta_sai_a, Canopy.beta_sai_b)
-    #     dpai = dlai + dsai  # Canopy layer plant area index (m2/m2)
-    #     clump_fac = Canopy.cast_parameter_over_layers_uniform(self.clumping_factor)
-        
-    #     # Calculate two-stream absorption per leaf area index
-    #     swleaf = CanopyRad.calculateTwoStream(solRadswskyb, solRadswskyd, dpai, fracsun, kb, clump_fac, omega, avmu, betab, betad, tbi, self.albsoib, self.albsoid, Canopy=Canopy)
-        
-    #     return swleaf, fracsun
-    
-    # def calculate_gas_exchange_ml(self, swleaf, airTempC, airCO2, airO2, airRH, Canopy, CanopyRad, Leaf):
-    #     # Initialize arrays for An, gs, and Rd
-    #     _An = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
-    #     _gs = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
-    #     _Rd = np.zeros((Canopy.nlevmlcan, Canopy.nleaf))
-        
-    #     # Loop through leaves and canopy layers to calculate gas exchange
-    #     for ileaf in range(Canopy.nleaf):
-    #         for ic in range(Canopy.nbot, Canopy.ntop+1):
-    #             Q = 1e-6 * swleaf[ic, ileaf] * CanopyRad.J_to_umol  # Absorbed PPFD, mol PAR m-2 s-1
-    #             An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q, airTempC, airCO2, airO2, airRH)
-    #             _An[ic, ileaf] = An
-    #             _gs[ic, ileaf] = gs
-    #             _Rd[ic, ileaf] = Rd
-                
-    #     return _An, _gs, _Rd
-
-    # def calculate_total_canopy_gpp(self, dlai, fracsun, An, Rd, Canopy):
-    #     # Calculate total GPP 
-    #     # - also convert leaf level molar fluxes per second (mol m-2 s-1) to mass fluxes per ground area per day (g C m-2 d-1)
-    #     GPP = 12.01 * (60*60*24) * (np.sum(dlai * fracsun * (An[:, Canopy.isun] + Rd[:, Canopy.isun])) + 
-    #                                 np.sum(dlai * (1 - fracsun) * (An[:, Canopy.isha] + Rd[:, Canopy.isha])))
-    #     return GPP
 
     def calculate_NPP(self,GPP):
         return self.CUE*GPP
@@ -224,7 +184,7 @@ class PlantModuleCalculator:
     def calculate_BioHarvest(self,Biomass,_doy,harvestDay,propHarvest,HarvestTurnoverTime):
         _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])
         HarvestTime = _vfunc(_doy,harvestDay)
-        BioHarvest = HarvestTime*propHarvest*Biomass/HarvestTurnoverTime
+        BioHarvest = HarvestTime*np.maximum(propHarvest*Biomass/HarvestTurnoverTime,0)
         return BioHarvest
 
     def calculate_harvesttime_conditional(self,_doy,harvestDay):

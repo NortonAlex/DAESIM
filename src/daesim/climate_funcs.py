@@ -171,7 +171,7 @@ def interp_nearest_lower_neighbour(x,y,xt,fill_value=(np.nan,np.nan)):
         plt.scatter(x,y,marker="o",label="y(x)")
         
         # Generate the interpolation by using partial and vectorize
-        f = partial(interp_nearest_lower_neighbour_update,x,y,fill_value=(y[0],y[-1]))
+        f = partial(interp_nearest_lower_neighbour,x,y,fill_value=(y[0],y[-1]))
         y_interped_f = np.vectorize(f)
         
         # Interpolate new y values across x dimension
@@ -183,16 +183,22 @@ def interp_nearest_lower_neighbour(x,y,xt,fill_value=(np.nan,np.nan)):
     """
     x = np.asarray(x)
     y = np.asarray(y)
-    if (xt < x).all():
-        #print("Warning: xt = %1.3f is below x array domain [%1.3f, %1.3f]" % (xt,x.min(),x.max()),"; returning lower fill value")
-        return fill_value[0]
-    elif (xt > x).all():
-        #print("Warning: xt = %1.3f is above x array domain [%1.3f, %1.3f]" % (xt,x.min(),x.max()),"; returning upper fill value")
-        return fill_value[1]
-    x_xt = np.max(x[x <= xt])
-    i_xt = (x == np.max(x[x <= xt]))
-    y_xt = y[i_xt]
-    return y_xt
+    xt = np.asarray(xt)
+    
+    def interpolate_single_value(xt_single):
+        if xt_single < x.min():
+            return fill_value[0]
+        elif xt_single > x.max():
+            return fill_value[1]
+        x_xt = np.max(x[x <= xt_single])
+        i_xt = (x == x_xt)
+        y_xt = y[i_xt]
+        return y_xt[0]
+    
+    if xt.ndim == 0:
+        return np.array(interpolate_single_value(xt))
+    else:
+        return np.array([interpolate_single_value(xi) for xi in xt])
 
 def interp_forcing(x,y,kind="linear",fill_value=(np.nan,np.nan)):
     """

@@ -53,6 +53,7 @@ ax.legend()
 ax.set_xlabel("Layer LAI, SAI, PAI\n"+r"($\rm m^2 \; m^{-2}$)")
 ax.set_ylabel("Canopy layer")
 
+
 # %% [markdown]
 # #### Distribute other parameters over canopy layers (e.g. Vcmax)
 
@@ -71,6 +72,7 @@ plt.show()
 # %%
 LAI = 3.0
 PAI = 0.0
+CI = 0.5
 canopy_height = 1.0
 sza = 10.0
 
@@ -78,12 +80,11 @@ Canopy = CanopyLayers(nlevmlcan=8)
 ntop, nbot = Canopy.index_canopy()
 print("ntop, nbot =",ntop,",", nbot)
 
-CanopySolar = CanopyRadiation()
+CanopySolar = CanopyRadiation(Canopy=Canopy)
 
 # %%
 dpai = 0.5
 kb = 10.0
-clump_fac = 0.5
 omega = 0.2   # Layer leaf/stem scattering coefficient
 avmu = 1/0.7   # average inverse diffuse optical depth per unit leaf area
 betad = 1.0
@@ -92,7 +93,7 @@ albb_below = 0.1
 albd_below = 0.1
 tbi = 0.1
 
-iabsb_sun, iabsb_sha, iupwb0, idwnb, iabsd_sun, iabsd_sha, iupwd0, idwnd, albb_below, albd_below = CanopySolar.calculate_radiative_flux_layer(dpai, kb, clump_fac, omega, avmu, betad, betab, tbi, albb_below, albd_below)
+iabsb_sun, iabsb_sha, iupwb0, idwnb, iabsd_sun, iabsd_sha, iupwd0, idwnd, albb_below, albd_below = CanopySolar.calculate_radiative_flux_layer(dpai, kb, CI, omega, avmu, betad, betab, tbi, albb_below, albd_below)
 
 print("iabsb_sun:",iabsb_sun)
 print("iabsb_sha:",iabsb_sha)
@@ -108,7 +109,7 @@ print("albd_below:",albd_below)
 
 
 # %%
-(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculateRTProperties(LAI,SAI,0.5,canopy_height,sza,Canopy=Canopy)
+(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculateRTProperties(LAI,SAI,CI,canopy_height,sza)
 
 fig, axes = plt.subplots(2,3,figsize=(8,5),sharey=True)
 
@@ -136,19 +137,31 @@ axes[1,2].legend()
 
 plt.tight_layout()
 
+
+# %%
+
 # %%
 swskyb = 400.0 # Atmospheric direct beam solar radiation (W/m2)
 swskyd = 100.0 # Atmospheric diffuse solar radiation (W/m2)
 albsoib = 0.2
 albsoid = 0.2
 
+## Calculate RT properties
+(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculateRTProperties(LAI,SAI,CI,canopy_height,sza)
+
 dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
 dsai = Canopy.cast_parameter_over_layers_betacdf(SAI,Canopy.beta_sai_a,Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
 dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
 
-clump_fac = Canopy.cast_parameter_over_layers_uniform(0.5)
+clump_fac = np.full(Canopy.nlevmlcan, CI)
 
-swleaf = CanopySolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid,Canopy=Canopy)
+swleaf = CanopySolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid)
+
+# %%
+(fracsun, kb, omega, avmu, betab, betad, tbi) = CanopySolar.calculateRTProperties(LAI,SAI,CI,canopy_height,sza)
+fracsun.size
+
+# %%
 
 # %%
 fig, axes = plt.subplots(1,2,figsize=(5.33,2.5),sharey=True)
@@ -166,6 +179,48 @@ axes[1].legend()
 
 plt.tight_layout()
 
+
+# %%
+
+# %% [markdown]
+# ### Testing scalar vs array_like inputs
+
+# %%
+## Input arguments are scalars
+_LAI = 1.5
+_SAI = 0.0
+_CI = 0.5
+_z = 1.0
+_sza = 30.0
+_swskyb = 400.0  # Atmospheric direct beam solar radiation (W/m2)
+_swskyd = 100.0  # Atmospheric diffuse solar radiation (W/m2)
+
+swleaf = CanopySolar.calculate(_LAI,_SAI,_CI,_z,_sza,_swskyb,_swskyd)
+
+# %%
+swleaf
+
+
+# %%
+## Input arguments are array_like
+_LAI = np.array([1.5, 1.5])
+_SAI = np.array([0.0, 0.0])
+_CI = np.array([0.5, 0.5])
+_z = np.array([1.0, 1.0])
+_sza = np.array([30.0, 30.0])
+_swskyb = np.array([400.0,400.0]) # Atmospheric direct beam solar radiation (W/m2)
+_swskyd = np.array([100.0,100.0]) # Atmospheric diffuse solar radiation (W/m2)
+
+swleaf = CanopySolar.calculate(_LAI,_SAI,_CI,_z,_sza,_swskyb,_swskyd)
+
+# %%
+from daesim.utils import array_like_wrapper
+
+canopyrad_arraylikewrap = array_like_wrapper(CanopySolar.calculate, ["LAI","SAI","CI","z","sza","swskyb","swskyd"])
+swleaf = canopyrad_arraylikewrap(_LAI,_SAI,_CI,_z,_sza,_swskyb,_swskyd)
+
+
+# %%
 
 # %%
 

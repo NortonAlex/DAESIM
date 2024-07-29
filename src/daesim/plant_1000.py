@@ -25,7 +25,7 @@ class PlantModuleCalculator:
 
     f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     CUE: float = field(default=0.5)  ## Plant carbon-use-efficiency (CUE=NPP/GPP)
-    LMA: float = field(default=200)  ## Leaf mass per leaf area (g m-2)
+    LMA: float = field(default=20)  ## Leaf mass per leaf area (g m-2)
     hc: float = field(default=0.6)   ## Canopy height (m) TODO: make this a dynamic variable at some point. 
     SAI: float = field(default=0.1)   ## Stem area index (m2 m-2) TODO: make this a dynamic variable at some point. 
     clumping_factor: float = field(default=0.7)   ## Foliage clumping index (-) TODO: Place this parameter in a more suitable spot/module

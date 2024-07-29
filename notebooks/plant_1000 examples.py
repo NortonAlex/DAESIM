@@ -180,16 +180,17 @@ Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
 # %%
-time_axis = np.arange(119, 365, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+# time_axis = np.arange(119, 365, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+time_axis = np.arange(119, 200, 1)
 
-PlantX = PlantModuleCalculator()
+PlantX = PlantModuleCalculator(LMA=20.0)
 ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
 PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
 LeafX = LeafGasExchangeModule2()
 CanopyX = CanopyLayers(nlevmlcan=1)
 CanopyRadX = CanopyRadiation()
 CanopyGasExchangeX = CanopyGasExchange()
-PlantCH2OX = PlantCH2O()
+PlantCH2OX = PlantCH2O(maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
 
 Model = PlantModelSolver(
     calculator=PlantX, site=SiteX, management=ManagementX, plantdev=PlantDevX, leaf=LeafX, canopy=CanopyX, canopyrad=CanopyRadX, canopygasexch=CanopyGasExchangeX, plantch2o=PlantCH2OX, state1_init=0.5, state2_init=0.1, state3_init=0.5, state4_init=0, state5_init=0, time_start=time_axis[0]
@@ -228,6 +229,8 @@ plt.tight_layout()
 # ### Run model ODE solver
 
 # %%
+# %pdb on
+
 res = Model.run(
     solRadswskyb=Climate_solRadswskyb_f,
     solRadswskyd=Climate_solRadswskyd_f,

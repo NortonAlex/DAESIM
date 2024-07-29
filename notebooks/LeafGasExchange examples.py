@@ -77,7 +77,7 @@ Site = ClimateModule()
 # ### Initialise the Leaf Gas Exchange model
 
 # %%
-Leaf = LeafGasExchangeModule(gm_opt=0.5)
+Leaf = LeafGasExchangeModule(Site=Site,gm_opt=0.5)
 
 # %% [markdown]
 # ### Run the model given input data
@@ -334,7 +334,7 @@ plt.show()
 from daesim.leafgasexchange2 import LeafGasExchangeModule2
 
 # %%
-Leaf = LeafGasExchangeModule2(Jmax_opt=250e-6)
+Leaf = LeafGasExchangeModule2(Site=Site,Jmax_opt=250e-6)
 
 # %%
 p = 101325 # air pressure, Pa

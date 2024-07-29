@@ -18,6 +18,9 @@ class LeafGasExchangeModule:
     Calculator of leaf gas exchange including photosynthesis and stomatal conductance
     """
 
+    # Module dependencies
+    Site: Callable = field(default=ClimateModule())    ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
+
     # Class parameters
 
     ## Biochemical constants
@@ -93,7 +96,6 @@ class LeafGasExchangeModule:
         O,    ## Leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         RH,   ## Relative humidity, %
         fgsw, ## Leaf water potential limitation factor on stomatal conductance, unitless
-        Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
     ) -> Tuple[float]:
 
         # Calculate derived variables from constants
@@ -120,7 +122,7 @@ class LeafGasExchangeModule:
             print("dynamic absorption cross-section not implemented yet")
             return np.nan
 
-        VPD = Site.compute_VPD(T,RH)*1e-3
+        VPD = self.Site.compute_VPD(T,RH)*1e-3
 
         # Compute stomatal conductance and Ci based on optimal stomatal theory (Medlyn et al., 2011)
         A, gs, Ci = self.solve_Ci(Cs,Q,O,VPD,Vqmax,a1,phi1P_max,S,fgsw)    ## TODO: Check the units of A, gs, and Ci here. Is it in ppm (umol mol-1?)? or bar? 

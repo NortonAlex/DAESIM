@@ -18,6 +18,9 @@ class LeafGasExchangeModule2:
     Calculator of leaf gas exchange including photosynthesis and stomatal conductance
     """
 
+    # Module dependencies
+    Site: Callable = field(default=ClimateModule())    ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
+
     # Class parameters
 
     ## Biochemical constants
@@ -77,7 +80,6 @@ class LeafGasExchangeModule2:
         O,    ## Leaf surface O2 partial pressure, bar, (corrected for boundary layer effects)
         RH,   ## Relative humidity, %
         fgsw, ## Leaf water potential limitation factor on stomatal conductance, unitless
-        Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
     ) -> Tuple[float]:
 
         # Calculate derived variables from constants
@@ -95,7 +97,7 @@ class LeafGasExchangeModule2:
         # G0 must be converted to CO2 (but not G1, see below)
         g0 = self.g0/1.6
 
-        VPD = Site.compute_VPD(T,RH)*1e-3
+        VPD = self.Site.compute_VPD(T,RH)*1e-3
         VPDuse = np.maximum(VPD, self.VPDmin)    ## Set VPD values below lower limit to VPDmin to ensure gs doesn't go wacky
 
         GsDIVA = (1 + fgsw*self.g1/(VPDuse**0.5))/Cs

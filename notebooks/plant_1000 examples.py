@@ -87,7 +87,12 @@ _propPhAboveBM = 0.473684210526
 
 management = ManagementModule(plantingDay=30,harvestDay=235)
 site = ClimateModule()
-plant = PlantModuleCalculator(Site=site,Management=management)
+canopy = CanopyLayers()
+canopyrad = CanopyRadiation(Canopy=canopy)
+leaf = LeafGasExchangeModule2(Site=site)
+canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopySolar=canopyrad)
+plantch2o = PlantCH2O(Site=site,CanopyGasExchange=canopygasexchange)
+plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o)
 
 dydt = plant.calculate(
     _Cleaf,
@@ -183,16 +188,12 @@ ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
 PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
 LeafX = LeafGasExchangeModule2()
 CanopyX = CanopyLayers(nlevmlcan=1)
-CanopyRadX = CanopyRadiation()
-CanopyGasExchangeX = CanopyGasExchange()
-PlantCH2OX = PlantCH2O(maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
+CanopyRadX = CanopyRadiation(Canopy=CanopyX)
+CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopySolar=CanopyRadX)
+PlantCH2OX = PlantCH2O(Site=SiteX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
     Management=ManagementX,
-    Leaf=LeafX,
-    Canopy=CanopyX,
-    CanopyRad=CanopyRadX,
-    CanopyGasExchange=CanopyGasExchangeX,
     PlantCH2O=PlantCH2OX,
     LMA=20.0)
 
@@ -321,23 +322,19 @@ time_axis = np.arange(119, 300, 1)   ## Note: time_axis represents the simulatio
 
 ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
 PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
-LeafX = LeafGasExchangeModule2()
+LeafX = LeafGasExchangeModule2(Site=SiteX)
 CanopyX = CanopyLayers(nlevmlcan=1)
-CanopyRadX = CanopyRadiation()
-CanopyGasExchangeX = CanopyGasExchange()
-PlantCH2OX = PlantCH2O(maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
+CanopyRadX = CanopyRadiation(Canopy=CanopyX)
+CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopySolar=CanopyRadX)
+PlantCH2OX = PlantCH2O(Site=SiteX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
     Management=ManagementX,
-    Leaf=LeafX,
-    Canopy=CanopyX,
-    CanopyRad=CanopyRadX,
-    CanopyGasExchange=CanopyGasExchangeX,
     PlantCH2O=PlantCH2OX,
     LMA=20.0
 )
 
-
+# %%
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
@@ -376,7 +373,6 @@ result_euler = Model.run(
     rtol=1e-2,
     atol=1e-2
 )
-
 
 # %%
 res = result_euler

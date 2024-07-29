@@ -126,17 +126,64 @@ print("Canopy GPP = %1.1f" % ((A+Rd)*1e6),"umol m-2 s-1")
 canopy = CanopyLayers(nlevmlcan=8)
 canopy.set_index()
 
-## Instance of CanopyRadiation class
-canopysolar = CanopyRadiation(rhol=leafreflectance)
+## Instance of CanopyRadiation class with upstream module dependencies
+canopysolar = CanopyRadiation(Canopy=canopy,rhol=leafreflectance)
 
-## Instance of CanopyGasExchange class
-canopygasexchange = CanopyGasExchange()
+## Instance of CanopyGasExchange class with upstream module dependencies
+canopygasexchange = CanopyGasExchange(Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
+
+# %% [markdown]
+# ### Testing scalar vs array_like inputs
+
+# %%
+(fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
+
+fracsun
+
+# %%
+n = 3
+_T = np.array([20,22,24])
+_Cs = Cs*np.ones(n)
+_O = O*np.ones(n)
+_RH = RH*np.ones(n)
+_LAI = np.array([1.5,1.6,1.7])
+_SAI = SAI*np.ones(n)
+_CI = clumping_factor*np.ones(n)
+_z = canopy_height*np.ones(n)
+_sza = sza*np.ones(n)
+_swskyb = np.array([180,200,220])
+_swskyd = np.array([80,80,80])
+
+An_ml, gs_ml, Rd_ml = canopygasexchange.calculate(_T,_Cs,_O,_RH,1.0,LAI,SAI,clumping_factor,canopy_height,_sza,_swskyb,_swskyd)
+
+
+# %%
+# swleaf, swveg, swvegsun, swvegsha = canopysolar.calculate(np.array([LAI,LAI]),SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Canopy=canopy)
+
+# swleaf
+
+# _vfunc = np.vectorize(canopysolar.calculateRTProperties)
+# (np.array([LAI,LAI]),SAI,clumping_factor,canopy_height,sza,Canopy=canopy)
+
+
+# _vfunc = np.vectorize(canopy.cast_parameter_over_layers_betacdf)
+# dlai = _vfunc(_LAI,canopy.beta_lai_a,canopy.beta_lai_b)
+
+
+_vfunc = np.vectorize(canopy.cast_parameter_over_layers_uniform)
+dlai = _vfunc(_LAI)
+dlai
+
+# %%
+
+# %%
+An_ml
 
 # %% [markdown]
 # ## Run radiative transfer calculations
 
 # %%
-An_ml, gs_ml, Rd_ml = canopygasexchange.calculate(T,Cs,O,RH,1.0,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
+An_ml, gs_ml, Rd_ml = canopygasexchange.calculate(T,Cs,O,RH,1.0,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd)
 
 An_total = np.sum(1e6*An_ml)
 gs_total = np.sum(gs_ml)
@@ -170,7 +217,7 @@ fgsw_ml = np.zeros((canopy.nlevmlcan, canopy.nleaf))
 fgsw_ml[:,0] = canopy.cast_parameter_over_layers_exp(1,0.3,1)[::-1]
 fgsw_ml[:,1] = canopy.cast_parameter_over_layers_exp(1,0.3,1)[::-1]
 
-An_ml1, gs_ml1, Rd_ml1 = canopygasexchange.calculate(T,Cs,O,RH,fgsw_ml,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
+An_ml1, gs_ml1, Rd_ml1 = canopygasexchange.calculate(T,Cs,O,RH,fgsw_ml,LAI,SAI,clumping_factor,canopy_height,sza,swskyb,swskyd)
 
 
 fig, axes = plt.subplots(1,3,figsize=(12,3))
@@ -202,7 +249,7 @@ print("Sum of Rd_ml over canopy layers = %1.2f umol m-2 s-1" % (Rd_ml1.sum()*1e6
 
 # %%
 ## Calculate radiative transfer properties of the canopy
-(fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza,Canopy=canopy)
+(fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
 
 # %%
 ## Determine vertical distribution of canopy properties such as LAI, SAI and clumping index
@@ -214,7 +261,7 @@ clump_fac = canopy.cast_parameter_over_layers_uniform(clumping_factor)
 # %%
 ## Calculate two stream approximation calculations
 ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
-swleaf = canopysolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid,Canopy=canopy)
+swleaf = canopysolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid)
 
 # %%
 ## Calculate total absorbed shortwave radiation by sunlit and shaded vegetation

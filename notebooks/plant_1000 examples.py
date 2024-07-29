@@ -315,7 +315,7 @@ plt.tight_layout()
 # ## Testing new numerical solver
 
 # %%
-from daesim.utils import PlantModelSolver
+from daesim.utils import ODEModelSolver
 
 # %%
 time_axis = np.arange(119, 300, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
@@ -338,7 +338,7 @@ PlantX = PlantModuleCalculator(
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = PlantModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0], time_start=time_axis[0])
 
 
 forcing_inputs = [Climate_solRadswskyb_f,

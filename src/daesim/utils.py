@@ -91,9 +91,9 @@ def array_like_wrapper(func, array_like_args):
 
 
 @dataclass
-class PlantModelSolver:
+class ODEModelSolver:
     """
-    Plant model solver implementation.
+    Numerical solver for ordinary differential equations.
     """
 
     calculator: Callable        # Generic callable (e.g. GenericClass.calculator method)

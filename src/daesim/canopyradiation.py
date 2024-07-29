@@ -1,10 +1,13 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Callable
 from attrs import define, field
 from daesim.canopylayers import CanopyLayers
 
 @define 
 class CanopyRadiation:
+
+    # Module dependencies
+    Canopy: Callable = field(default=CanopyLayers())    ## It is optional to define Canopy for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers(). Note that this may be important as it defines many canopy structure specific variables used in the calculations.
 
     # Constants for solar radiation module
     chil_min: float = field(default=-0.4)  ## Minimum value for xl leaf angle orientation parameter         
@@ -35,37 +38,36 @@ class CanopyRadiation:
         sza,    ## Solar zenith angle, degrees
         swskyb, ## Atmospheric direct beam solar radiation, W/m2
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
-        Canopy=CanopyLayers(),  ## It is optional to define Canopy for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers(). Note that this may be important as it defines many canopy structure specific variables used in the calculations.
     ) -> Tuple[float]:
 
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
-        Canopy.set_index()
+        self.Canopy.set_index()
 
         ## Calculate RT properties
-        (fracsun, kb, omega, avmu, betab, betad, tbi) = self.calculateRTProperties(LAI,SAI,clumping_factor,z,sza,Canopy=Canopy)
+        (fracsun, kb, omega, avmu, betab, betad, tbi) = self.calculateRTProperties(LAI,SAI,clumping_factor,z,sza)
 
-        dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
-        dsai = Canopy.cast_parameter_over_layers_betacdf(SAI,Canopy.beta_sai_a,Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
+        dlai = self.Canopy.cast_parameter_over_layers_betacdf(LAI,self.Canopy.beta_lai_a,self.Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
+        dsai = self.Canopy.cast_parameter_over_layers_betacdf(SAI,self.Canopy.beta_sai_a,self.Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
         dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
-        clump_fac = np.full(Canopy.nlevmlcan, clumping_factor)
+        clump_fac = np.full(self.Canopy.nlevmlcan, clumping_factor)
 
         ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
-        swleaf = self.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,self.albsoib,self.albsoid,Canopy=Canopy)
+        swleaf = self.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,self.albsoib,self.albsoid)
 
         ## Determine total canopy absorbed shortwave radiation
         swveg = 0
         swvegsun = 0
         swvegsha = 0
-        for ic in range(Canopy.nbot, Canopy.ntop + 1):
-            sun = swleaf[ic,Canopy.isun] * fracsun[ic] * dlai[ic]
-            sha = swleaf[ic,Canopy.isha] * (1.0 - fracsun[ic]) * dlai[ic]
+        for ic in range(self.Canopy.nbot, self.Canopy.ntop + 1):
+            sun = swleaf[ic,self.Canopy.isun] * fracsun[ic] * dlai[ic]
+            sha = swleaf[ic,self.Canopy.isha] * (1.0 - fracsun[ic]) * dlai[ic]
             swveg += (sun + sha)
             swvegsun += sun
             swvegsha += sha
 
         ## Determine absorbed PPFD for canopy elements
-        for ileaf in range(Canopy.nleaf):
-            for ic in range(Canopy.nbot, Canopy.ntop+1):
+        for ileaf in range(self.Canopy.nleaf):
+            for ic in range(self.Canopy.nbot, self.Canopy.ntop+1):
                 Q = 1e-6 * swleaf[ic,ileaf] * self.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
 
         return swleaf #, swveg, swvegsun, swvegsha
@@ -77,7 +79,6 @@ class CanopyRadiation:
         clump_fac,  ## Foliage clumping index (-)
         z,      ## Canopy height, m
         sza,    ## Solar zenith angle, degrees
-        Canopy=CanopyLayers(),  ## 
     ):
         """
         Calculates the canopy layer optical properties and sunlit fraction for radiative transfer analysis.
@@ -132,29 +133,29 @@ class CanopyRadiation:
         Bonan et al., 2021, doi:10.1016/j.agrformet.2021.108435
         """
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
-        Canopy.set_index()
+        self.Canopy.set_index()
 
         # Radiative transfer parameters per layer (input)
         solar_zen = np.deg2rad(sza)  # Solar zenith angle (radians)
-        ncan = Canopy.nlevmlcan  # Number of aboveground layers
-        ntop, nbot = Canopy.index_canopy()  # Index for top leaf layer and index for bottom leaf layer
-        dlai = Canopy.cast_parameter_over_layers_betacdf(LAI,Canopy.beta_lai_a,Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
-        dsai = Canopy.cast_parameter_over_layers_betacdf(SAI,Canopy.beta_sai_a,Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
+        ncan = self.Canopy.nlevmlcan  # Number of aboveground layers
+        ntop, nbot = self.Canopy.index_canopy()  # Index for top leaf layer and index for bottom leaf layer
+        dlai = self.Canopy.cast_parameter_over_layers_betacdf(LAI,self.Canopy.beta_lai_a,self.Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
+        dsai = self.Canopy.cast_parameter_over_layers_betacdf(SAI,self.Canopy.beta_sai_a,self.Canopy.beta_sai_b)  # Canopy layer stem area index (m2/m2)
         dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
         
         # Calculate canopy layer optical properties, structural and radiative variables
-        rho = np.full(Canopy.nlevmlcan, 0.0)
-        tau = np.full(Canopy.nlevmlcan, 0.0)
-        omega = np.full(Canopy.nlevmlcan, 0.0)
-        kb = np.full(Canopy.nlevmlcan, 0.0)
-        fracsun = np.full(Canopy.nlevmlcan, 0.0)
-        tb = np.full(Canopy.nlevmlcan, 0.0)
-        td = np.full(Canopy.nlevmlcan, 0.0)
-        tbi = np.full(Canopy.nlevmlcan, 0.0)
-        avmu = np.full(Canopy.nlevmlcan, 0.0)
-        betab = np.full(Canopy.nlevmlcan, 0.0)
-        betad = np.full(Canopy.nlevmlcan, 0.0)
-        clump_fac = np.full(Canopy.nlevmlcan, clump_fac)
+        rho = np.full(self.Canopy.nlevmlcan, 0.0)
+        tau = np.full(self.Canopy.nlevmlcan, 0.0)
+        omega = np.full(self.Canopy.nlevmlcan, 0.0)
+        kb = np.full(self.Canopy.nlevmlcan, 0.0)
+        fracsun = np.full(self.Canopy.nlevmlcan, 0.0)
+        tb = np.full(self.Canopy.nlevmlcan, 0.0)
+        td = np.full(self.Canopy.nlevmlcan, 0.0)
+        tbi = np.full(self.Canopy.nlevmlcan, 0.0)
+        avmu = np.full(self.Canopy.nlevmlcan, 0.0)
+        betab = np.full(self.Canopy.nlevmlcan, 0.0)
+        betad = np.full(self.Canopy.nlevmlcan, 0.0)
+        clump_fac = np.full(self.Canopy.nlevmlcan, clump_fac)
         
         for ic in range(ntop, nbot - 1, -1):
 
@@ -238,7 +239,6 @@ class CanopyRadiation:
         tbi,  # Cumulative transmittance of direct beam onto canopy layer (-)
         albsoib,  # Direct beam albedo of ground (-)
         albsoid,  # Diffuse albedo of ground (-)
-        Canopy=CanopyLayers(),    # Optional: CanopyLayers instance
     ):
         """
         Calculate the two-stream radiative transfer through a vegetated canopy.
@@ -299,20 +299,20 @@ class CanopyRadiation:
         Bonan et al., 2021, doi:10.1016/j.agrformet.2021.108435
         """
         # Calculate layer level radiative fluxes
-        iupwb0 = np.full(Canopy.nlevmlcan, 0.0)
-        idwnb = np.full(Canopy.nlevmlcan, 0.0)
-        iabsb_sun = np.full(Canopy.nlevmlcan, 0.0)
-        iabsb_sha = np.full(Canopy.nlevmlcan, 0.0)
-        iupwd0 = np.full(Canopy.nlevmlcan, 0.0)
-        idwnd = np.full(Canopy.nlevmlcan, 0.0)
-        iabsd_sun = np.full(Canopy.nlevmlcan, 0.0)
-        iabsd_sha = np.full(Canopy.nlevmlcan, 0.0)
+        iupwb0 = np.full(self.Canopy.nlevmlcan, 0.0)
+        idwnb = np.full(self.Canopy.nlevmlcan, 0.0)
+        iabsb_sun = np.full(self.Canopy.nlevmlcan, 0.0)
+        iabsb_sha = np.full(self.Canopy.nlevmlcan, 0.0)
+        iupwd0 = np.full(self.Canopy.nlevmlcan, 0.0)
+        idwnd = np.full(self.Canopy.nlevmlcan, 0.0)
+        iabsd_sun = np.full(self.Canopy.nlevmlcan, 0.0)
+        iabsd_sha = np.full(self.Canopy.nlevmlcan, 0.0)
         
         # Initialize albedos below current layer
         albb_below = albsoib
         albd_below = albsoid
         # Layer fluxes, from bottom to top
-        for ic in range(Canopy.nbot, Canopy.ntop+1):
+        for ic in range(self.Canopy.nbot, self.Canopy.ntop+1):
             (iabsb_sun[ic], iabsb_sha[ic], iupwb0[ic], idwnb[ic], iabsd_sun[ic], iabsd_sha[ic], iupwd0[ic], idwnd[ic], albb_below, albd_below) = self.calculate_radiative_flux_layer(dpai[ic], kb[ic], clump_fac[ic], omega[ic], avmu[ic], betad[ic], betab[ic], tbi[ic], albb_below, albd_below)
 
         # Now working from top to bottom of canopy, calculate the fluxes
@@ -321,13 +321,13 @@ class CanopyRadiation:
         dif = swskyd  # Assuming dif is directly obtained from swskyd, adjust if indexing is needed
 
         # Loop from ntop to nbot in reverse
-        swleaf = np.zeros((Canopy.nlevmlcan,Canopy.nleaf))
-        for ic in range(Canopy.ntop, Canopy.nbot - 1, -1):
+        swleaf = np.zeros((self.Canopy.nlevmlcan,self.Canopy.nleaf))
+        for ic in range(self.Canopy.ntop, self.Canopy.nbot - 1, -1):
             # Absorption by canopy layer (W/m^2 leaf)
             sun = (iabsb_sun[ic] * dir + iabsd_sun[ic] * dif) / (fracsun[ic] * dpai[ic])
             sha = (iabsb_sha[ic] * dir + iabsd_sha[ic] * dif) / ((1.0 - fracsun[ic]) * dpai[ic])
-            swleaf[ic,Canopy.isun] = sun
-            swleaf[ic,Canopy.isha] = sha
+            swleaf[ic,self.Canopy.isun] = sun
+            swleaf[ic,self.Canopy.isha] = sha
         
             # Diffuse and direct beam radiation incident on top of lower layer
             dif = dir * idwnb[ic] + dif * idwnd[ic]
@@ -338,7 +338,7 @@ class CanopyRadiation:
 
         # Canopy albedo
         suminc = swskyb + swskyd
-        sumref = iupwb0[Canopy.ntop] * swskyb + iupwd0[Canopy.ntop] * swskyd
+        sumref = iupwb0[self.Canopy.ntop] * swskyb + iupwd0[self.Canopy.ntop] * swskyd
         if (suminc > 0):
              albcan = sumref / suminc
         else:
@@ -348,9 +348,9 @@ class CanopyRadiation:
         swveg = 0
         swvegsun = 0
         swvegsha = 0
-        for ic in range(Canopy.nbot, Canopy.ntop + 1):
-            sun = swleaf[ic,Canopy.isun] * fracsun[ic] * dpai[ic]
-            sha = swleaf[ic,Canopy.isha] * (1.0 - fracsun[ic]) * dpai[ic]
+        for ic in range(self.Canopy.nbot, self.Canopy.ntop + 1):
+            sun = swleaf[ic,self.Canopy.isun] * fracsun[ic] * dpai[ic]
+            sha = swleaf[ic,self.Canopy.isha] * (1.0 - fracsun[ic]) * dpai[ic]
             swveg += (sun + sha)
             swvegsun += sun
             swvegsha += sha

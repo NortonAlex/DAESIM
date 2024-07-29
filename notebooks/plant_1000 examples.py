@@ -85,10 +85,9 @@ _doy = time_doy[_nday-1]
 _year = time_year[_nday-1]
 _propPhAboveBM = 0.473684210526
 
-plant = PlantModuleCalculator()
 management = ManagementModule(plantingDay=30,harvestDay=235)
 site = ClimateModule()
-
+plant = PlantModuleCalculator(Site=site,Management=management)
 
 dydt = plant.calculate(
     _Cleaf,
@@ -107,8 +106,6 @@ dydt = plant.calculate(
     _soilTheta,
     _doy,
     _year,
-    site,
-    management,   # It is optional to pass this argument
 )
 print("dy/dt =", dydt)
 print()
@@ -180,10 +177,8 @@ Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
 # %%
-# time_axis = np.arange(119, 365, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
-time_axis = np.arange(119, 200, 1)
+time_axis = np.arange(119, 300, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
 
-PlantX = PlantModuleCalculator(LMA=20.0)
 ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
 PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
 LeafX = LeafGasExchangeModule2()
@@ -191,6 +186,15 @@ CanopyX = CanopyLayers(nlevmlcan=1)
 CanopyRadX = CanopyRadiation()
 CanopyGasExchangeX = CanopyGasExchange()
 PlantCH2OX = PlantCH2O(maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
+PlantX = PlantModuleCalculator(
+    Site=SiteX,
+    Management=ManagementX,
+    Leaf=LeafX,
+    Canopy=CanopyX,
+    CanopyRad=CanopyRadX,
+    CanopyGasExchange=CanopyGasExchangeX,
+    PlantCH2O=PlantCH2OX,
+    LMA=20.0)
 
 Model = PlantModelSolver(
     calculator=PlantX, site=SiteX, management=ManagementX, plantdev=PlantDevX, leaf=LeafX, canopy=CanopyX, canopyrad=CanopyRadX, canopygasexch=CanopyGasExchangeX, plantch2o=PlantCH2OX, state1_init=0.5, state2_init=0.1, state3_init=0.5, state4_init=0, state5_init=0, time_start=time_axis[0]
@@ -229,8 +233,6 @@ plt.tight_layout()
 # ### Run model ODE solver
 
 # %%
-# %pdb on
-
 res = Model.run(
     solRadswskyb=Climate_solRadswskyb_f,
     solRadswskyd=Climate_solRadswskyd_f,
@@ -266,14 +268,10 @@ for it,t in enumerate(time_axis):
 
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
-    
 
-# %%
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
 
-# %%
 BioHarvestSeed = PlantX.calculate_BioHarvest(res.y[3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
-
 
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True)
@@ -305,6 +303,140 @@ for iphase,phase in enumerate(PlantDevX.phases):
     print("Plant dev phase:", PlantDevX.phases[iphase],"reached at t =",res.t[itime])
     ax.vlines(x=res.t[itime],ymin=0,ymax=res.y[4,itime],color='0.5')
     text_x = res.t[itime]
+    text_y = 0.04
+    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
+plt.xlim([time_axis[0],time_axis[-1]])
+
+plt.tight_layout()
+
+# %% [markdown]
+# ## Testing new numerical solver
+
+# %%
+from daesim.utils import PlantModelSolver
+
+# %%
+time_axis = np.arange(119, 300, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+
+ManagementX = ManagementModule(plantingDay=120,harvestDay=330)
+PlantDevX = PlantGrowthPhases(gdd_requirements=[100,1000,100,100])
+LeafX = LeafGasExchangeModule2()
+CanopyX = CanopyLayers(nlevmlcan=1)
+CanopyRadX = CanopyRadiation()
+CanopyGasExchangeX = CanopyGasExchange()
+PlantCH2OX = PlantCH2O(maxLAI=2.0,SLA=0.05,ksr_coeff=5000)
+PlantX = PlantModuleCalculator(
+    Site=SiteX,
+    Management=ManagementX,
+    Leaf=LeafX,
+    Canopy=CanopyX,
+    CanopyRad=CanopyRadX,
+    CanopyGasExchange=CanopyGasExchangeX,
+    PlantCH2O=PlantCH2OX,
+    LMA=20.0
+)
+
+
+## Define the callable calculator that defines the right-hand-side ODE function
+PlantXCalc = PlantX.calculate
+
+Model = PlantModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0], time_start=time_axis[0])
+
+
+forcing_inputs = [Climate_solRadswskyb_f,
+                  Climate_solRadswskyd_f,
+                  Climate_airTempCMin_f,
+                  Climate_airTempCMax_f,
+                  Climate_airPressure_f,
+                  Climate_airRH_f,
+                  Climate_airCO2_f,
+                  Climate_airO2_f,
+                  Climate_soilTheta_f,
+                  Climate_doy_f,
+                  Climate_year_f]
+reset_days = []
+
+# result_ivp = Model.run(
+#     time_axis=time_axis,
+#     forcing_inputs=forcing_inputs,
+#     solver="ivp",
+#     zero_crossing_indices=[4],
+#     reset_days=reset_days,
+#     rtol=1e-2,
+#     atol=1e-2
+# )
+
+result_euler = Model.run(
+    time_axis=time_axis,
+    forcing_inputs=forcing_inputs,
+    solver="euler",
+    zero_crossing_indices=[4],
+    reset_days=reset_days,
+    rtol=1e-2,
+    atol=1e-2
+)
+
+
+# %%
+res = result_euler
+
+# %% [markdown]
+# ### Calculate diagnostic variables
+
+# %%
+LAI = res["y"][0] / PlantX.LMA
+
+eqtime, houranglesunrise, theta = SiteX.solar_calcs(Climate_year_f(time_axis),Climate_doy_f(time_axis))
+
+W_L = res["y"][0]/PlantX.f_C
+W_R = res["y"][2]/PlantX.f_C
+
+## Calculate diagnostic variables
+_GPP_gCm2d = np.zeros(time_axis.size)
+_E = np.zeros(time_axis.size)
+
+for it,t in enumerate(time_axis):
+    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantCH2OX.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it])#,SiteX,LeafX,CanopyGasExchangeX,CanopyX,CanopyRadX)
+
+    _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+    _E[it] = E
+
+NPP = PlantX.calculate_NPP(_GPP_gCm2d)
+
+BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
+
+# %%
+
+# %%
+fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True)
+
+axes[0, 0].plot(time_axis, Climate_airTempCMin_f(time_axis),c="b",alpha=0.6,label="Min")
+axes[0, 0].plot(time_axis, Climate_airTempCMax_f(time_axis),c="r",alpha=0.6,label="Max")
+axes[0, 0].set_ylabel("Daily Air Temperature\n"+r"($\rm ^{\circ}$C)")
+axes[0, 0].legend()
+
+axes[0, 1].plot(res["t"], _GPP_gCm2d)
+axes[0, 1].set_ylabel("GPP\n"+r"(gC$\rm m^{-2} \; d^{-1}$)")
+
+axes[1, 0].plot(res["t"], res["y"][0],label="Leaf")
+axes[1, 0].plot(res["t"], res["y"][1],label="Stem")
+axes[1, 0].plot(res["t"], res["y"][2],label="Root")
+axes[1, 0].plot(res["t"], res["y"][3],label="Seed")
+axes[1, 0].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
+axes[1, 0].set_xlabel("Time (days)")
+axes[1, 0].legend()
+
+axes[1, 1].plot(res["t"], res["y"][4])
+axes[1, 1].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
+axes[1, 1].set_xlabel("Time (days)")
+
+ax = axes[1, 1]
+for iphase,phase in enumerate(PlantDevX.phases):
+    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+    print("Plant dev phase:", PlantDevX.phases[iphase],"reached at t =",res["t"][itime])
+    ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
+    text_x = res["t"][itime]
     text_y = 0.04
     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
 

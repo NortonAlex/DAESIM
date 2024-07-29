@@ -22,7 +22,18 @@ class PlantModuleCalculator:
     """
     Calculator of plant biophysics
     """
+    
+    ## Module dependencies
+    Site: Callable = field(default=ClimateModule())    ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
+    Management: Callable = field(default=ManagementModule())    ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
+    PlantDev: Callable = field(default=PlantGrowthPhases())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Management is the default PlantGrowthPhases()
+    Leaf: Callable = field(default=LeafGasExchangeModule2())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule()
+    Canopy: Callable = field(default=CanopyLayers())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers()
+    CanopyRad: Callable = field(default=CanopyRadiation())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for CanopyRad is the default CanopyRadiation()
+    CanopyGasExchange: Callable = field(default=CanopyGasExchange())     ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
+    PlantCH2O: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
 
+    ## Module parameter attributes
     f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     CUE: float = field(default=0.5)  ## Plant carbon-use-efficiency (CUE=NPP/GPP)
     LMA: float = field(default=20)  ## Leaf mass per leaf area (g m-2)
@@ -68,57 +79,49 @@ class PlantModuleCalculator:
         soilTheta,     ## volumetric soil water content (m3 m-3)
         _doy,
         _year,
-        Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
-        Management=ManagementModule(),   ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
-        PlantDev=PlantGrowthPhases(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Management is the default PlantGrowthPhases()
-        Leaf=LeafGasExchangeModule2(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule()
-        Canopy=CanopyLayers(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers()
-        CanopyRad=CanopyRadiation(),   ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for CanopyRad is the default CanopyRadiation()
-        CanopyGasExchange=CanopyGasExchange(),    ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
-        PlantCH2O=PlantCH2O(),    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
     ) -> Tuple[float]:
 
         ## Solar calculations
-        eqtime, houranglesunrise, theta = Site.solar_calcs(_year,_doy)
+        eqtime, houranglesunrise, theta = self.Site.solar_calcs(_year,_doy)
 
         ## Climate calculations
-        airTempC = Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
+        airTempC = self.Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
 
         ## Calculate leaf area index
         LAI = Cleaf/self.LMA    ## TODO: Double check this. Is LAI=Cleaf/LMA or LAI=(Cleaf/f_C)/LMA?
 
-        BioPlanting = self.calculate_BioPlanting(_doy,Management.plantingDay,Management.plantingRate,Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        BioPlanting = self.calculate_BioPlanting(_doy,self.Management.plantingDay,self.Management.plantingRate,self.Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
 
-        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,Management.harvestDay,self.propHarvestLeaf,Management.PhHarvestTurnoverTime)
-        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,Management.harvestDay,self.propHarvestStem,Management.PhHarvestTurnoverTime)
-        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,Management.harvestDay,self.propHarvestSeed,Management.PhHarvestTurnoverTime)
+        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
+        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
+        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
 
-        sunrise, solarnoon, sunset = Site.solar_day_calcs(_year,_doy)
+        sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
-        GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_doy,Management.plantingDay)
-        dGDDdt = DTT - GDD_reset
+        GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_doy,self.Management.plantingDay)
+        dGDDdt = DTT - GDD_reset    ## TODO: One we fully integrate the new solver, this GDD_reset hack (for resetting the state back to zero) can be removed
 
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
 
-        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,Site,Leaf,CanopyGasExchange,Canopy,CanopyRad)
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,Site=self.Site,Leaf=self.Leaf,CanopyGasExchange=self.CanopyGasExchange,Canopy=self.Canopy,CanopySolar=self.CanopyRad)
         GPP_gCm2d = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         
         # Calculate NPP
         NPP = self.calculate_NPP(GPP)
 
         # Development phase index
-        idevphase = PlantDev.get_active_phase_index(Bio_time)
+        idevphase = self.PlantDev.get_active_phase_index(Bio_time)
         # Allocation fractions per pool
-        alloc_coeffs = PlantDev.allocation_coeffs[idevphase]
+        alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
         # Turnover rates per pool
-        tr_ = PlantDev.turnover_rates[idevphase]
+        tr_ = self.PlantDev.turnover_rates[idevphase]
         
         # ODE for plant carbon pools
-        dCleafdt = alloc_coeffs[PlantDev.ileaf]*NPP - tr_[PlantDev.ileaf]*Cleaf - BioHarvestLeaf
-        dCstemdt = alloc_coeffs[PlantDev.istem]*NPP - tr_[PlantDev.istem]*Cstem - BioHarvestStem
-        dCrootdt = alloc_coeffs[PlantDev.iroot]*NPP - tr_[PlantDev.iroot]*Croot + BioPlanting
-        dCseeddt = alloc_coeffs[PlantDev.iseed]*NPP - tr_[PlantDev.iseed]*Cseed - BioHarvestSeed
+        dCleafdt = alloc_coeffs[self.PlantDev.ileaf]*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
+        dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem
+        dCrootdt = alloc_coeffs[self.PlantDev.iroot]*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
+        dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt)
 

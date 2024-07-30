@@ -90,8 +90,7 @@ class PlantModuleCalculator:
 
         sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
-        GDD_reset = self.calculate_growingdegreedays_reset(Bio_time,_doy,self.Management.plantingDay)
-        dGDDdt = DTT - GDD_reset    ## TODO: One we fully integrate the new solver, this GDD_reset hack (for resetting the state back to zero) can be removed
+        dGDDdt = DTT
 
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
@@ -134,21 +133,6 @@ class PlantModuleCalculator:
             _vfunc = np.vectorize(growing_degree_days_DTT_linear3)
             DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
         return DTT
-
-    def calculate_growingdegreedays_reset(self,GDD,_doy,plantingDay):
-        _vfunc = np.vectorize(self.calculate_growingdegreedays_reset_conditional)
-        GDD_reset_flux = _vfunc(GDD,_doy,plantingDay)
-        return GDD_reset_flux
-
-    def calculate_growingdegreedays_reset_conditional(self,GDD,_doy,plantingDay):
-        """
-        When it is planting/sowing time (plantingTime == 1), subtract some arbitrarily large 
-        number from the growing degree days (GDD) state. It just has to be a large enough 
-        number to trigger a zero-crossing "event" for Scipy solve_ivp to recognise. 
-        """
-        PlantingTime = self.calculate_plantingtime_conditional(_doy,plantingDay)
-        GDD_reset_flux = PlantingTime * 1e9
-        return GDD_reset_flux
 
     def calculate_BioPlanting(self,_doy,plantingDay,plantingRate,plantWeight):
         """

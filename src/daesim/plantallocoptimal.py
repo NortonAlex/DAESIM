@@ -15,11 +15,6 @@ class PlantOptimalAllocation:
     """
 
     ## Module dependencies
-    #Site=ClimateModule(),   ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
-    #Leaf=LeafGasExchangeModule2(),    ## It is optional to define Leaf for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule().
-    #CanopyGasExchange=CanopyGasExchange(),    ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
-    #Canopy=CanopyLayers(),    ## It is optional to define Canopy for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers().
-    #CanopySolar=CanopyRadiation(),    ## It is optional to define CanopySolar for this method. If no argument is passed in here, then default setting for CanopySolar is the default CanopyRadiation().
     Plant: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
 
     ## Class parameters

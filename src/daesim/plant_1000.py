@@ -11,10 +11,6 @@ from daesim.climate import *
 from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
-from daesim.canopylayers import CanopyLayers
-from daesim.canopyradiation import CanopyRadiation
-from daesim.leafgasexchange2 import LeafGasExchangeModule2
-from daesim.canopygasexchange import CanopyGasExchange
 from daesim.plantcarbonwater import PlantModel as PlantCH2O
 
 @define

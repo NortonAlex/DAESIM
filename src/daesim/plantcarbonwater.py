@@ -10,10 +10,7 @@ from scipy.optimize import OptimizeResult, bisect
 from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import MinQuadraticSmooth
 from daesim.climate import ClimateModule
-from daesim.leafgasexchange2 import LeafGasExchangeModule2
 from daesim.canopygasexchange import CanopyGasExchange
-from daesim.canopylayers import CanopyLayers
-from daesim.canopyradiation import CanopyRadiation
 
 @define
 class PlantModel:

@@ -26,10 +26,9 @@ class PlantModel:
     CanopyGasExchange: Callable = field(default=CanopyGasExchange())     ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
 
     ## Class parameters
-    #f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     m_r_l: float = field(default=0.02)  ## Maintenance respiration coefficient for leaves (d-1)
     m_r_r: float = field(default=0.01)  ## Maintenance respiration coefficient for roots (d-1)
-    SLA: float = field(default=0.020)  ## Specific leaf area (m2 g d.wt-1)
+    SLA: float = field(default=0.020)  ## Specific leaf area (m2 g d.wt-1), fresh leaf area per dry leaf mass
     maxLAI: float = field(default=3)  ## Maximum potential leaf area index (m2 m-2)
     #k: float = field(default=3)  ## Empirical parameter for GPP relationship to LAI (-)
     #b: float = field(default=15)  ## Empirical parameter for GPP relationship to LAI (-)
@@ -62,6 +61,9 @@ class PlantModel:
         swskyb, ## Atmospheric direct beam solar radiation, W/m2
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
     ) -> Tuple[float]:
+
+        if W_L < 0 or W_R < 0:
+            raise ValueError(f"States W_L or W_R cannot be negative")
         
         LAI = self.calculate_LAI(W_L)
         ## TODO: Add these as inputs to this module (instead of constants)

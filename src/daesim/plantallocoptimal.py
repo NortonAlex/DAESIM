@@ -28,6 +28,8 @@ class PlantOptimalAllocation:
     u_Seed: float = field(default=0.0)    ## Carbon allocation coefficient to seed
 
     ## Turnover rates (carbon pool lifespan)
+    tr_L: float = field(default=0.01)    ## Turnover rate of leaf biomass (days)
+    tr_R: float = field(default=0.01)    ## Turnover rate of root biomass (days)
 
     def calculate(
         self,
@@ -64,16 +66,18 @@ class PlantOptimalAllocation:
         dGPPRmdWroot = ((GPP_R - Rmr_R)-(GPP_0 - Rmr_0))/(W_R*self.dWR_factor - W_R)
         
         ## Calculate change in cost per unit change in biomass pool
-        ## TODO: Add marginal cost per pool here - proportional to pool mean lifespan
-        #dSdWleaf = dSk/dWk
-        #dSdWroot = dSk/dWk
+        ## TODO: Add marginal cost per pool here - proportional to pool instantaneous turnover rate (inverse of mean lifespan)
+        dSdWleaf = self.tr_L
+        dSdWroot = self.tr_R
 
         ## Calculate allocation coefficients
-        u_L_prime = np.maximum(0,dGPPdWleaf)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
-        u_R_prime = np.maximum(0,dGPPdWroot)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
+        # u_L_prime = np.maximum(0,dGPPdWleaf)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
+        # u_R_prime = np.maximum(0,dGPPdWroot)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
+        u_L_prime = np.maximum(0,dGPPdWleaf/dSdWleaf)/(np.maximum(0,dGPPdWleaf/dSdWleaf)+np.maximum(0,dGPPdWroot/dSdWroot))
+        u_R_prime = np.maximum(0,dGPPdWroot/dSdWroot)/(np.maximum(0,dGPPdWleaf/dSdWleaf)+np.maximum(0,dGPPdWroot/dSdWroot))
 
         ## Scale optimal allocation coefficients so that the sum of all allocation coefficients is equal to 1
         u_L = (1 - (self.u_Stem+self.u_Seed))*u_L_prime
         u_R = (1 - (self.u_Stem+self.u_Seed))*u_R_prime
 
-        return u_L, u_R, dGPPdWleaf, dGPPdWroot, dGPPRmdWleaf, dGPPRmdWroot
+        return u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot

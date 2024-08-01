@@ -12,6 +12,7 @@ from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonl
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
 from daesim.plantcarbonwater import PlantModel as PlantCH2O
+from daesim.plantallocoptimal import PlantOptimalAllocation
 
 @define
 class PlantModuleCalculator:
@@ -24,6 +25,8 @@ class PlantModuleCalculator:
     Management: Callable = field(default=ManagementModule())    ## It is optional to define Management for this method. If no argument is passed in here, then default setting for Management is the default ManagementModule()
     PlantDev: Callable = field(default=PlantGrowthPhases())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Management is the default PlantGrowthPhases()
     PlantCH2O: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
+    PlantAlloc: Callable = field(default=PlantOptimalAllocation())    ## It is optional to define PlantOptimalAllocation for this method. If no argument is passed in here, then default setting for PlantAlloc is the default PlantOptimalAllocation().
+
 
     ## Module parameter attributes
     f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
@@ -103,11 +106,18 @@ class PlantModuleCalculator:
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
         # Turnover rates per pool
         tr_ = self.PlantDev.turnover_rates[idevphase]
-        
+
+        # Set any constant allocation coefficients for optimal allocation
+        self.PlantAlloc.u_Stem = alloc_coeffs[self.PlantDev.istem]
+        self.PlantAlloc.u_Seed = alloc_coeffs[self.PlantDev.iseed]
+        # Set pool turnover rates for optimal allocation
+        self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
+        self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
+        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta)
         # ODE for plant carbon pools
-        dCleafdt = alloc_coeffs[self.PlantDev.ileaf]*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
+        dCleafdt = u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
         dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem
-        dCrootdt = alloc_coeffs[self.PlantDev.iroot]*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
+        dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
         dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt)

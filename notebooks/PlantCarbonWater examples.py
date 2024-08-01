@@ -707,29 +707,67 @@ plt.tight_layout()
 # %%
 
 # %% [markdown]
-# ## Optimal Allocation
+# ## Optimal Trajectory Allocation
 #
-# This approach to carbon allocation is modified from Potkay et al. (2021) "Coupled whole-tree optimality and xylem hydraulics explain dynamic biomass partitioning". 
+# This approach to carbon allocation is modified from Potkay et al. "Coupled whole-tree optimality and xylem hydraulics explain dynamic biomass partitioning" (2021, doi: 10.1111/nph.17242). 
 #
-# The instantaneous allocation fraction to pool $k$ is proportional to the ratio of the marginal gain divided by the marginal cost:
+# The instantaneous allocation fraction to pool $i$ is proportional to the ratio of the marginal gain divided by the marginal cost:
 #
-# $u_k \propto \frac{marginal gain_k}{marginal cost_k}$
+# $u_i \propto \frac{marginal gain_i}{marginal cost_i}$
 #
-# where $u_k$ is the instantaneous allocation fraction to pool $k$. The marginal gain per pool is equal to 
+# where $u_i$ is the instantaneous allocation fraction to pool $i$. The marginal gain per pool is equal to 
 #
-# $marginal \; gain_k = \frac{d}{dC_k} [ a_L(A_n + R_d) - R_m] = \frac{d}{dC_k} [ GPP - R_m]$
+# $marginal \; gain_i = \frac{d}{dC_k} [ a_L(A_n + R_d) - R_m] = \frac{d}{dC_k} [ GPP - R_m]$
 #
-# while the marginal cost per pool is equal to
+# where $a_L$ is the leaf area index, $A_n$ is net photosynthetic rate, $R_d$ is leaf mitochondrial respiration rate, and $R_m$ is the maintenance respiration rate. 
 #
-# $marginal \; cost_k = \frac{dS_k}{dC_k} = \tau_i$
+# The marginal cost takes into account the mean residence time of the pool. As discussed in Potkay et al. (2021) this means that carbon allocation "considers how long any investment of carbon will last and potentially benefit a tree [plant]. Investments with short-lived payoffs (i.e. small $\tau_i$) benefit the tree only briefly and thus reflect poor investments over the duration of a tree’s [plant's] life." To account for this, one may consider the instantaneous senescence rate of a given pool ($S_i$; g C m-2 d-1):
 #
-# where $\tau$ is the carbon pool mean lifespan. 
+# $S_i = \frac{C_i}{\tau_i} = k_{C}^i \; C_i$
+#
+# where $C_i$ is the pool size (g C m-2) and $\tau_i$ is the mean life span of the pool (days), and $k_{C}^i$ is the turnover rate (days-1). The marginal cost is calculated as the change in senescence rate divided by the change in pool size. 
+#
+# $marginal \; cost_k = \frac{dS_k}{dC_k} = \frac{1}{\tau_i} = k_{C}^i $
+#
+# I note here that Potkay et al. (2021) seems to have written out the above equation incorrectly in their supplementary material (Equation S.8.3), incorrectly writing $dS_k/dC_k = tau_i$. 
 #
 # In practice, when the economic gain is negative, the allocation is set to zero. Furthermore, to ensure all allocation fraction to all pools sum to unity, each marginal gain-cost ratio is normalised to the sum of marginal gain-cost ratios for all pools:
 #
 # $u_k = \frac{max(0,\frac{marginal gain_k}{marginal cost_k})}{\sum_j max(0,\frac{marginal gain_j}{marginal cost_j})}$
 #
 # where $j$ is the vector of $k$ carbon pools.
+#
+# _____________
+#
+# ### Accounting for fixed allocation fractions to other pools
+#
+# We can modify this to include constant allocation fractions for some pools. For example, we can assume that the carbon allocation to leaves and roots follows the optimal trajectory principle outlined above, but that allocation to stems ($u_S$) and grains ($u_G$) is fixed. To account for this we can do the following. First, we note that the sum of all four allocation fractions must sum to unity:
+#
+# $u_L + u_R + u_S + u_G = 1$
+#
+# The allocation fractions to $u_L$ and $u_R$ are calculated using the optimal trajectory equations further above, which we denote $u_L^{\prime}$ and $u_R^{\prime}$, respectively, remembering that $u_L^{\prime} + u_R^{\prime} = 1$. To account for constant, non-zero terms for $u_S$ or $u_G$, we must scale $u_L^{\prime}$ and $u_R^{\prime}$ by a factor $\alpha$:
+#
+# $u_L = \alpha u_L^{\prime}$
+#
+# $u_R = \alpha u_R^{\prime}$
+#
+# Therefore, we now have: 
+#
+# $\alpha u_L^{\prime} + \alpha u_R^{\prime} + u_S + u_G = \alpha (u_L^{\prime} + u_R^{\prime}) + u_S + u_G = 1$
+#
+# We know that $u_L^{\prime} + u_R^{\prime} = 1$, therefore:
+#
+# $\alpha (1) + u_S + u_G = 1$
+#
+# $\alpha = 1 - (u_S + u_G)$
+#
+# So, the actual allocation fractions to the leaf and root pools are: 
+#
+# $u_L = (1 - (u_S + u_G)) u_L^{\prime}$
+#
+# $u_R = (1 - (u_S + u_G)) u_R^{\prime}$
+#
+# This constrains the optimal trajectory coefficients equally and in a way that maintains the total sum of allocation coefficients equal to 1. 
 #
 # **TODO: Develop more biophysical constraints**
 #
@@ -746,7 +784,8 @@ from daesim.plantallocoptimal import PlantOptimalAllocation
 
 # %%
 ## initialise model
-plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.03,dWR_factor=1.03)
+plant.ksr_coeff = 3000
+plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.03,dWR_factor=1.03,tr_L=0.01,tr_R=0.002)
 
 # %%
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
@@ -772,16 +811,16 @@ W_R = 80
 
 u_L = np.zeros(n)
 u_R = np.zeros(n)
-dGPPdWleaf = np.zeros(n)
-dGPPdWroot = np.zeros(n)
 dGPPRmdWleaf = np.zeros(n)
 dGPPRmdWroot = np.zeros(n)
+dSdWleaf = np.zeros(n)
+dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
     GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -793,17 +832,17 @@ ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[1]
-ax.plot(_W_L,dGPPdWleaf,label=r"$\rm W_L$")
-ax.plot(_W_L,dGPPdWroot,label=r"$\rm W_R$")
+ax.plot(_W_L,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_L,dGPPRmdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
 ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[2]
-ax.plot(_W_L,dGPPRmdWleaf,label=r"$\rm W_L$")
-ax.plot(_W_L,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.plot(_W_L,dSdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_L,dSdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
-ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.set_ylabel(r"Marginal cost ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[3]
@@ -819,8 +858,6 @@ plt.tight_layout()
 
 
 # %%
-plant.ksr_coeff = 3000
-
 ## Root biomass
 n = 50
 _W_R = np.linspace(20,400,n)
@@ -831,16 +868,16 @@ W_L = 80
 
 u_L = np.zeros(n)
 u_R = np.zeros(n)
-dGPPdWleaf = np.zeros(n)
-dGPPdWroot = np.zeros(n)
 dGPPRmdWleaf = np.zeros(n)
 dGPPRmdWroot = np.zeros(n)
+dSdWleaf = np.zeros(n)
+dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
     GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -852,17 +889,17 @@ ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[1]
-ax.plot(_W_R,dGPPdWleaf,label=r"$\rm W_L$")
-ax.plot(_W_R,dGPPdWroot,label=r"$\rm W_R$")
+ax.plot(_W_R,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_R,dGPPRmdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
 ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[2]
-ax.plot(_W_R,dGPPRmdWleaf,label=r"$\rm W_L$")
-ax.plot(_W_R,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.plot(_W_R,dSdWleaf,label=r"$\rm W_L$")
+ax.plot(_W_R,dSdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
-ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.set_ylabel(r"Marginal cost ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[3]
@@ -888,16 +925,16 @@ W_R = 80
 
 u_L = np.zeros(n)
 u_R = np.zeros(n)
-dGPPdWleaf = np.zeros(n)
-dGPPdWroot = np.zeros(n)
 dGPPRmdWleaf = np.zeros(n)
 dGPPRmdWroot = np.zeros(n)
+dSdWleaf = np.zeros(n)
+dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
     GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
 
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -910,17 +947,17 @@ ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[1]
-ax.plot(_soilTheta,dGPPdWleaf,label=r"$\rm W_L$")
-ax.plot(_soilTheta,dGPPdWroot,label=r"$\rm W_R$")
+ax.plot(_soilTheta,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_soilTheta,dGPPRmdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
 ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[2]
-ax.plot(_soilTheta,dGPPRmdWleaf,label=r"$\rm W_L$")
-ax.plot(_soilTheta,dGPPRmdWroot,label=r"$\rm W_R$")
+ax.plot(_soilTheta,dSdWleaf,label=r"$\rm W_L$")
+ax.plot(_soilTheta,dSdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
-ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
+ax.set_ylabel(r"Marginal cost ($\rm g C \; g C^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[3]
@@ -946,35 +983,42 @@ W_R = 80
 
 u_L = np.zeros(n)
 u_R = np.zeros(n)
-dGPPdWleaf = np.zeros(n)
-dGPPdWroot = np.zeros(n)
 dGPPRmdWleaf = np.zeros(n)
 dGPPRmdWroot = np.zeros(n)
+dSdWleaf = np.zeros(n)
+dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
     GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
 
-    
-fig, axes = plt.subplots(1,3,figsize=(12,3))
+
+fig, axes = plt.subplots(1,4,figsize=(16,3))
 
 ax = axes[0]
-ax.plot(_temperature,GPP_0_,label=r"$\rm GPP$",c='k')
-ax.plot(_temperature,E_0_*10000,label=r"$\rm E(*1e4)$",c='k',linestyle=":")
+ax.plot(_temperature,GPP_0_,label=r"$\rm GPP$")
+ax.plot(_temperature,E_0_*10000,label=r"$\rm E(*1e4)$")
 ax.set_xlabel(r"Temperature ($\rm ^{\circ}C$)")
 ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
 
 ax = axes[1]
-ax.plot(_temperature,dGPPRmdWleaf,label='Leaf')#label=r"$\rm W_L$")
-ax.plot(_temperature,dGPPRmdWroot,label='Root')#label=r"$\rm W_R$")
+ax.plot(_temperature,dGPPRmdWleaf,label=r"$\rm W_L$")
+ax.plot(_temperature,dGPPRmdWroot,label=r"$\rm W_R$")
 ax.set_xlabel(r"Temperature ($\rm ^{\circ}C$)")
 ax.set_ylabel(r"Marginal gain ($\rm g C \; g C^{-1}$)")
-ax.legend(handlelength=0.7,title="Plant pool")
+ax.legend(handlelength=0.7)
 
 ax = axes[2]
+ax.plot(_temperature,dSdWleaf,label=r"$\rm W_L$")
+ax.plot(_temperature,dSdWroot,label=r"$\rm W_R$")
+ax.set_xlabel(r"Temperature ($\rm ^{\circ}C$)")
+ax.set_ylabel(r"Marginal cost ($\rm g C \; g C^{-1}$)")
+ax.legend(handlelength=0.7)
+
+ax = axes[3]
 ax.plot(_temperature,u_L,label=r"$\rm u_L$")
 ax.plot(_temperature,u_R,label=r"$\rm u_R$")
 ax.set_xlabel(r"Temperature ($\rm ^{\circ}C$)")
@@ -983,6 +1027,6 @@ ax.legend(handlelength=0.7)
 ax.set_ylim([0,1])
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/PlantCarbonWater_optimaltrajectory_soilmoisture.png", dpi=300, bbox_inches='tight')
+
 
 # %%

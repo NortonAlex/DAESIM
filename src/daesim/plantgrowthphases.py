@@ -25,10 +25,10 @@ class PlantGrowthPhases:
         [0.0, 0.0, 0.0, 1.0, 0.0]  # Phase 4
     ]
     default_turnover_rates = [
-        [0.0, 0.0, 0.0, 0.0, 0.0],  # Phase 1
-        [0.01, 0.002, 0.01, 0.0, 0.0],  # Phase 2
-        [0.02, 0.002, 0.04, 0.0, 0.0],  # Phase 3
-        [0.10, 0.008, 0.10, 0.0, 0.0]  # Phase 4
+        [0.001, 0.001, 0.001, 0.0, 0.0],  # Phase 1
+        [0.01,  0.002, 0.01,  0.0, 0.0],  # Phase 2
+        [0.02,  0.002, 0.04,  0.0, 0.0],  # Phase 3
+        [0.10,  0.008, 0.10,  0.0, 0.0]  # Phase 4
     ]
 
     # Class attributes with default values or attrs field definitions

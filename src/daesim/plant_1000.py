@@ -49,6 +49,24 @@ class PlantModuleCalculator:
     GDD_Tupp: float = field(
         default=40.0
     )  ## Upper temperature (maximum threshold) used for calculating the growing degree days
+    
+    VD_method: str = field(
+        default="nonlinear"
+        ) ## method used to calculate daily thermal time for vernalization days. Options are: "nonlinear", "linear", "APSIM-Wheat-O"
+    VD_Tbase: float = field(
+        default=-1.3
+    )  ## Base temperature (minimum threshold) used for calculating the vernalization days
+    VD_Topt: float = field(
+        default=4.9
+    )  ## Optimum temperature used for calculating the vernalization days (non-linear method only)
+    VD_Tupp: float = field(
+        default=15.7
+    )  ## Upper temperature (maximum threshold) used for calculating the vernalization days
+    VD50: float = field(default=25,)  ## Vernalization days where vernalization fraction is 50% (for "nonlinear" and "APSIM-Wheat-O" methods)
+    VD_n: float = field(default=5,)  ## Vernalization sigmoid function shape parameter (for "nonlinear" method only)
+    VD_Vnd: float = field(default=46.0,)  ## Vernalization requirement i.e. vernalization state where total vernalization is achieved (for "linear" method only)
+    VD_Vnb: float = field(default=9.2,)  ## Base vernalization days (for "linear" method only)
+    VD_Rv: float = field(default=0.6,)  ## Vernalization sensitivity factor (for "APSIM-Wheat-O" method only)
 
     ## TODO: Update management module with these parameters later on
     propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
@@ -62,6 +80,7 @@ class PlantModuleCalculator:
         Croot,
         Cseed,
         Bio_time,
+        VRN_time,      ## vernalization state
         solRadswskyb,  ## atmospheric direct beam solar radiation (W/m2)
         solRadswskyd,  ## atmospheric diffuse solar radiation (W/m2)
         airTempCMin,   ## minimum air temperature (degrees Celsius)
@@ -89,7 +108,12 @@ class PlantModuleCalculator:
 
         sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
-        dGDDdt = DTT
+        fV = self.vernalization_factor(VRN_time)
+        dGDDdt = fV*DTT
+
+        deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
+        dVDdt = deltaVD
+
 
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
@@ -120,7 +144,7 @@ class PlantModuleCalculator:
         dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
         dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed
 
-        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt)
+        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt)
 
     def calculate_NPP(self,GPP):
         return self.CUE*GPP
@@ -139,6 +163,52 @@ class PlantModuleCalculator:
             _vfunc = np.vectorize(growing_degree_days_DTT_linear3)
             DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
         return DTT
+
+    def calculate_vernalizationtime(self,Tmin,Tmax,sunrise,sunset):
+        _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
+        VD = _vfunc(Tmin,Tmax,sunrise,sunset,self.VD_Tbase,self.VD_Tupp,self.VD_Topt,normalise=True)
+        return VD
+
+    def vernalization_factor(self,VD):
+        """
+        
+        Parameters
+        ----------
+        VD : float or array_like
+            Vernalization days
+        VD50 : float
+            Vernalization days where vernalization fraction is 50%
+        n : float
+            Vernalization sigmoid function shape parameter for "nonlinear" model
+        Vnd : float
+            Vernalization requirement (vernalization state where total vernalization is achieved) for the "linear" model
+        Vnb : float
+            Base vernalization days for the "linear" model
+        Rv : float 
+            Vernalization sensitivity factor for the "APSIM-Wheat-O" model
+        method : str
+            One of "linear", "nonlinear", or "APSIM-Wheat-O"
+
+        Notes
+        -----
+        The default parameters Vnd and Vnb are set according to Wang and Engel (1998), where Vnb is 20% of Vnd. 
+        Typical range for the Rv parameter in the APSIM-Wheat-O model is 0.2-2.3 (Zheng et al., 2013). 
+
+        References
+        ----------
+        Streck et al., 2003, doi:10.1016/S0168-1923(02)00228-9
+        Wang and Engel, 1998, doi:10.1016/S0308-521X(98)00028-6
+        Zheng et al., 2013, doi:10.1093/jxb/ert209
+        """
+        # if method == "linear":
+        #     fV = min(1, max(0, (VD - Vnb)/(Vnd - Vnb)))
+        # elif method == "APSIM-Wheat-O":
+        #     fV = 1 - (0.0054545*Rv + 0.0003)*((2*VD50)-VD)
+        # elif method == "nonlinear":
+        #     fV = (VD**n)/(VD50**n + VD**n)
+        ## The equation below replicates the if-else statement above, but allows for vectorized operations
+        fV = (self.VD_method == "linear")*(np.minimum(1, np.maximum(0, (VD - self.VD_Vnb)/(self.VD_Vnd - self.VD_Vnb))))  +  (self.VD_method == "APSIM-Wheat-O")*(1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD))  +  (self.VD_method == "nonlinear")*(VD**self.VD_n)/(self.VD50**self.VD_n + VD**self.VD_n)
+        return fV
 
     def calculate_BioPlanting(self,_doy,plantingDay,plantingRate,plantWeight):
         """

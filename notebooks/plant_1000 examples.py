@@ -72,6 +72,7 @@ _Cstem = 50.0
 _Croot = 90.0
 _Cseed = 0.0
 _Bio_time = 0.0
+_VD_time = 0.0
 _solRadswskyb = 800    ## incoming shortwave radiation, beam (W m-2)
 _solRadswskyd = 200    ## incoming shortwave radiation, diffuse (W m-2)
 _airTempCMin = 13.88358116
@@ -101,6 +102,7 @@ dydt = plant.calculate(
     _Croot,
     _Cseed,
     _Bio_time,
+    _VD_time,
     _solRadswskyb,
     _solRadswskyd,
     _airTempCMin,
@@ -120,6 +122,9 @@ print("  dydt(Cstem) = %1.4f" % dydt[1])
 print("  dydt(Croot) = %1.4f" % dydt[2])
 print("  dydt(Cseed) = %1.4f" % dydt[3])
 print("  Bio_time = %1.4f" % dydt[4])
+print("  VRN_time = %1.4f" % dydt[5])
+
+# %%
 
 # %% [markdown]
 # ### Initialise site
@@ -217,7 +222,7 @@ PlantX = PlantModuleCalculator(
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0], time_start=time_axis[0])
 
 
 forcing_inputs = [Climate_solRadswskyb_f,
@@ -304,6 +309,30 @@ for iphase,phase in enumerate(PlantDevX.phases):
 
 plt.xlim([time_axis[0],time_axis[-1]])
 
+plt.tight_layout()
+
+
+# %%
+fig, axes = plt.subplots(1,2,figsize=(9,3))
+
+axes[0].plot(res["t"], res["y"][4])
+axes[0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
+axes[0].set_xlabel("Time (days)")
+
+ax = axes[0]
+for iphase,phase in enumerate(PlantDevX.phases):
+    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+    print("Plant dev phase:", PlantDevX.phases[iphase],"reached at t =",res["t"][itime])
+    ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
+    text_x = res["t"][itime]
+    text_y = 0.04
+    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
+axes[1].plot(res["t"], res["y"][5])
+axes[1].set_ylabel("Vernalization Days\n"+r"(-)")
+axes[1].set_xlabel("Time (days)")
+
+plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
 
 

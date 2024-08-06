@@ -221,7 +221,7 @@ def diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset,tstep=1):
         iday += 1
     return np.reshape(T_hr,(Tmin.size,t.size))
 
-def growing_degree_days_HTT(Th,Tb,Tu,Topt):
+def growing_degree_days_HTT(Th,Tb,Tu,Topt,normalise):
     """
     Calculates the hourly thermal time (HTT) or 'heat units' according to a peaked temperature response model.
     The temperature response model is based on that of Yan and Hunt (1999, doi:10.1006/anbo.1999.0955).
@@ -237,6 +237,8 @@ def growing_degree_days_HTT(Th,Tb,Tu,Topt):
         Upper threshold temperature or "upper" temperature (degrees Celsius)
     Topt : float
         Thermal optimum temperature (degrees Celsius)
+    normalise : str
+        Normalize the thermal time function to range between 0-1. 
 
     Returns
     -------
@@ -245,7 +247,10 @@ def growing_degree_days_HTT(Th,Tb,Tu,Topt):
     if Th < Tb:
         return 0
     elif (Th >= Tb) and (Th <= Tu):
-        return ((Tu-Th)/(Tu-Topt)) * ((Th-Tb)/(Topt-Tb))**((Topt-Tb)/(Tu-Topt)) * (Topt-Tb)
+        if normalise:
+            return ((Tu-Th)/(Tu-Topt)) * ((Th-Tb)/(Topt-Tb))**((Topt-Tb)/(Tu-Topt))
+        else:
+            return ((Tu-Th)/(Tu-Topt)) * ((Th-Tb)/(Topt-Tb))**((Topt-Tb)/(Tu-Topt)) * (Topt-Tb)
     elif Tu < Th:
         return 0
 
@@ -258,7 +263,7 @@ def growing_degree_days_DTT_from_HTT(HTT,tstep=1):
     n = t.size
     return np.sum(HTT)/n
 
-def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
+def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt,normalise=False):
     """
     Calculates the daily thermal time from the minimum daily temperature, maximum daily
     temperature, sunrise time, sunset time, and the cardinal temperatures that describe
@@ -287,6 +292,9 @@ def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
     Topt : float
         Thermal optimum temperature (degrees Celsius)
 
+    normalise : str
+        Normalize the thermal time function to range between 0-1. 
+
     Returns
     -------
     Daily thermal time (DTT): float or ndarray
@@ -294,7 +302,7 @@ def growing_degree_days_DTT_nonlinear(Tmin,Tmax,t_sunrise,t_sunset,Tb,Tu,Topt):
     """
     T_diurnal_profile = _diurnal_temperature(Tmin,Tmax,t_sunrise,t_sunset)
     _vfunc = np.vectorize(growing_degree_days_HTT,otypes=[float])
-    HTT_ = _vfunc(T_diurnal_profile,Tb,Tu,Topt)
+    HTT_ = _vfunc(T_diurnal_profile,Tb,Tu,Topt,normalise=normalise)
     DTT = growing_degree_days_DTT_from_HTT(HTT_)
     return DTT
 

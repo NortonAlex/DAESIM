@@ -17,7 +17,8 @@ class PlantGrowthPhases:
     
     # Default values for class attributes
     default_phases = ["germination", "vegetative", "anthesis", "fruiting"]
-    default_gdd_requirements = [50, 2000, 100, 200]
+    default_gdd_requirements = [50, 2000, 100, 200]    # Growing degree days requirement per developmental phase
+    default_vd_requirements = [0, 50, 0, 0]    # Vernalization days requirement per developmental phase
     default_allocation_coeffs = [
         [0.0, 0.1, 0.9, 0.0, 0.0],  # Phase 1
         [0.48, 0.1, 0.4, 0.0, 0.02],  # Phase 2
@@ -34,6 +35,7 @@ class PlantGrowthPhases:
     # Class attributes with default values or attrs field definitions
     phases: list = field(default=default_phases)
     gdd_requirements: list = field(default=default_gdd_requirements)
+    vd_requirements: list = field(default=default_vd_requirements)
     allocation_coeffs: list = field(default=default_allocation_coeffs)
     turnover_rates: list = field(default=default_turnover_rates)
     ndevphases: int = field(init=False)  #field(default=4)

@@ -106,6 +106,11 @@ class PlantModuleCalculator:
         BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
         BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
 
+        # Development phase index
+        idevphase = self.PlantDev.get_active_phase_index(Bio_time)
+        # Update vernalization days requirement for current developmental phase
+        self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]
+
         sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
         fV = self.vernalization_factor(VRN_time)
@@ -124,8 +129,6 @@ class PlantModuleCalculator:
         # Calculate NPP
         NPP = self.calculate_NPP(GPP)
 
-        # Development phase index
-        idevphase = self.PlantDev.get_active_phase_index(Bio_time)
         # Allocation fractions per pool
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
         # Turnover rates per pool
@@ -200,14 +203,14 @@ class PlantModuleCalculator:
         Wang and Engel, 1998, doi:10.1016/S0308-521X(98)00028-6
         Zheng et al., 2013, doi:10.1093/jxb/ert209
         """
-        # if method == "linear":
-        #     fV = min(1, max(0, (VD - Vnb)/(Vnd - Vnb)))
-        # elif method == "APSIM-Wheat-O":
-        #     fV = 1 - (0.0054545*Rv + 0.0003)*((2*VD50)-VD)
-        # elif method == "nonlinear":
-        #     fV = (VD**n)/(VD50**n + VD**n)
-        ## The equation below replicates the if-else statement above, but allows for vectorized operations
-        fV = (self.VD_method == "linear")*(np.minimum(1, np.maximum(0, (VD - self.VD_Vnb)/(self.VD_Vnd - self.VD_Vnb))))  +  (self.VD_method == "APSIM-Wheat-O")*(1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD))  +  (self.VD_method == "nonlinear")*(VD**self.VD_n)/(self.VD50**self.VD_n + VD**self.VD_n)
+        if self.VD50 == 0:
+            return np.ones_like(VD)
+        elif self.VD_method == "linear":
+            fV = np.minimum(1, np.maximum(0, (VD - self.VD_Vnb)/(self.VD_Vnd - self.VD_Vnb)))
+        elif self.VD_method == "nonlinear":
+            fV = (VD**self.VD_n)/(self.VD50**self.VD_n + VD**self.VD_n)
+        elif self.VD_method == "APSIM-Wheat-O":
+            fV = 1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD)
         return fV
 
     def calculate_BioPlanting(self,_doy,plantingDay,plantingRate,plantWeight):

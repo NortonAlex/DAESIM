@@ -39,8 +39,8 @@ from daesim.plantcarbonwater import PlantModel
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=3)
-canopysolar = CanopyRadiation(Canopy=canopy)
-canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopySolar=canopysolar)
+canopyrad = CanopyRadiation(Canopy=canopy)
+canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 ## Module with upstream module dependencies
 plant = PlantModel(Site=site,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,z=1.0,ksr_coeff=100,Psi_e=-0.1,sf=1.5)

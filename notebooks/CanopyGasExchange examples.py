@@ -92,12 +92,12 @@ from daesim.canopyradiation_bigleaf import CanopyRadiation as CanopyRadiationBig
 if clumping_factor == 0.5:
     LAD_type = "spherical"
 
-canopysolar_bigleaf = CanopyRadiationBigLeaf(LAD_type=LAD_type,rho=leafreflectance)
+canopyrad_bigleaf = CanopyRadiationBigLeaf(LAD_type=LAD_type,rho=leafreflectance)
 
 # %%
-P = canopysolar_bigleaf.canopy_gap_fraction(np.deg2rad(sza),LAI,LAD_type=LAD_type)
+P = canopyrad_bigleaf.canopy_gap_fraction(np.deg2rad(sza),LAI,LAD_type=LAD_type)
 print("Gap fraction, P(theta) = %1.3f" % P)
-fAPAR = canopysolar_bigleaf.canopy_fraction_absorbed_irradiance(np.deg2rad(sza),LAI,LAD_type=LAD_type)
+fAPAR = canopyrad_bigleaf.canopy_fraction_absorbed_irradiance(np.deg2rad(sza),LAI,LAD_type=LAD_type)
 print("Fraction of absorbed shortwave irradiance = %1.3f" % fAPAR)
 
 swdown = swskyb + swskyd
@@ -127,16 +127,16 @@ canopy = CanopyLayers(nlevmlcan=8)
 canopy.set_index()
 
 ## Instance of CanopyRadiation class with upstream module dependencies
-canopysolar = CanopyRadiation(Canopy=canopy,rhol=leafreflectance)
+canopyrad = CanopyRadiation(Canopy=canopy,rhol=leafreflectance)
 
 ## Instance of CanopyGasExchange class with upstream module dependencies
-canopygasexchange = CanopyGasExchange(Leaf=Leaf,Canopy=canopy,CanopySolar=canopysolar)
+canopygasexchange = CanopyGasExchange(Leaf=Leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 # %% [markdown]
 # ### Testing scalar vs array_like inputs
 
 # %%
-(fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
+(fracsun, kb, omega, avmu, betab, betad, tbi) = canopyrad.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
 
 fracsun
 
@@ -158,11 +158,11 @@ An_ml, gs_ml, Rd_ml = canopygasexchange.calculate(_T,_Cs,_O,_RH,1.0,LAI,SAI,clum
 
 
 # %%
-# swleaf, swveg, swvegsun, swvegsha = canopysolar.calculate(np.array([LAI,LAI]),SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Canopy=canopy)
+# swleaf, swveg, swvegsun, swvegsha = canopyrad.calculate(np.array([LAI,LAI]),SAI,clumping_factor,canopy_height,sza,swskyb,swskyd,Canopy=canopy)
 
 # swleaf
 
-# _vfunc = np.vectorize(canopysolar.calculateRTProperties)
+# _vfunc = np.vectorize(canopyrad.calculateRTProperties)
 # (np.array([LAI,LAI]),SAI,clumping_factor,canopy_height,sza,Canopy=canopy)
 
 
@@ -249,7 +249,7 @@ print("Sum of Rd_ml over canopy layers = %1.2f umol m-2 s-1" % (Rd_ml1.sum()*1e6
 
 # %%
 ## Calculate radiative transfer properties of the canopy
-(fracsun, kb, omega, avmu, betab, betad, tbi) = canopysolar.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
+(fracsun, kb, omega, avmu, betab, betad, tbi) = canopyrad.calculateRTProperties(LAI,SAI,clumping_factor,canopy_height,sza)
 
 # %%
 ## Determine vertical distribution of canopy properties such as LAI, SAI and clumping index
@@ -261,7 +261,7 @@ clump_fac = canopy.cast_parameter_over_layers_uniform(clumping_factor)
 # %%
 ## Calculate two stream approximation calculations
 ## Note: swleaf is the absorption per leaf area index (W/m2 per leaf)
-swleaf = canopysolar.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid)
+swleaf = canopyrad.calculateTwoStream(swskyb,swskyd,dpai,fracsun,kb,clump_fac,omega,avmu,betab,betad,tbi,albsoib,albsoid)
 
 # %%
 ## Calculate total absorbed shortwave radiation by sunlit and shaded vegetation
@@ -288,7 +288,7 @@ _Rd = np.zeros((canopy.nlevmlcan,canopy.nleaf))
 
 for ileaf in range(canopy.nleaf):
     for ic in range(canopy.nbot, canopy.ntop+1):
-        Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
+        Q = 1e-6 * swleaf[ic,ileaf] * canopyrad.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
         An, gs, Ci, Vc, Ve, Vs, Rd = Leaf.calculate(Q,T,Cs,O,RH,1.0)
         _An[ic,ileaf] = An
         _gs[ic,ileaf] = gs
@@ -506,7 +506,7 @@ Vcmax_opt_ml_scalefactor = canopy.cast_scalefactor_to_layer_exp(0.5,LAI,relative
 ## Loop over canopy layers, set leaf parameter and calculate gas exchange
 for ileaf in range(canopy.nleaf):
     for ic in range(canopy.nbot, canopy.ntop+1):
-        Q = 1e-6 * swleaf[ic,ileaf] * canopysolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
+        Q = 1e-6 * swleaf[ic,ileaf] * canopyrad.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
         An, gs, Ci, Vc, Ve, Vs, Rd = calculate_leaf_variables(Q, T, Cs, O, RH, Leaf)
         Leaf.set_Vcmax_for_layer(Vcmax_opt_toc, Vcmax_opt_ml_scalefactor[ic])  # Adjust Vcmax_opt for the layer
         _An_mlp[ic,ileaf] = An

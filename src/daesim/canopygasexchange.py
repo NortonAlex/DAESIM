@@ -15,7 +15,7 @@ class CanopyGasExchange:
     ## Module dependencies
     Leaf: Callable = field(default=LeafGasExchangeModule2())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Leaf is the default LeafGasExchangeModule()
     Canopy: Callable = field(default=CanopyLayers())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for Canopy is the default CanopyLayers()
-    CanopySolar: Callable = field(default=CanopyRadiation())    ## It is optional to define PlantDev for this method. If no argument is passed in here, then default setting for CanopyRad is the default CanopyRadiation()
+    CanopyRad: Callable = field(default=CanopyRadiation())    ## It is optional to define CanopyRad for this method. If no argument is passed in here, then default setting for CanopyRad is the default CanopyRadiation()
 
     def calculate(
         self,
@@ -33,7 +33,7 @@ class CanopyGasExchange:
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
     ) -> Tuple[float]:
 
-        swleaf = self.CanopySolar.calculate(LAI,SAI,clumping_factor,z,sza,swskyb,swskyd)
+        swleaf = self.CanopyRad.calculate(LAI,SAI,clumping_factor,z,sza,swskyb,swskyd)
 
         # Calculate gas exchange per canopy multi-layer element (per leaf area basis)
         An_mle = np.zeros((self.Canopy.nlevmlcan, self.Canopy.nleaf))
@@ -41,7 +41,7 @@ class CanopyGasExchange:
         Rd_mle = np.zeros((self.Canopy.nlevmlcan, self.Canopy.nleaf))
         
         # Vectorized calculation of Q (absorbed PPFD, mol PAR m-2 s-1) for all layers and leaves
-        Q = 1e-6 * swleaf[self.Canopy.nbot:self.Canopy.ntop+1, :] * self.CanopySolar.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
+        Q = 1e-6 * swleaf[self.Canopy.nbot:self.Canopy.ntop+1, :] * self.CanopyRad.J_to_umol  # absorbed PPFD, mol PAR m-2 s-1
         
         # Vectorized calculation of An, gs, Rd for all layers and leaves
         An, gs, Ci, Vc, Ve, Vs, Rd = self.Leaf.calculate(Q, leafTempC, Cs, O, airRH, fgsw)
@@ -55,7 +55,7 @@ class CanopyGasExchange:
         dlai = self.Canopy.cast_parameter_over_layers_betacdf(LAI,self.Canopy.beta_lai_a,self.Canopy.beta_lai_b)  # Canopy layer leaf area index (m2/m2)
 
         # Determine sunlit and shaded fractions for canopy layers
-        (fracsun, kb, omega, avmu, betab, betad, tbi) = self.CanopySolar.calculateRTProperties(LAI,SAI,clumping_factor,z,sza)
+        (fracsun, kb, omega, avmu, betab, betad, tbi) = self.CanopyRad.calculateRTProperties(LAI,SAI,clumping_factor,z,sza)
 
         ## Calculate gas exchange per canopy layer (per ground area basis)
         ## - multiply the sunlit rates (per leaf area) by the sunlit lai, and the shaded rates (per leaf area) by the shaded lai

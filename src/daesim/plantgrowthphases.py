@@ -18,7 +18,7 @@ class PlantGrowthPhases:
     # Default values for class attributes
     default_phases = ["germination", "vegetative", "anthesis", "fruiting"]
     default_gdd_requirements = [50, 2000, 100, 200]    # Growing degree days requirement per developmental phase
-    default_vd_requirements = [0, 50, 0, 0]    # Vernalization days requirement per developmental phase
+    default_vd_requirements = [0, 45, 0, 0]    # Vernalization days requirement per developmental phase
     default_allocation_coeffs = [
         [0.0, 0.1, 0.9, 0.0, 0.0],  # Phase 1
         [0.48, 0.1, 0.4, 0.0, 0.02],  # Phase 2
@@ -40,6 +40,9 @@ class PlantGrowthPhases:
     turnover_rates: list = field(default=default_turnover_rates)
     ndevphases: int = field(init=False)  #field(default=4)
     totalgdd: int = field(init=False)  # This will be set based on gdd_requirements, hence no default in field definition
+    vd_t: float = field(default=0)    # Current vernalization state
+    vd_0: float = field(default=0)    # Vernalization state at the beginning of the current phase
+    previous_phase: int = field(default=None)    # Previous developmental phase index for detecting phase changes
 
     @totalgdd.default
     def _totalgdd_default(self):
@@ -91,4 +94,20 @@ class PlantGrowthPhases:
             if current_cumul_gdd <= cumulative_gdd:
                 return i
         return len(self.gdd_requirements) - 1  # Return the last phase if current_cumul_gdd exceeds total requirements
+
+    def update_vd_state(self, VRN_time, current_cumul_gdd):
+        """
+        Updates the vernalization state at the point of phase change.
+        """
+        current_phase = self.get_active_phase_index(current_cumul_gdd)
+        if self.previous_phase is not None and current_phase != self.previous_phase:
+            self.vd_0 = VRN_time
+        self.vd_t = VRN_time
+        self.previous_phase = current_phase
+
+    def get_phase_vd(self):
+        """
+        Returns the accumulated VD within the current developmental phase.
+        """
+        return self.vd_t - self.vd_0
 

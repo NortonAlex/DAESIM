@@ -108,17 +108,18 @@ class PlantModuleCalculator:
 
         # Development phase index
         idevphase = self.PlantDev.get_active_phase_index(Bio_time)
+        self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
+        VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
         # Update vernalization days requirement for current developmental phase
         self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]
 
         sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
-        fV = self.vernalization_factor(VRN_time)
+        fV = self.vernalization_factor(VD)
         dGDDdt = fV*DTT
 
         deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
         dVDdt = deltaVD
-
 
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
@@ -169,8 +170,8 @@ class PlantModuleCalculator:
 
     def calculate_vernalizationtime(self,Tmin,Tmax,sunrise,sunset):
         _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
-        VD = _vfunc(Tmin,Tmax,sunrise,sunset,self.VD_Tbase,self.VD_Tupp,self.VD_Topt,normalise=True)
-        return VD
+        deltaVD = _vfunc(Tmin,Tmax,sunrise,sunset,self.VD_Tbase,self.VD_Tupp,self.VD_Topt,normalise=True)
+        return deltaVD
 
     def vernalization_factor(self,VD):
         """

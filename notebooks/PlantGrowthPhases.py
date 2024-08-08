@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -37,9 +37,10 @@ print("Development Phases")
 for iphase in range(plant.ndevphases):
     print("Phase:",plant.phases[iphase])
     print("  GDD requirement =",plant.gdd_requirements[iphase])
+    print("  Vernalization requirement =",plant.vd_requirements[iphase])
     print("  Pool allocation coefficients: Leaf=%1.1f, Stem=%1.1f, Root=%1.1f, Seed=%1.1f, Exudates=%1.1f" % (plant.allocation_coeffs[iphase][0],plant.allocation_coeffs[iphase][1],plant.allocation_coeffs[iphase][2],plant.allocation_coeffs[iphase][3],plant.allocation_coeffs[iphase][4]),", units=(-)")
     print("  Pool turnover rates         : Leaf=%1.1f, Stem=%1.1f, Root=%1.1f, Seed=%1.1f, Exudates=%1.1f" % (plant.turnover_rates[iphase][0],plant.turnover_rates[iphase][1],plant.turnover_rates[iphase][2],plant.turnover_rates[iphase][3],plant.turnover_rates[iphase][4]),", units=days-1")
-    
+
 
 # %% [markdown]
 # ### Example of developmental phases over a season

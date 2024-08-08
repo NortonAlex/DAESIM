@@ -124,8 +124,6 @@ print("  dydt(Cseed) = %1.4f" % dydt[3])
 print("  Bio_time = %1.4f" % dydt[4])
 print("  VRN_time = %1.4f" % dydt[5])
 
-# %%
-
 # %% [markdown]
 # ### Initialise site
 
@@ -253,7 +251,7 @@ res = Model.run(
 # ### Calculate diagnostic variables
 
 # %%
-LAI = res["y"][0] / PlantX.PlantCH2O.SLA
+LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
 
 eqtime, houranglesunrise, theta = SiteX.solar_calcs(Climate_year_f(time_axis),Climate_doy_f(time_axis))
 
@@ -263,16 +261,31 @@ W_R = res["y"][2]/PlantX.f_C
 ## Calculate diagnostic variables
 _GPP_gCm2d = np.zeros(time_axis.size)
 _E = np.zeros(time_axis.size)
+_deltaVD = np.zeros(time_axis.size)
+_fV = np.zeros(time_axis.size)
 
 for it,t in enumerate(time_axis):
-    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it])
+    sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
+    
+    # Development phase index
+    idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
+    PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
+    VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
+    # Update vernalization days requirement for current developmental phase
+    PlantX.VD50 = 0.5 * PlantX.PlantDev.vd_requirements[idevphase]
+    _deltaVD[it] = PlantX.calculate_vernalizationtime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
+    _fV[it] = PlantX.vernalization_factor(res["y"][5,it])
 
+    ## GPP and Transpiration (E)
+    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
 
 BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
+
+fV = PlantX.vernalization_factor(res["y"][5])
 
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True)
@@ -312,17 +325,18 @@ plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
 
 
+
 # %%
-fig, axes = plt.subplots(1,2,figsize=(9,3))
+fig, axes = plt.subplots(1,3,figsize=(12,3),sharex=True)
 
 axes[0].plot(res["t"], res["y"][4])
 axes[0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[0].set_xlabel("Time (days)")
+axes[0].set_title("Growing Degree Days")
 
 ax = axes[0]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
-    print("Plant dev phase:", PlantDevX.phases[iphase],"reached at t =",res["t"][itime])
     ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
     text_x = res["t"][itime]
     text_y = 0.04
@@ -331,6 +345,27 @@ for iphase,phase in enumerate(PlantDevX.phases):
 axes[1].plot(res["t"], res["y"][5])
 axes[1].set_ylabel("Vernalization Days\n"+r"(-)")
 axes[1].set_xlabel("Time (days)")
+axes[1].set_title("Vernalization Days")
+ax = axes[1]
+for iphase,phase in enumerate(PlantDevX.phases):
+    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+    ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][5,itime],color='0.5')
+    text_x = res["t"][itime]
+    text_y = 0.04
+    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
+axes[2].plot(res["t"], _fV)
+axes[2].set_ylabel("Vernalization Factor")
+axes[2].set_xlabel("Time (days)")
+axes[2].set_title("Vernalization Factor\n(Modifier on GDD)")
+ax = axes[2]
+for iphase,phase in enumerate(PlantDevX.phases):
+    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+    ax.vlines(x=res["t"][itime],ymin=0,ymax=_fV[itime],color='0.5')
+    text_x = res["t"][itime]
+    text_y = 0.04
+    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()

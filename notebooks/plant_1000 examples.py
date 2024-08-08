@@ -41,26 +41,76 @@ from daesim.plantallocoptimal import PlantOptimalAllocation
 from daesim.plant_1000 import PlantModuleCalculator
 
 # %% [markdown]
-# # Milgadara Simulation
+# # Site Level Simulation
 
 # %% [markdown]
-# ### Import forcing data
+# ### Initialise site
+
+# %% [markdown]
+# #### - Import forcing data
 
 # %%
-file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/StellaOutFile.csv"
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2018.csv"
 
 df_forcing = pd.read_csv(file)
 
-## Milgadara site location-34.38904277303204, 148.46949938279096
-SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469)
-start_doy = 1.0
-start_year = 2018
-nrundays = df_forcing.index.size
-
-time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy, start_year, nrundays=nrundays)
+# %% [markdown]
+# #### - Initialise site module
 
 # %%
-time_doy = [time_doy[i]+0.5 for i in range(len(time_doy))]  ## Adjust daily time-step to represent midday on each day
+## Milgadara site location-34.38904277303204, 148.46949938279096
+SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
+start_doy = 1.0
+start_year = 2021
+nrundays = df_forcing.index.size
+
+# %% [markdown]
+# #### - Time discretization
+
+# %%
+## Time discretisation
+time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy, start_year, nrundays=nrundays)
+## Adjust daily time-step to represent midday on each day
+time_doy = [time_doy[i]+0.5 for i in range(len(time_doy))]
+
+# %% [markdown]
+# ### Create discrete forcing data
+
+# %%
+## Make some assumption about the fraction of diffuse radiation
+diffuse_fraction = 0.2
+
+## Shortwave radiation at surface (convert MJ m-2 d-1 to W m-2)
+_Rsb_Wm2 = (1-diffuse_fraction) * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+_Rsd_Wm2 = diffuse_fraction * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+
+## Create synthetic data for other forcing variables
+_p = 101325*np.ones(nrundays)
+_es = SiteX.compute_sat_vapor_pressure_daily(df_forcing["Minimum temperature"].values,df_forcing["Maximum temperature"].values)
+_RH = SiteX.compute_relative_humidity(df_forcing["VPeff"].values/10,_es/1000)
+_RH[_RH > 100] = 100
+_CO2 = 400*(_p/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
+_O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
+_soilTheta =  0.35*np.ones(nrundays)   ## volumetric soil moisture content (m3 m-3)
+
+# %% [markdown]
+# ### Convert discrete to continuous forcing data 
+
+# %%
+Climate_doy_f = interp_forcing(time_nday, time_doy, kind="pconst", fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday, time_year, kind="pconst", fill_value=(time_year[0],time_year[-1]))
+Climate_airTempCMin_f = interp1d(time_nday, df_forcing["Minimum temperature"].values)
+Climate_airTempCMax_f = interp1d(time_nday, df_forcing["Maximum temperature"].values)
+Climate_airTempC_f = interp1d(time_nday, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
+Climate_solRadswskyb_f = interp1d(time_nday, _Rsb_Wm2)
+Climate_solRadswskyd_f = interp1d(time_nday, _Rsd_Wm2)
+Climate_airPressure_f = interp1d(time_nday, _p)
+Climate_airRH_f = interp1d(time_nday, _RH)
+Climate_airCO2_f = interp1d(time_nday, _CO2)
+Climate_airO2_f = interp1d(time_nday, _O2)
+Climate_soilTheta_f = interp1d(time_nday, _soilTheta)
+Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
+
 
 # %% [markdown]
 # ### Test the rate of change calculate method
@@ -123,64 +173,6 @@ print("  dydt(Croot) = %1.4f" % dydt[2])
 print("  dydt(Cseed) = %1.4f" % dydt[3])
 print("  Bio_time = %1.4f" % dydt[4])
 print("  VRN_time = %1.4f" % dydt[5])
-
-# %% [markdown]
-# ### Initialise site
-
-# %%
-file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2018.csv"
-
-df_forcing = pd.read_csv(file)
-
-## Milgadara site location-34.38904277303204, 148.46949938279096
-SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
-start_doy = 1.0
-start_year = 2018
-nrundays = df_forcing.index.size
-
-## Time discretisation
-time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy, start_year, nrundays=nrundays)
-## Adjust daily time-step to represent midday on each day
-time_doy = [time_doy[i]+0.5 for i in range(len(time_doy))]
-
-# %% [markdown]
-# ### Create discrete forcing data
-
-# %%
-## Make some assumption about the fraction of diffuse radiation
-diffuse_fraction = 0.2
-
-## Shortwave radiation at surface (convert MJ m-2 d-1 to W m-2)
-_Rsb_Wm2 = (1-diffuse_fraction) * df_forcing["SRAD"].values * 1e6 / (60*60*24)
-_Rsd_Wm2 = diffuse_fraction * df_forcing["SRAD"].values * 1e6 / (60*60*24)
-
-## Create synthetic data for other forcing variables
-_p = 101325*np.ones(nrundays)
-_es = SiteX.compute_sat_vapor_pressure_daily(df_forcing["Minimum temperature"].values,df_forcing["Maximum temperature"].values)
-_RH = SiteX.compute_relative_humidity(df_forcing["VPeff"].values/10,_es/1000)
-_RH[_RH > 100] = 100
-_CO2 = 400*(_p/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
-_O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
-_soilTheta =  0.35*np.ones(nrundays)   ## volumetric soil moisture content (m3 m-3)
-
-# %% [markdown]
-# ### Convert discrete to continuous forcing data 
-
-# %%
-Climate_doy_f = interp_forcing(time_nday, time_doy, kind="pconst", fill_value=(time_doy[0],time_doy[-1]))
-Climate_year_f = interp_forcing(time_nday, time_year, kind="pconst", fill_value=(time_year[0],time_year[-1]))
-Climate_airTempCMin_f = interp1d(time_nday, df_forcing["Minimum temperature"].values)
-Climate_airTempCMax_f = interp1d(time_nday, df_forcing["Maximum temperature"].values)
-Climate_airTempC_f = interp1d(time_nday, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
-Climate_solRadswskyb_f = interp1d(time_nday, _Rsb_Wm2)
-Climate_solRadswskyd_f = interp1d(time_nday, _Rsd_Wm2)
-Climate_airPressure_f = interp1d(time_nday, _p)
-Climate_airRH_f = interp1d(time_nday, _RH)
-Climate_airCO2_f = interp1d(time_nday, _CO2)
-Climate_airO2_f = interp1d(time_nday, _O2)
-Climate_soilTheta_f = interp1d(time_nday, _soilTheta)
-Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
-
 
 # %% [markdown]
 # ## Use Model with Numerical Solver
@@ -292,11 +284,11 @@ fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True)
 
 axes[0, 0].plot(res["t"], _GPP_gCm2d)
 axes[0, 0].set_ylabel("GPP\n"+r"(gC$\rm m^{-2} \; d^{-1}$)")
-# axes[0, 0].set_ylim([0,25])
+axes[0, 0].set_ylim([0,30])
 
 axes[0, 1].plot(res["t"], _E)
 axes[0, 1].set_ylabel("E\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)")
-# axes[0, 1].set_ylim([0,0.010])
+axes[0, 1].set_ylim([0,0.015])
 
 axes[1, 0].plot(res["t"], res["y"][0],label="Leaf")
 axes[1, 0].plot(res["t"], res["y"][1],label="Stem")
@@ -305,7 +297,7 @@ axes[1, 0].plot(res["t"], res["y"][3],label="Seed")
 axes[1, 0].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
 axes[1, 0].set_xlabel("Time (days)")
 axes[1, 0].legend(loc=2)
-# axes[1, 0].set_ylim([0,300])
+axes[1, 0].set_ylim([0,300])
 
 axes[1, 1].plot(res["t"], res["y"][4])
 axes[1, 1].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
@@ -333,7 +325,7 @@ axes[0].plot(res["t"], res["y"][4])
 axes[0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[0].set_xlabel("Time (days)")
 axes[0].set_title("Growing Degree Days")
-
+axes[0].set_ylim([0,1600])
 ax = axes[0]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
@@ -346,6 +338,7 @@ axes[1].plot(res["t"], res["y"][5])
 axes[1].set_ylabel("Vernalization Days\n"+r"(-)")
 axes[1].set_xlabel("Time (days)")
 axes[1].set_title("Vernalization Days")
+axes[1].set_ylim([0,125])
 ax = axes[1]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
@@ -358,6 +351,7 @@ axes[2].plot(res["t"], _fV)
 axes[2].set_ylabel("Vernalization Factor")
 axes[2].set_xlabel("Time (days)")
 axes[2].set_title("Vernalization Factor\n(Modifier on GDD)")
+axes[2].set_ylim([0,1.03])
 ax = axes[2]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
@@ -369,6 +363,7 @@ for iphase,phase in enumerate(PlantDevX.phases):
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
+
 
 
 # %% [markdown]

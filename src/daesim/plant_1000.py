@@ -31,11 +31,12 @@ class PlantModuleCalculator:
     ## Module parameter attributes
     f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     CUE: float = field(default=0.5)  ## Plant carbon-use-efficiency (CUE=NPP/GPP)
-    hc: float = field(default=0.6)   ## Canopy height (m) TODO: make this a dynamic variable at some point. 
     SAI: float = field(default=0.1)   ## Stem area index (m2 m-2) TODO: make this a dynamic variable at some point. 
     clumping_factor: float = field(default=0.7)   ## Foliage clumping index (-) TODO: Place this parameter in a more suitable spot/module
     albsoib: float = field(default=0.2)   ## Soil background albedo for beam radiation (-) TODO: Place this parameter in a more suitable spot/module
     albsoid: float = field(default=0.2)   ## Soil background albedo for diffuse radiation (-) TODO: Place this parameter in a more suitable spot/module
+    hc_max: float = field(default=0.6)   ## Maximum canopy height (m)
+    hc_max_GDDindex: float = field(default=0.75)    ## Relative growing degree day index at peak canopy height (ranges between 0-1). A rule of thumb is that canopy height peaks at anthesis (see Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017)
 
     GDD_method: str = field(
         default="nonlinear"
@@ -108,6 +109,10 @@ class PlantModuleCalculator:
 
         # Development phase index
         idevphase = self.PlantDev.get_active_phase_index(Bio_time)
+        # Determine canopy height
+        relative_gdd = self.PlantDev.calc_relative_gdd_index(Bio_time)
+        hc = self.calculate_canopy_height(relative_gdd)
+        # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
         VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
         # Update vernalization days requirement for current developmental phase
@@ -124,7 +129,7 @@ class PlantModuleCalculator:
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
 
-        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta)
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc)
         GPP_gCm2d = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         
         # Calculate NPP
@@ -141,7 +146,7 @@ class PlantModuleCalculator:
         # Set pool turnover rates for optimal allocation
         self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
         self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta)
+        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc)
         # ODE for plant carbon pools
         dCleafdt = u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
         dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem
@@ -253,4 +258,33 @@ class PlantModuleCalculator:
             return 1
         else:
             return 0
+
+    def calculate_canopy_height(self, relative_gdd_index):
+        """
+        Calculate canopy height of an annual herbaceous plants. 
+        Canopy height is determined as a linear function of growing degree days up 
+        to a point in the season where canopy height peaks at its defined maximum. 
+
+        Parameters
+        ----------
+        relative_gdd_index : float or array_like
+            Relative growing degree day index, ranges between 0 and 1, indicating the relative development growth phase from germination to the end of seed/fruit filling period. 
+
+        Returns
+        -------
+        hc : float or array_like
+            Canopy height (m)
+
+        Notes
+        -----
+        This model is most applicable to annual crops. 
+        A rule of thumb is that canopy height peaks at anthesis (Kakul and Irmak, 2019)
+
+        References
+        ----------
+        Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017
+        """
+        hc = self.hc_max * np.minimum(1, (1/self.hc_max_GDDindex)*relative_gdd_index)
+        return hc
+
 

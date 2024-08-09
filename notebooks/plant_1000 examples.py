@@ -206,6 +206,7 @@ PlantX = PlantModuleCalculator(
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
     propHarvestLeaf=0.75,
+    hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd
 )
 
 # %%
@@ -255,12 +256,16 @@ _GPP_gCm2d = np.zeros(time_axis.size)
 _E = np.zeros(time_axis.size)
 _deltaVD = np.zeros(time_axis.size)
 _fV = np.zeros(time_axis.size)
+_relativeGDD = np.zeros(time_axis.size)
+_hc = np.zeros(time_axis.size)
 
 for it,t in enumerate(time_axis):
     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
     
     # Development phase index
     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
+    _relativeGDD[it] = PlantX.PlantDev.calc_relative_gdd_index(res["y"][4,it])
+    _hc[it] = PlantX.calculate_canopy_height(_relativeGDD[it])
     PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
     VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
     # Update vernalization days requirement for current developmental phase
@@ -269,7 +274,7 @@ for it,t in enumerate(time_axis):
     _fV[it] = PlantX.vernalization_factor(res["y"][5,it])
 
     ## GPP and Transpiration (E)
-    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it])
+    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
 

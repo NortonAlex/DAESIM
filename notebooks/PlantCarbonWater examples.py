@@ -43,13 +43,14 @@ canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,z=1.0,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
 
 # %% [markdown]
 # ### Input variables for canopy layers, canopy radiation and canopy gas exchange
 
 # %%
 LAI = 1.5    ## leaf area index (m2 m-2)
+hc = 1.0     ## canopy height (m)
 sza = 30.0       ## solar zenith angle (degrees)
 swskyb = 200.0   ## Atmospheric direct beam solar radiation (W/m2)
 swskyd = 80.0    ## Atmospheric diffuse solar radiation (W/m2)
@@ -73,13 +74,13 @@ W_L = 70
 # %%
 LAI = plant.calculate_LAI(W_L)
 
-GPP, E = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, sza, swskyb, swskyd)
+GPP, E = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, hc, sza, swskyb, swskyd)
 
 print("GPP =", GPP)
 print("E =", E)
 
 # %%
-GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
 
 print("GPP =", GPP_0)
 print("E =", E_0)
@@ -117,7 +118,7 @@ for ix, xWR in enumerate(_W_R):
     
     for ix,xWL in enumerate(_W_L):
         W_L = xWL
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -201,7 +202,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xWR in enumerate(_W_R):
         W_R = xWR
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -287,7 +288,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         soilTheta = xsoilTheta
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -377,7 +378,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xWR in enumerate(_W_R):
         W_R = xWR
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -465,7 +466,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         soilTheta = xsoilTheta
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -555,7 +556,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         soilTheta = xsoilTheta
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -645,7 +646,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         soilTheta = xsoilTheta
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
         Rmr_0_[ix] = Rmr_0
@@ -799,6 +800,7 @@ airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 swskyb = 200.0   ## Atmospheric direct beam solar radiation (W/m2)
 swskyd = 80.0    ## Atmospheric diffuse solar radiation (W/m2)
 sza = 20.0    ## Solar zenith angle (degrees)
+hc = 1.0    ## canopy height (m)
 
 # %%
 ## Leaf biomass
@@ -819,8 +821,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -876,8 +878,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -933,8 +935,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
 
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -991,8 +993,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
 
 
 fig, axes = plt.subplots(1,4,figsize=(16,3))

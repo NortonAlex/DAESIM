@@ -295,11 +295,14 @@ class ODEModelSolver:
             if zero_crossing_indices and reset_days:
                 for idx in zero_crossing_indices:
                     _doy = int(t % 365)
-                    if _doy in reset_days and not self._event_triggered[_doy]:
-                        self._event_triggered[_doy] = True
-                        t_events.append(t)
-                        y_events.append(y[i].copy())
+                    if _doy in reset_days:
+                        if not self._event_triggered[_doy]:
+                            t_events.append(t)
+                            y_events.append(y[i].copy())
                         y[i][idx] = 0  # Reset the specified state variable to zero
+        # Set the event triggered flag after processing all indices
+        if _doy in reset_days:
+            self._event_triggered[_doy] = True
 
         result = {
             "t": time_axis,

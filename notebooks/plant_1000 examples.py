@@ -123,6 +123,7 @@ _Croot = 90.0
 _Cseed = 0.0
 _Bio_time = 0.0
 _VD_time = 0.0
+_HTT_time = 0.0
 _solRadswskyb = 800    ## incoming shortwave radiation, beam (W m-2)
 _solRadswskyd = 200    ## incoming shortwave radiation, diffuse (W m-2)
 _airTempCMin = 13.88358116
@@ -153,6 +154,7 @@ dydt = plant.calculate(
     _Cseed,
     _Bio_time,
     _VD_time,
+    _HTT_time,
     _solRadswskyb,
     _solRadswskyd,
     _airTempCMin,
@@ -173,6 +175,7 @@ print("  dydt(Croot) = %1.4f" % dydt[2])
 print("  dydt(Cseed) = %1.4f" % dydt[3])
 print("  Bio_time = %1.4f" % dydt[4])
 print("  VRN_time = %1.4f" % dydt[5])
+print("  HTT_time = %1.4f" % dydt[6])
 
 # %% [markdown]
 # ## Use Model with Numerical Solver
@@ -213,7 +216,7 @@ PlantX = PlantModuleCalculator(
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
 
 
 forcing_inputs = [Climate_solRadswskyb_f,
@@ -234,7 +237,7 @@ res = Model.run(
     time_axis=time_axis,
     forcing_inputs=forcing_inputs,
     solver="euler",
-    zero_crossing_indices=[4],
+    zero_crossing_indices=[4,5,6],
     reset_days=reset_days,
     # rtol=1e-2,
     # atol=1e-2
@@ -247,6 +250,7 @@ res = Model.run(
 LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
 
 eqtime, houranglesunrise, theta = SiteX.solar_calcs(Climate_year_f(time_axis),Climate_doy_f(time_axis))
+airTempC = PlantX.Site.compute_mean_daily_air_temp(Climate_airTempCMin_f(time_axis),Climate_airTempCMax_f(time_axis))
 
 W_L = res["y"][0]/PlantX.f_C
 W_R = res["y"][2]/PlantX.f_C
@@ -254,13 +258,19 @@ W_R = res["y"][2]/PlantX.f_C
 ## Calculate diagnostic variables
 _GPP_gCm2d = np.zeros(time_axis.size)
 _E = np.zeros(time_axis.size)
+_DTT = np.zeros(time_axis.size)
 _deltaVD = np.zeros(time_axis.size)
+_deltaHTT = np.zeros(time_axis.size)
+_PHTT = np.zeros(time_axis.size)
 _fV = np.zeros(time_axis.size)
 _relativeGDD = np.zeros(time_axis.size)
 _hc = np.zeros(time_axis.size)
+_Psi_s = np.zeros(time_axis.size)
 
 for it,t in enumerate(time_axis):
     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
+
+    _Psi_s[it] = PlantX.PlantCH2O.soil_water_potential(Climate_soilTheta_f(time_axis[it]))
     
     # Development phase index
     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
@@ -272,6 +282,11 @@ for it,t in enumerate(time_axis):
     PlantX.VD50 = 0.5 * PlantX.PlantDev.vd_requirements[idevphase]
     _deltaVD[it] = PlantX.calculate_vernalizationtime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
     _fV[it] = PlantX.vernalization_factor(res["y"][5,it])
+
+    _deltaHTT[it] = PlantX.calculate_dailyhydrothermaltime(airTempC[it], Climate_soilTheta_f(time_axis[it]))
+    _PHTT[it] = PlantX.calculate_P_HTT(res["y"][6,it], airTempC[it], Climate_soilTheta_f(time_axis[it]))
+
+    _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
 
     ## GPP and Transpiration (E)
     GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
@@ -324,14 +339,17 @@ plt.tight_layout()
 
 
 # %%
-fig, axes = plt.subplots(1,3,figsize=(12,3),sharex=True)
 
-axes[0].plot(res["t"], res["y"][4])
-axes[0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
-axes[0].set_xlabel("Time (days)")
-axes[0].set_title("Growing Degree Days")
-axes[0].set_ylim([0,1600])
-ax = axes[0]
+# %%
+fig, axes = plt.subplots(2,3,figsize=(12,6),sharex=True)
+
+axes[0,0].plot(res["t"], res["y"][4])
+axes[0,0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
+axes[0,0].set_xlabel("Time (days)")
+axes[0,0].set_title("Growing Degree Days")
+# axes[0,0].set_ylim([0,1600])
+# axes[0,0].vlines(x=PlantX.Management.plantingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
+ax = axes[0,0]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
     ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
@@ -339,12 +357,21 @@ for iphase,phase in enumerate(PlantDevX.phases):
     text_y = 0.04
     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
 
-axes[1].plot(res["t"], res["y"][5])
-axes[1].set_ylabel("Vernalization Days\n"+r"(-)")
-axes[1].set_xlabel("Time (days)")
-axes[1].set_title("Vernalization Days")
-axes[1].set_ylim([0,125])
-ax = axes[1]
+axes[1,0].plot(res["t"], _DTT, c='C0', linestyle=":", label="DTT")
+axes[1,0].plot(res["t"], _DTT*_fV, c='C0', linestyle="-", label=r"$\rm DTT \times f_V$")
+axes[1,0].set_ylabel("Daily Thermal Time\n"+r"($\rm ^{\circ}$C)")
+axes[1,0].set_xlabel("Time (days)")
+axes[1,0].set_title("Growing Degree Days")
+axes[1,0].legend()
+# axes[1,0].vlines(x=PlantX.Management.plantingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
+
+
+axes[0,1].plot(res["t"], res["y"][5])
+axes[0,1].set_ylabel("Vernalization Days\n"+r"(-)")
+axes[0,1].set_xlabel("Time (days)")
+axes[0,1].set_title("Vernalization Days")
+# axes[0,1].set_ylim([0,125])
+ax = axes[0,1]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
     ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][5,itime],color='0.5')
@@ -352,12 +379,12 @@ for iphase,phase in enumerate(PlantDevX.phases):
     text_y = 0.04
     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
 
-axes[2].plot(res["t"], _fV)
-axes[2].set_ylabel("Vernalization Factor")
-axes[2].set_xlabel("Time (days)")
-axes[2].set_title("Vernalization Factor\n(Modifier on GDD)")
-axes[2].set_ylim([0,1.03])
-ax = axes[2]
+axes[1,1].plot(res["t"], _fV)
+axes[1,1].set_ylabel("Vernalization Factor")
+axes[1,1].set_xlabel("Time (days)")
+axes[1,1].set_title("Vernalization Factor\n(Modifier on GDD)")
+# axes[1,1].set_ylim([0,1.03])
+ax = axes[1,1]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
     ax.vlines(x=res["t"][itime],ymin=0,ymax=_fV[itime],color='0.5')
@@ -366,10 +393,38 @@ for iphase,phase in enumerate(PlantDevX.phases):
     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
 
 
+axes[0,2].plot(res["t"], res["y"][6])
+axes[0,2].set_ylabel("Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C d)")
+axes[0,2].set_xlabel("Time (days)")
+axes[0,2].set_title("Hydrothermal Time")
+# axes[1].set_ylim([0,125])
+# ax = axes[1]
+# for iphase,phase in enumerate(PlantDevX.phases):
+#     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+#     ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][5,itime],color='0.5')
+#     text_x = res["t"][itime]
+#     text_y = 0.04
+#     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
+axes[1,2].plot(res["t"], _deltaHTT)
+axes[1,2].set_ylabel("Daily Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C)")
+axes[1,2].set_xlabel("Time (days)")
+axes[1,2].set_title("Hydrothermal Time per Day")
+# axes[1,2].set_ylim([0,1.03])
+# ax = axes[2]
+# for iphase,phase in enumerate(PlantDevX.phases):
+#     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+#     ax.vlines(x=res["t"][itime],ymin=0,ymax=_fV[itime],color='0.5')
+#     text_x = res["t"][itime]
+#     text_y = 0.04
+#     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
 
 
+
+# %%
 
 # %% [markdown]
 # ### Compare numerical solvers

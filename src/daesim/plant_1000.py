@@ -69,6 +69,12 @@ class PlantModuleCalculator:
     VD_Vnb: float = field(default=9.2,)  ## Base vernalization days (for "linear" method only)
     VD_Rv: float = field(default=0.6,)  ## Vernalization sensitivity factor (for "APSIM-Wheat-O" method only)
 
+    HTT_T_b: float = field(default=0.0)  ## Germination hydrothermal time base temperature threshold (degrees Celsius)
+    HTT_T_c: float = field(default=30.0)  ## Germination hydrothermal time ceiling temperature threshold (degrees Celsius)
+    HTT_psi_b: float = field(default=-3.0)  ## Germination hydrothermal time base water potential threshold (MPa)
+    HTT_k: float = field(default=0.07)  ## Germination slope of linear increase in psi_b when temperature increases (MPa degrees Celsius-1)
+    HTT_Theta_HT: float = field(default=60.0)  ## HTT requirement for germination (MPa degrees Celcius d)
+
     ## TODO: Update management module with these parameters later on
     propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
     propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
@@ -82,6 +88,7 @@ class PlantModuleCalculator:
         Cseed,
         Bio_time,
         VRN_time,      ## vernalization state
+        HTT_time,      ## hydrothermal time state, for germination (MPa degrees Celcius d)
         solRadswskyb,  ## atmospheric direct beam solar radiation (W/m2)
         solRadswskyd,  ## atmospheric diffuse solar radiation (W/m2)
         airTempCMin,   ## minimum air temperature (degrees Celsius)
@@ -106,6 +113,10 @@ class PlantModuleCalculator:
         BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
         BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
         BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
+
+        # Germination: hydrothermal time state
+        dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta)
+        # TODO: Need trigger to say, when HTT_time >= self.HTT_Theta_HT, we update the PlantDev to the next development phase
 
         # Development phase index
         idevphase = self.PlantDev.get_active_phase_index(Bio_time)
@@ -153,7 +164,7 @@ class PlantModuleCalculator:
         dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
         dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed
 
-        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt)
+        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt)
 
     def calculate_NPP(self,GPP):
         return self.CUE*GPP
@@ -177,6 +188,16 @@ class PlantModuleCalculator:
         _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
         deltaVD = _vfunc(Tmin,Tmax,sunrise,sunset,self.VD_Tbase,self.VD_Tupp,self.VD_Topt,normalise=True)
         return deltaVD
+
+    def calculate_dailyhydrothermaltime(self,airTempC,soilTheta):
+        """
+        Calculates the daily increment in hydrothermal time
+        """
+        T = airTempC
+        Psi_s = self.PlantCH2O.soil_water_potential(soilTheta)
+        bool_multiplier = (T > self.HTT_T_b) & (T < self.HTT_T_c) & (Psi_s > self.HTT_psi_b + self.HTT_k * (T - self.HTT_T_b))  # this constrains the equation to be within the temperature and soil water potential limits
+        deltaHTT_d = np.maximum(0, (T - self.HTT_T_b) * (Psi_s - self.HTT_psi_b - self.HTT_k*(T - self.HTT_T_b))) * bool_multiplier
+        return deltaHTT_d
 
     def vernalization_factor(self,VD):
         """

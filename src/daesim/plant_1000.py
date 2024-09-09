@@ -148,7 +148,7 @@ class PlantModuleCalculator:
 
         # Allocation fractions per pool
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
-        # Turnover rates per pool
+        # Turnover rates per pool (days-1)
         tr_ = self.PlantDev.turnover_rates[idevphase]
 
         # Set any constant allocation coefficients for optimal allocation

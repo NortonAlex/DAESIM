@@ -30,7 +30,7 @@ class PlantGrowthPhases:
         [0.01,  0.002, 0.01,  0.0, 0.0],  # Phase 2
         [0.02,  0.002, 0.04,  0.0, 0.0],  # Phase 3
         [0.10,  0.008, 0.10,  0.0, 0.0]  # Phase 4
-    ]
+    ]    ## Turnover rates per pool and developmental phase (days-1)
 
     # Class attributes with default values or attrs field definitions
     phases: list = field(default=default_phases)

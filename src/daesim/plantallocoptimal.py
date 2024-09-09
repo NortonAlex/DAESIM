@@ -28,8 +28,8 @@ class PlantOptimalAllocation:
     u_Seed: float = field(default=0.0)    ## Carbon allocation coefficient to seed
 
     ## Turnover rates (carbon pool lifespan)
-    tr_L: float = field(default=0.01)    ## Turnover rate of leaf biomass (days)
-    tr_R: float = field(default=0.01)    ## Turnover rate of root biomass (days)
+    tr_L: float = field(default=0.01)    ## Turnover rate of leaf biomass (days-1)
+    tr_R: float = field(default=0.01)    ## Turnover rate of root biomass (days-1)
 
     def calculate(
         self,

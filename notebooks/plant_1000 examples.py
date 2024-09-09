@@ -220,6 +220,9 @@ from daesim.utils import ODEModelSolver
 # %%
 time_axis = np.arange(101, 354, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
 
+sowing_date=120
+harvest_date=354
+
 ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
 PlantDevX = PlantGrowthPhases(
     gdd_requirements=[100,600,160,140],
@@ -294,6 +297,9 @@ W_R = res["y"][2]/PlantX.f_C
 
 ## Calculate diagnostic variables
 _GPP_gCm2d = np.zeros(time_axis.size)
+_Rm_l = np.zeros(time_axis.size) # maintenance respiration of leaves
+_Rm_r = np.zeros(time_axis.size) # maintenance respiration of roots
+_Ra = np.zeros(time_axis.size) # autotrophic respiration 
 _E = np.zeros(time_axis.size)
 _DTT = np.zeros(time_axis.size)
 _deltaVD = np.zeros(time_axis.size)
@@ -329,8 +335,14 @@ for it,t in enumerate(time_axis):
     GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
+    _Rm_l[it] = Rml
+    _Rm_r[it] = Rmr
+    
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
+Ra = _GPP_gCm2d - NPP  # units of gC m-2 d-1
+Rm_l_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
+Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
 
 BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
 

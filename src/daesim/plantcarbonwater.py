@@ -287,7 +287,9 @@ class PlantModel:
         than define fixed parameters for things like root radius, root length index, root area index, and distance from root surface to bulk soil water, we opt to reduce the number of 
         free parameters to a single empirical parameter that represents these combined properties. For single root cylinder models see Katul et al. 
         (2003, doi: 10.1046/j.1365-3040.2003.00965.x), Duursma et al. (2008, doi: 10.1093/treephys/28.2.265), Duursma and Medlyn (2012, doi: 10.5194/gmd-5-919-2012) and Nobel 
-        (2009, Physicochemical and Environmental Plant Physiology, Ch. 9.3D) for a more fundamental desciption. 
+        (2009, Physicochemical and Environmental Plant Physiology, Ch. 9.3D) for a more fundamental desciption. Furthermore, previous modelling has shown that defining the plant root 
+        water uptake function based on root dry mass, root length or surface area density all produce very similar results in water uptake (Himmelbauer et al., 2008, Journal of 
+        Hydrology and Hydromechanics 56(1)). 
         """
         L_v = (W_R * self.f_r) / self.d_soil    ## calculate fine root density in the soil layer (g d.wt root m-3 soil)
         K_sr = K_s * L_v/self.ksr_coeff

@@ -42,6 +42,9 @@ class PlantModel:
     ksr_coeff: float = field(default=500)    ## scale factor for soil-to-root conductivity/conductance (TODO: Check units and definition); conversion factor for soil hydraulic conductivity and root biomass density to a soil-to-root conductivity/conductance. In some models this is represented by a single root occupying a cylinder of soil. In principle, it considers the distance water travels from the bulk soil to the root surface, root geometry (e.g. radius) and conducting propoerties of the root. Typical values range from approx 100-18000
     d_soil: float = field(default=1.0)       ## depth of soil layer (m)
     f_r: float = field(default=1.0)          ## fraction of roots in soil layer (unitless)
+    root_depth_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
+    root_distr_d50: float = field(default=0.15)  ## Soil depth at which 50% of total root amount is accumulated (m) i.e. 50% of roots occur above this depth
+    root_distr_c: float = field(default=-1.2)     ## A dimensionless shape-parameter to describe root distribution in soil profile (-)
     
     k_rl: float = field(default=0.10)     ## Leaf-area specific root-to-leaf (from inside the root to bulk leaf) hydraulic conductance (mol m-2 s-1 MPa-1) TODO: should increase with distance i.e. leaf height above root node
     Psi_f: float = field(default=-2.3)   ## Leaf water potential at which half of stomatal conductance occurs (MPa), see Drewry et al. (2010, doi:10.1029/2010JG001340)
@@ -78,6 +81,7 @@ class PlantModel:
         Psi_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))  # Soil water potential array given the number of soil layers and number of time-steps
         K_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))    # Soil hydraulic conductivity array given the number of soil layers and number of time-steps
         K_sr_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Soil-to-root hydraulic conductivity array given the number of soil layers and number of time-steps
+        fc_r_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Cumulative fraction of roots, from surface to each soil layer
         for iz, z in enumerate(range(self.SoilLayers.nlevmlsoil)):
             ## Calculate soil water potential
             Psi_s_z[iz,:] = self.soil_water_potential(soilTheta[iz,:]) # TODO: Change to per layer
@@ -85,14 +89,21 @@ class PlantModel:
             ## Calculate soil properties
             K_s_z[iz,:] = self.soil_hydraulic_conductivity(Psi_s_z[iz,:]) # TODO: Change to per layer
 
-            f_r = 1.0/self.SoilLayers.nlevmlsoil   # TODO: Implement root distribution function here to determine root fraction in each soil layer
+            fc_r_z[iz,:] = self.calculate_root_distribution(d_soil[iz]) # Calculate the cumulative fraction of roots occuring in soil layer
+            ## Determine actual fraction of roots in soil layer
+            if iz == 0:
+                # if this is the uppermost soil layer, just take the first value in the cumulative fraction array
+                f_r = fc_r_z[iz,:]
+            else:
+                # if this is not the uppermost soil layer, calculate the difference in the cumulative fraction array between this soil layer and the previous soil layer
+                f_r = fc_r_z[iz,:] - fc_r_z[iz-1,:]
 
             ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
             K_sr_z[iz,:] = self.soil_root_hydraulic_conductivity(W_R,K_s_z[iz,:],f_r,d_soil[iz]) # TODO: Change to per layer
 
-        Psi_s = np.mean(Psi_s_z,axis=0)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
-        K_s = np.mean(K_s_z,axis=0)  # Average soil hydraulic conductivity over the root profile TODO: Fix this and its use below in other functions
-        K_sr = np.mean(K_sr_z,axis=0)  # Average soil-to-root hydraulic conductivity over the root profile TODO: Fix this so it only determines the average to the rooting depth
+        Psi_s = np.squeeze(np.mean(Psi_s_z,axis=0))  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
+        K_s = np.squeeze(np.mean(K_s_z,axis=0))  # Average soil hydraulic conductivity over the root profile TODO: Fix this and its use below in other functions
+        K_sr = np.squeeze(np.mean(K_sr_z,axis=0))  # Average soil-to-root hydraulic conductivity over the root profile TODO: Fix this so it only determines the average to the rooting depth
 
         ## Convert soil-to-root conductance to leaf-area specific soil-to-root conductance (TODO: Check definition and units of conductivity vs conductance)
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
@@ -557,3 +568,74 @@ class PlantModel:
         """
         f_sv = (1 + np.exp(self.sf*self.Psi_f))/(1 + np.exp(self.sf*(self.Psi_f-Psi_l)))
         return f_sv
+
+    def calculate_root_distribution_conditional(self, d_soil):
+        """
+        Parameters
+        ----------
+        d_soil : Depth from soil surface to bottom of each soil layer (m)
+
+        Returns
+        -------
+        Cumulative amount of roots from surface to each soil layer (-)
+
+        Notes
+        -----
+        Multiple studies have demonstrated that the distribution of roots in the soil profile, measured as 
+        root mass density (g root m-3 soil) or root length density (m root m-3 soil), declines exponentially 
+        or near-linearly with depth from the soil surface. See Fan et al. (2016) and references therein. 
+        Also see Haberle and Svoboda (2014) and refereinces therein (Gerwitz & Page 1974; Rowse 1974; 
+        Dwyer et al. 1996; Himmelbauer & Novák 2008; Bingham & Wu 2011; Zhang et al. 2012; Zuo et al. 2013). 
+
+        Schenk and Jackson (2002) described a logistic dose–response curve to represent the cumulative root 
+        distribution. Fan et al. (2016) adapted and further evaluated this model for applications to common 
+        temperate crops:
+
+        $\frac{R}{R_{max}} = \frac{1}{1+(d/d_{50})^c}$
+
+        where $R$ is the cumulative amount (i.e., biomass mass or root length) of roots to soil depth $d$ 
+        (cm; i.e. the amount of roots above profile depth $d$), $R_{max}$ is the total amount of roots, 
+        $d_{50}$ is depth at which 50\% of total root amount was accumulated, $c$ is a dimensionless shape-
+        parameter.
+
+        The above equation does not define a maximum rooting depth, as the function continues to be positive 
+        definite to infinite soil depth. To modify this so that all roots are confined to a maximum rooting 
+        depth, the authors do the following:
+
+        $Y(d) = \frac{1}{1+(d/d_{50})^c} + \left(1 - \frac{1}{1+(d_{max}/d_{50})^c} \right) \times \frac{d}{d_{max}} $
+
+        Where $Y(d)$ is the root distribution at depth $d$ (m), $d_a$ is another fitting parameter (m). This 
+        function is constrained to values where $d \leq d_{max}$. 
+
+        Fan et al. (2016) provide values for the parameters above for eleven different crop types, including wheat and canola. 
+
+        References
+        ----------
+        Fan et al. (2016, doi:10.1016/j.fcr.2016.02.013)
+        Haberle and Svoboda (2014, doi:10.1080/03650340.2014.903560)
+        Schenk and Jackson (2002, doi:10.1890/0012-9615(2002)072[0311:TGBOR]2.0.CO;2)
+        """
+
+        max_rooting_depth = min(self.root_depth_max, self.SoilLayers.z_max)  # rooting depth cannot exceed total soil depth
+
+        if d_soil <= max_rooting_depth:
+            Y = 1/(1+(d_soil/self.root_distr_d50)**self.root_distr_c) + (1 - 1/(1+(max_rooting_depth/self.root_distr_d50)**self.root_distr_c))*d_soil/max_rooting_depth
+        else:
+            Y = 1
+        return Y
+
+    def calculate_root_distribution(self, d_soil):
+        """
+        Parameters
+        ----------
+        d_soil : Depth from soil surface to bottom of each soil layer (m)
+
+        Returns
+        -------
+        Cumulative amount of roots from surface to each soil layer (-)
+        """
+        _vfunc = np.vectorize(self.calculate_root_distribution_conditional,otypes=[float])
+        Y = _vfunc(d_soil)
+        return Y
+
+

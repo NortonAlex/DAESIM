@@ -31,6 +31,7 @@ from daesim.canopygasexchange import CanopyGasExchange
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
 from daesim.plantcarbonwater import PlantModel
+from daesim.soillayers import SoilLayers
 
 # %% [markdown]
 # ### Create instances of each module
@@ -39,11 +40,14 @@ from daesim.plantcarbonwater import PlantModel
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=3)
+soillayers = SoilLayers(nlevmlsoil=1)
 canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+
+# %%
 
 # %% [markdown]
 # ### Input variables for canopy layers, canopy radiation and canopy gas exchange
@@ -60,7 +64,7 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = 0.26
+soilTheta = np.array([[0.26]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 

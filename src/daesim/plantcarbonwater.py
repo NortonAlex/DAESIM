@@ -11,6 +11,7 @@ from scipy.integrate import solve_ivp
 from daesim.biophysics_funcs import MinQuadraticSmooth
 from daesim.climate import ClimateModule
 from daesim.canopygasexchange import CanopyGasExchange
+from daesim.soillayers import SoilLayers
 
 @define
 class PlantModel:
@@ -21,6 +22,7 @@ class PlantModel:
     ## Module dependencies
     Site: Callable = field(default=ClimateModule())    ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
     CanopyGasExchange: Callable = field(default=CanopyGasExchange())     ## It is optional to define CanopyGasExchange for this method. If no argument is passed in here, then default setting for CanopyGasExchange is the default CanopyGasExchange().
+    SoilLayers: Callable = field(default=SoilLayers())     ## It is optional to define SoilLayers for this method. If no argument is passed in here, then default setting for SoilLayers is the default SoilLayers().
 
     ## Class parameters
     m_r_l: float = field(default=0.02)  ## Maintenance respiration coefficient for leaves (d-1)
@@ -49,7 +51,7 @@ class PlantModel:
         self,
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
         W_R,         ## root structural dry biomass (g d.wt m-2)
-        soilTheta,   ## volumetric soil water content (m3 m-3)
+        soilTheta,   ## volumetric soil water content per layer (m3 m-3)
         leafTempC,   ## leaf temperature (deg C)
         airTempC,    ## air temperature (deg C), outside leaf boundary layer 
         airRH,      ## relative humidity of air (%), outside leaf boundary layer
@@ -62,19 +64,35 @@ class PlantModel:
         hc,     ## canopy height, m
     ) -> Tuple[float]:
 
+        ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
+        self.SoilLayers.set_index()
+        z_soil, d_soil = self.SoilLayers.discretise_layers()
+        if soilTheta.shape[0] != self.SoilLayers.nlevmlsoil:
+            raise ValueError("First dimension of the soil moisture input must be the same size as the defined number of soil layers.")
+
         if W_L < 0 or W_R < 0:
             raise ValueError(f"States W_L or W_R cannot be negative")
         
         LAI = self.calculate_LAI(W_L)
 
-        ## Calculate soil water potential
-        Psi_s = self.soil_water_potential(soilTheta)
+        Psi_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))  # Soil water potential array given the number of soil layers and number of time-steps
+        K_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))    # Soil hydraulic conductivity array given the number of soil layers and number of time-steps
+        K_sr_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Soil-to-root hydraulic conductivity array given the number of soil layers and number of time-steps
+        for iz, z in enumerate(range(self.SoilLayers.nlevmlsoil)):
+            ## Calculate soil water potential
+            Psi_s_z[iz,:] = self.soil_water_potential(soilTheta[iz,:]) # TODO: Change to per layer
         
-        ## Calculate soil properties
-        K_s = self.soil_hydraulic_conductivity(Psi_s)
+            ## Calculate soil properties
+            K_s_z[iz,:] = self.soil_hydraulic_conductivity(Psi_s_z[iz,:]) # TODO: Change to per layer
 
-        ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
-        K_sr = self.soil_root_hydraulic_conductivity(W_R,K_s)
+            f_r = 1.0/self.SoilLayers.nlevmlsoil   # TODO: Implement root distribution function here to determine root fraction in each soil layer
+
+            ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
+            K_sr_z[iz,:] = self.soil_root_hydraulic_conductivity(W_R,K_s_z[iz,:],f_r,d_soil[iz]) # TODO: Change to per layer
+
+        Psi_s = np.mean(Psi_s_z,axis=0)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
+        K_s = np.mean(K_s_z,axis=0)  # Average soil hydraulic conductivity over the root profile TODO: Fix this and its use below in other functions
+        K_sr = np.mean(K_sr_z,axis=0)  # Average soil-to-root hydraulic conductivity over the root profile TODO: Fix this so it only determines the average to the rooting depth
 
         ## Convert soil-to-root conductance to leaf-area specific soil-to-root conductance (TODO: Check definition and units of conductivity vs conductance)
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
@@ -99,7 +117,7 @@ class PlantModel:
         E = LAI * E
 
         ## Calculate root water potential
-        Psi_r = self.root_water_potential(Psi_s,E,k_srl)
+        Psi_r = self.root_water_potential(Psi_s,E,k_srl) # TODO: Calculate per layer but write out as a bulk average (analagous to bulk average Psi_l)
 
         ## Calculate maintenance respiration of leaf and root pools
         Rm_l = self.calculate_Rm_k(W_L,self.m_r_l)
@@ -257,7 +275,7 @@ class PlantModel:
         K_s = self.K_sat*(self.Psi_e/Psi_s)**(2+3/self.b_soil)
         return K_s
 
-    def soil_root_hydraulic_conductivity_conditional(self,W_R,K_s):
+    def soil_root_hydraulic_conductivity_conditional(self,W_R,K_s,f_r,d_soil):
         """
         Parameters
         ----------
@@ -291,11 +309,11 @@ class PlantModel:
         water uptake function based on root dry mass, root length or surface area density all produce very similar results in water uptake (Himmelbauer et al., 2008, Journal of 
         Hydrology and Hydromechanics 56(1)). 
         """
-        L_v = (W_R * self.f_r) / self.d_soil    ## calculate fine root density in the soil layer (g d.wt root m-3 soil)
+        L_v = (W_R * f_r) / d_soil    ## calculate fine root density in the soil layer (g d.wt root m-3 soil)
         K_sr = K_s * L_v/self.ksr_coeff
         return K_sr
     
-    def soil_root_hydraulic_conductivity(self,W_R,K_s):
+    def soil_root_hydraulic_conductivity(self,W_R,K_s,f_r,d_soil):
         """
         Parameters
         ----------
@@ -313,7 +331,7 @@ class PlantModel:
         
         """
         _vfunc = np.vectorize(self.soil_root_hydraulic_conductivity_conditional,otypes=[float])
-        K_sr = _vfunc(W_R,K_s)
+        K_sr = _vfunc(W_R,K_s,f_r,d_soil)
         return K_sr
     
     def soil_root_hydraulic_conductance_l(self,K_sr,LAI):

@@ -78,6 +78,7 @@ class PlantModel:
         
         LAI = self.calculate_LAI(W_L)
 
+        # Iterate over soil layers
         Psi_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))  # Soil water potential array given the number of soil layers and number of time-steps
         K_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))    # Soil hydraulic conductivity array given the number of soil layers and number of time-steps
         K_sr_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Soil-to-root hydraulic conductivity array given the number of soil layers and number of time-steps
@@ -103,7 +104,7 @@ class PlantModel:
 
         Psi_s = np.squeeze(np.mean(Psi_s_z,axis=0))  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
         K_s = np.squeeze(np.mean(K_s_z,axis=0))  # Average soil hydraulic conductivity over the root profile TODO: Fix this and its use below in other functions
-        K_sr = np.squeeze(np.mean(K_sr_z,axis=0))  # Average soil-to-root hydraulic conductivity over the root profile TODO: Fix this so it only determines the average to the rooting depth
+        K_sr = self.calculate_root_profile_mean(K_sr_z, self.root_depth_max, d_soil)   # Average soil-to-root hydraulic conductivity over the root profile
 
         ## Convert soil-to-root conductance to leaf-area specific soil-to-root conductance (TODO: Check definition and units of conductivity vs conductance)
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
@@ -571,6 +572,9 @@ class PlantModel:
 
     def calculate_root_distribution_conditional(self, d_soil):
         """
+        TODO: Modify function so that it takes in actual rooting depth, rather than just assuming the roots 
+        are at their maximum (defined by self.root_depth_max)
+
         Parameters
         ----------
         d_soil : Depth from soil surface to bottom of each soil layer (m)
@@ -638,4 +642,38 @@ class PlantModel:
         Y = _vfunc(d_soil)
         return Y
 
+    def calculate_root_profile_mean(self, param_z, rooting_depth, d_soil):
+        """
+        Calculate the average of a given parameter over the rooting depth (without weighting by layer depth)
 
+        TODO: Modify function so that it takes in actual rooting depth, rather than just assuming the roots 
+        are at their maximum (defined by self.root_depth_max). 
+
+        Parameters
+        ----------
+        param_z : array_like
+            Parameter that you want to average over the root profile
+        rooting_depth : scalar
+            Depth of roots (m)
+        d_soil : array_like
+            Depth from soil surface to bottom of each soil layer (m)
+
+        Returns
+        -------
+        Mean of the input parameter over the root profile
+
+        Notes
+        -----
+        Each layer that has roots present is included with an equal weight (i.e., if the roots are present 
+        in the layer, the weight is 1 regardless of how much of the layer is within the rooting depth)
+
+        """
+        if len(d_soil) <= 1:
+            # if there is only one soil layer, we just return the parameter
+            return param_z
+        else:
+            # if there are multiple soil layers, we take the average over the rooting depth
+            # Calculate depth to the top of each soil layer by prepending 0 (soil surface)
+            d0_soil = np.array([0] + d_soil[:-1])  # Depth from soil surface to top of each layer (m)
+            param_mean = np.nanmean(param_z[d0_soil < rooting_depth])
+            return param_mean

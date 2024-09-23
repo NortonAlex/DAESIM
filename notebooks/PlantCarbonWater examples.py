@@ -40,12 +40,12 @@ from daesim.soillayers import SoilLayers
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=3)
-soillayers = SoilLayers(nlevmlsoil=2,z_max=1.0)
+soillayers = SoilLayers(nlevmlsoil=4,z_max=2.0)
 canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,root_depth_max=1.0)
 
 # %%
 # soillayers = SoilLayers(nlevmlsoil=3,z_max=1.0)
@@ -55,8 +55,6 @@ z_soil, d_soil = soillayers.discretise_layers()
 print("z_soil =",z_soil)
 print("d_soil =",d_soil)
 plant.calculate_root_distribution(d_soil)
-
-# %%
 
 # %% [markdown]
 # ### Input variables for canopy layers, canopy radiation and canopy gas exchange
@@ -73,7 +71,7 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = np.array([[0.26],[0.26]])  # np.array([[0.26]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
+soilTheta = np.array([[0.26],[0.30],[0.34],[0.38]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 
@@ -84,8 +82,6 @@ W_L = 70
 # %%
 z_soil, d_soil = plant.SoilLayers.discretise_layers()
 d_soil
-
-plant.SoilLayers.nlevmlsoil
 
 # %% [markdown]
 # ### Example run of plant methods
@@ -723,6 +719,103 @@ axes[5].set_ylim([-4,0])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_sf.png",dpi=300,bbox_inches='tight')
 
+
+# %% [markdown]
+# ### - Rooting depth effect in the multi-layer soil model
+
+# %%
+n = 100
+
+fig, axes = plt.subplots(1,8,figsize=(20,2.5))
+
+_W_R = 80 * np.ones(4)
+_W_L = _W_R*1.
+_rooting_depth = np.array([0.1, 0.6, 1.2, 2.0])
+
+soilTheta_zbot = 0.40   ## Bottom soil layer soil moisture is kept constant
+_soilTheta_z0 = np.linspace(0.20,soilTheta_zbot,n)  ## Surface soil moisture is modified
+
+plant.ksr_coeff = 5000
+
+for ix, xWL in enumerate(_W_L):
+    W_L = xWL
+    W_R = _W_R[ix]
+    rooting_depth = _rooting_depth[ix]
+    plant.root_depth_max = rooting_depth
+    GPP_0_ = np.zeros(n)
+    Rml_0_ = np.zeros(n)
+    Rmr_0_ = np.zeros(n)
+    E_0_ = np.zeros(n)
+    fPsil_0_ = np.zeros(n)
+    Psil_0_ = np.zeros(n)
+    Psir_0_ = np.zeros(n)
+    Psis_0_ = np.zeros(n)
+    K_s_0_ = np.zeros(n)
+    K_sr_0_ = np.zeros(n)
+    k_srl_0_ = np.zeros(n)
+    GPP_0_nofPsil_ = np.zeros(n)
+    
+    for ix,xsoilTheta in enumerate(_soilTheta_z0):
+        # soilTheta = xsoilTheta
+        soilTheta_1d = np.linspace(xsoilTheta, soilTheta_zbot, plant.SoilLayers.nlevmlsoil)
+        soilTheta_2d = soilTheta_1d.reshape(plant.SoilLayers.nlevmlsoil, 1)   # Reshape to 2D with shape (n, 1)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta_2d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+        GPP_0_[ix] = GPP_0
+        Rml_0_[ix] = Rml_0
+        Rmr_0_[ix] = Rmr_0
+        E_0_[ix] = E_0
+        fPsil_0_[ix] = fPsil_0
+        Psil_0_[ix] = Psil_0
+        Psir_0_[ix] = Psir_0
+        Psis_0_[ix] = Psis_0
+        K_s_0_[ix] = K_s_0
+        K_sr_0_[ix] = K_sr_0
+        k_srl_0_[ix] = k_srl_0
+
+    
+    axes[0].plot(_soilTheta_z0,GPP_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[1].plot(_soilTheta_z0,E_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[2].plot(_soilTheta_z0,fPsil_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[3].plot(_soilTheta_z0,Psil_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[4].plot(_soilTheta_z0,Psir_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[5].plot(_soilTheta_z0,Psis_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[6].plot(_soilTheta_z0,K_s_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+    axes[7].plot(_soilTheta_z0,k_srl_0_,label=r"$\rm d_r=%1.1f$" % rooting_depth)
+
+axes[0].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[0].set_ylabel(r"GPP ($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[0].legend(handlelength=0.7,fontsize=9)
+
+axes[1].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[1].set_ylabel(r"E ($\rm mol \; H_2O \; m^{-2} \; s^{-1}$)")
+
+axes[2].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[2].set_ylabel(r"$\rm f_{\Psi_l}$ (-)")
+axes[2].set_ylim([0,1])
+
+axes[3].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[3].set_ylabel(r"$\Psi_L$ (MPa)")
+
+axes[4].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[4].set_ylabel(r"$\Psi_R$ (MPa)")
+
+axes[5].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[5].set_ylabel(r"$\Psi_S$ (MPa)")
+
+axes[6].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[6].set_ylabel(r"$K_s$")
+
+axes[7].set_xlabel("Top layer soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[7].set_ylabel(r"$k_{srl}$")
+
+# axes[0].set_ylim([0,15])
+# axes[1].set_ylim([0,0.00085])
+# axes[3].set_ylim([-4,0])
+# axes[4].set_ylim([-4,0])
+# axes[5].set_ylim([-4,0])
+
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_rootdepth.png",dpi=300,bbox_inches='tight')
 
 # %%
 

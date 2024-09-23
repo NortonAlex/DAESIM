@@ -54,7 +54,7 @@ class PlantModel:
         self,
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
         W_R,         ## root structural dry biomass (g d.wt m-2)
-        soilTheta,   ## volumetric soil water content per layer (m3 m-3)
+        soilTheta,   ## volumetric soil water content per layer (m3 m-3), dimensions (layer, time)
         leafTempC,   ## leaf temperature (deg C)
         airTempC,    ## air temperature (deg C), outside leaf boundary layer 
         airRH,      ## relative humidity of air (%), outside leaf boundary layer

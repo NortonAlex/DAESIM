@@ -57,6 +57,40 @@ print("d_soil =",d_soil)
 plant.calculate_root_distribution(d_soil)
 
 # %% [markdown]
+# ## Considering the multi-layer soil when determining supply-side transpiration rate
+#
+# The DAESIM2 model assumes that plant water uptake through the roots is balanced by the plant water loss from canopy transpiration. The plant water uptake through the roots is considered the water supply and is calculated as follows:
+#
+# $E = k_{tot} (\Psi_s - \Psi_l)$
+#
+# Where $E$ is the transpiration rate (leaf-area specific; mol m-2 s-1 MPa-1), $k_{tot}$ is the total leaf-area specific soil-to-leaf hydraulic conductance (mol m-2 s-1 MPa-1), $\Psi_s$ is the soil water potential (MPa) and $\Psi_l$ is the leaf water potential (MPa). Note: the variable $k_{tot}$ is determined by the soil water potential, soil properties, root density and root properties. The function above works fine when assuming a single soil layer with a single $\Psi_s$ value and therefore a single $k_{tot}$ value. However, it is more complicated when considering a multi-layer soil where $\Psi_s$ can vary, and subsequently $k_{tot}$ can vary depending on what layer or layers we consider in the soil-to-root hydraulic conductance. 
+#
+# For a given soil layer, we can consider the supply-based, layer-specific ($z$) potential transpiration rate as follows:
+#
+# $E(z) = k_{tot}(z) (\Psi_s(z) - \Psi_l)$
+#
+# Note: we only consider a bulk canopy average leaf water potential i.e. $\Psi_l$ is not discretised by canopy layer. The question is: How should $k_{tot}(z)$ and $\Psi_s(z)$ be determined to give a single value for the supply-based transpiration rate ($E$). Should we consider weighting each layer somehow? How would this occur? 
+#
+# First, let's show how $k_{tot}$ is determined:
+#
+# $k_{tot} = \frac{(k_{srl} k_{rl})}{(k_{rl} + k_{srl})}$
+#
+# This assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship $1/k_tot = 1/k_srl + 1/k_rl$. In DAESIM2, $k_{rl}$ is assumed to be a plant-type specific parameter which is constant in time. The variable $k_{srl}$ is the soil-to-root hydraulic conductance (leaf-area specific) and is determined by:
+#
+# $k_{srl} = \frac{K_{sr}}{LAI}$
+#
+# and:
+#
+# $K_{sr} = K_s \frac{f_r W_R}{d_{soil} k_{sr,coeff}} = K_s \frac{L_v}{k_{sr,coeff}}$
+#
+# Noting that $f_r \times W_R$ is the root biomass in the given soil layer and $(f_r W_R)/d_{soil}$ is the root biomass density in the given soil layer, $L_v$. Finally, $K_s$ is calculated as follows:
+#
+# $K_s = K_{sat} \left( \frac{\Psi_e}{Psi_s} \right)^{2+3/b_{soil}}$
+#
+# Thus, $K_s$ is dependent upon the soil water potential. The above equations account for variations over the soil profile in soil water potential and the root density, which determine $k_{srl}$. To determine $k_{tot}$ and then $E$, we need to determine how to weight or average $k_{srl}$ and $\Psi_s$ in each layer. 
+#
+
+# %% [markdown]
 # ### Input variables for canopy layers, canopy radiation and canopy gas exchange
 
 # %%
@@ -101,6 +135,8 @@ print("GPP =", GPP_0)
 print("E =", E_0)
 print("f_Psi_l =",fPsil_0)
 print("Psi_l =",Psil_0)
+
+
 
 # %% [markdown]
 # ## Model Sensitivity Tests
@@ -816,8 +852,6 @@ axes[7].set_ylabel(r"$k_{srl}$")
 
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_rootdepth.png",dpi=300,bbox_inches='tight')
-
-# %%
 
 # %% [markdown]
 # ## Optimal Trajectory Allocation

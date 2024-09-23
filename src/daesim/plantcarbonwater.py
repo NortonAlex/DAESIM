@@ -70,6 +70,7 @@ class PlantModel:
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
         self.SoilLayers.set_index()
         z_soil, d_soil = self.SoilLayers.discretise_layers()
+        d_soil_2d = np.array(d_soil).reshape(self.SoilLayers.nlevmlsoil, soilTheta.shape[1])
         if soilTheta.shape[0] != self.SoilLayers.nlevmlsoil:
             raise ValueError("First dimension of the soil moisture input must be the same size as the defined number of soil layers.")
 
@@ -78,35 +79,27 @@ class PlantModel:
         
         LAI = self.calculate_LAI(W_L)
 
-        # Iterate over soil layers
-        Psi_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))  # Soil water potential array given the number of soil layers and number of time-steps
-        K_s_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))    # Soil hydraulic conductivity array given the number of soil layers and number of time-steps
-        K_sr_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Soil-to-root hydraulic conductivity array given the number of soil layers and number of time-steps
-        fc_r_z = np.zeros((self.SoilLayers.nlevmlsoil, soilTheta.shape[1]))   # Cumulative fraction of roots, from surface to each soil layer
-        for iz, z in enumerate(range(self.SoilLayers.nlevmlsoil)):
-            ## Calculate soil water potential
-            Psi_s_z[iz,:] = self.soil_water_potential(soilTheta[iz,:]) # TODO: Change to per layer
+        ## Calculate soil water potential
+        Psi_s_z = self.soil_water_potential(soilTheta)
         
-            ## Calculate soil properties
-            K_s_z[iz,:] = self.soil_hydraulic_conductivity(Psi_s_z[iz,:]) # TODO: Change to per layer
+        ## Calculate soil properties
+        K_s_z = self.soil_hydraulic_conductivity(Psi_s_z)
 
-            fc_r_z[iz,:] = self.calculate_root_distribution(d_soil[iz]) # Calculate the cumulative fraction of roots occuring in soil layer
-            ## Determine actual fraction of roots in soil layer
-            if iz == 0:
-                # if this is the uppermost soil layer, just take the first value in the cumulative fraction array
-                f_r = fc_r_z[iz,:]
-            else:
-                # if this is not the uppermost soil layer, calculate the difference in the cumulative fraction array between this soil layer and the previous soil layer
-                f_r = fc_r_z[iz,:] - fc_r_z[iz-1,:]
+        ## Cumulative root fraction for all layers (assume d_soil is a vector for soil layer thickness)
+        fc_r_z = self.calculate_root_distribution(d_soil)  # Calculate the cumulative root distribution for all layers
 
-            ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
-            K_sr_z[iz,:] = self.soil_root_hydraulic_conductivity(W_R,K_s_z[iz,:],f_r,d_soil[iz]) # TODO: Change to per layer
+        ## Calculate actual root fraction per layer (by difference, no loops needed)
+        f_r_z_1d = np.diff(np.insert(fc_r_z, 0, 0, axis=0), axis=0)  # Fractional root density per layer
+        f_r_z_2d = f_r_z_1d.reshape(self.SoilLayers.nlevmlsoil, soilTheta.shape[1])
+
+        ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
+        K_sr_z = self.soil_root_hydraulic_conductivity(W_R, K_s_z, f_r_z_2d, d_soil_2d)
 
         ## Determine weighting in root zone soil layers, used to determine a single, bulk soil-root zone value for both Psi_s and K_sr
         ## Notes: Because we use the soil-to-root hydraulic conductivity to calculate the layer weights, any layers without root biomass will have a weight of zero
-        z_weights = K_sr_z/K_sr_z.sum(axis=0)
-        Psi_s = np.squeeze(np.sum(Psi_s_z*z_weights,axis=0))  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
-        K_sr = np.squeeze(np.sum(K_sr_z*z_weights,axis=0))   # Average soil-to-root hydraulic conductivity over the root profile
+        z_weights = K_sr_z/K_sr_z.sum(axis=0, keepdims=True)
+        Psi_s = np.sum(Psi_s_z*z_weights,axis=0)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
+        K_sr = np.sum(K_sr_z*z_weights,axis=0)   # Average soil-to-root hydraulic conductivity over the root profile
         # Average soil hydraulic conductivity over the root profile (no weighting for this). Note: Because this is a plant module, we determine the soil hydraulic conductivity over the root zone only
         K_s = self.calculate_root_profile_mean(K_s_z, self.root_depth_max, d_soil)
 

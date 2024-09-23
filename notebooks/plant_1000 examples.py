@@ -218,10 +218,10 @@ from daesim.utils import ODEModelSolver
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
 # %%
-time_axis = np.arange(101, 354, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+time_axis = np.arange(122, 332, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
 
-sowing_date=120
-harvest_date=354
+sowing_date=122
+harvest_date=332
 
 ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
 PlantDevX = PlantGrowthPhases(
@@ -249,7 +249,9 @@ PlantX = PlantModuleCalculator(
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
     propHarvestLeaf=0.75,
-    hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd
+    hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
+    Vmaxremob=0.5,
+    Kmremob=0.5,
 )
 
 # %%
@@ -310,6 +312,8 @@ _relativeGDD = np.zeros(time_axis.size)
 _hc = np.zeros(time_axis.size)
 _Psi_s = np.zeros(time_axis.size)
 
+_Cfluxremob = np.zeros(time_axis.size)
+
 for it,t in enumerate(time_axis):
     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
 
@@ -337,6 +341,7 @@ for it,t in enumerate(time_axis):
     _E[it] = E
     _Rm_l[it] = Rml
     _Rm_r[it] = Rmr
+    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it])
     
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
@@ -347,6 +352,8 @@ Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
 BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
 
 fV = PlantX.vernalization_factor(res["y"][5])
+
+# %%
 
 # %%
 ## Calculate diagnostic variables for allocation coefficients and turnover rates
@@ -438,9 +445,11 @@ ax2.bar(time_axis, df_forcing["Precipitation"].values[i0:i1], color="0.4")
 ax2.set_ylabel("Daily Precipitation\n(mm)")
 
 axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+# axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021_no4_CanolaPhoenix.png",dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021.png",dpi=300,bbox_inches='tight')
+
 
 
 # %%
@@ -476,6 +485,91 @@ axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoo
 ax = axes[3]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+    print("iphase, phase =",iphase, phase)
+    print(" itime =",itime, " res[t]=",res["t"][itime])
+    # print("   res[y][4] =",np.abs(res["y"][4]))
+    # print("   np.cumsum(PlantDevX.gdd_requirements)[iphase] =", np.cumsum(PlantDevX.gdd_requirements)[iphase])
+    ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
+    text_x = res["t"][itime]
+    text_y = 0.04
+    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+
+alp = 0.6
+axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
+axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
+axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
+axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
+axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
+axes[4].set_xlabel("Time (day of year)")
+axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
+axes[4].set_ylim([-7,180])
+
+accumulated_carbon = res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3]
+eos_accumulated_carbon = accumulated_carbon[-1]    # end-of-season total carbon (at the end of the simulation period)
+peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
+peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
+harvest_index = res["y"][3][-1]/(res["y"][0][-1]+res["y"][1][-1]+res["y"][2][-1]+res["y"][3][-1])
+harvest_index_peak = res["y"][3][-1]/peak_accumulated_carbon_noseed
+harvest_index_peak_noroot = res["y"][3][-1]/peak_accumulated_carbon_noseedroot
+yield_from_seed_Cpool = res["y"][3][-1]/100 * (1/PlantX.f_C)   ## convert gC m-2 to t dry biomass ha-1
+axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[4].set_ylim([0,200])
+
+print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
+print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
+print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
+
+axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+
+axes[0].set_title("%s - %s" % (site_year,site_name))
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_stemremob_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+
+
+
+# %%
+
+# %%
+_Cseed_add_remob = np.zeros(time_axis.size) #res["t"][4]
+t_fruiting_start = 295
+t_fruiting_end = 308
+
+for it,t in enumerate(time_axis):
+    # print(it,t)
+    if (t >= t_fruiting_start) & (t <= t_fruiting_end):
+        _Cseed_add_remob[it] = res["y"][3,it] + _Cfluxremob[it]
+    else:
+        _Cseed_add_remob[it] = res["y"][3,it]
+
+# %%
+fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
+
+axes[0].plot(res["t"], _Cfluxremob)
+axes[0].set_ylabel("Remobilization flux\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[0].tick_params(axis='x', labelrotation=45)
+# axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+# axes[0].set_ylim([0,20])
+
+axes[1].plot(res["t"], res["y"][3], label=r"$\rm C_{seed}$")
+axes[1].plot(res["t"], _Cseed_add_remob, label=r"$\rm C_{seed} + Remob.$")
+
+axes[2].plot(res["t"], res["y"][1]/res["y"][0],label=r"$\rm R_{S,L}$")
+axes[2].plot(res["t"], res["y"][1]/(res["y"][0]+res["y"][2]),label=r"$\rm R_{S,L+R}$")
+axes[2].plot(res["t"], res["y"][1]/(res["y"][0]+res["y"][1]+res["y"][2]),label=r"$\rm R_{S,L+R+S}$")
+axes[2].set_ylabel("Plant pool ratios\n"+r"(-)")
+axes[2].set_xlabel("Time (days)")
+axes[2].legend(fontsize=9,handlelength=0.8)
+axes[2].set_ylim([0,1])
+
+axes[3].plot(res["t"], res["y"][4])
+axes[3].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C d)")
+axes[3].set_xlabel("Time (days)")
+axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+ax = axes[3]
+for iphase,phase in enumerate(PlantDevX.phases):
+    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
     # print("iphase, phase =",iphase, phase)
     # print(" itime =",itime)
     # print("   res[y][4] =",np.abs(res["y"][4]))
@@ -494,7 +588,7 @@ axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
 axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
-axes[4].set_ylim([-7,162])
+axes[4].set_ylim([-7,180])
 
 accumulated_carbon = res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3]
 eos_accumulated_carbon = accumulated_carbon[-1]    # end-of-season total carbon (at the end of the simulation period)
@@ -513,9 +607,9 @@ print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root
 
 axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
-axes[0].set_title("2021 - No.4 Paddock - Canola (Phoenix)")
+axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_2021_no4_CanolaPhoenix_drought.png",dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_RH2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 # %%
@@ -599,6 +693,7 @@ axes[1,2].set_title("Hydrothermal Time per Day")
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -682,9 +777,11 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([xminlim, xmaxlim])
 
 # plt.grid(True)
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_2021_no4_CanolaPhoenix_alloctr.png",dpi=300,bbox_inches="tight")
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_stemremob_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
+
+# %%
 
 # %%
 

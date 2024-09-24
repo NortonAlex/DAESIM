@@ -129,4 +129,22 @@ class PlantGrowthPhases:
         else:
             return current_gdd / anthesis_gdd
 
+    def is_in_phase(self, current_gdd, phase_name):
+        """
+        Returns True if the current GDD falls within the given phase (phase_name), otherwise False.
+        The phase is identified dynamically based on the phase name.
+        """
+        # Ensure the phase_name exists in the phases list
+        if phase_name not in self.phases:
+            raise ValueError(f"Phase '{phase_name}' not found in the growth phases. Available phases: {self.phases}")
+        
+        # Identify the index of the phase
+        phase_index = self.phases.index(phase_name)
+        
+        # Calculate the cumulative GDD range for the given phase
+        start_gdd = sum(self.gdd_requirements[:phase_index])  # Start GDD for the phase
+        end_gdd = start_gdd + self.gdd_requirements[phase_index]  # End GDD for the phase
+        
+        # Return True if current_gdd is within the phase range, otherwise False
+        return start_gdd <= current_gdd < end_gdd
 

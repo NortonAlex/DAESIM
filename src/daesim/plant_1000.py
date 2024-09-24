@@ -76,6 +76,7 @@ class PlantModuleCalculator:
     HTT_k: float = field(default=0.07)  ## Germination slope of linear increase in psi_b when temperature increases (MPa degrees Celsius-1)
     HTT_Theta_HT: float = field(default=60.0)  ## HTT requirement for germination (MPa degrees Celcius d)
 
+    remob_phase: str = field(default="spike")  ## Developmental phase when stem remobilization occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
     Vmaxremob: float = field(default=0.5)  ## Maximum potential remobilization rate (analogous to phloem loading rate) for Michaelis-Menten function (g C m-2 d-1)
     Kmremob: float = field(default=0.4)  ## Michaelis-Menten kinetic parameter (unitless; same units as substrate in Michaelis-Menten equation which, in this case, is a unitless ratio)
 
@@ -166,14 +167,14 @@ class PlantModuleCalculator:
         u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
 
         # Calculate stem remobilization to grain
-        f_remob_stem = 0.3    # May be better represented by a curve (resistance) where the first bit of carbon is easy to remobilize, while the last bits are hard.
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem,Cleaf)
+        f_remob_stem = 0.3    # TODO: Not implemented yet. We may only be able to remobilise some portion of the stem. This may be better represented by a curve (resistance) where the first bits of carbon are easy to remobilize, while the last bits are hard (expensive).
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem,Cleaf,Bio_time)
 
         # ODE for plant carbon pools
         dCleafdt = u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
-        dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem
+        dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
         dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
-        dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed
+        dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt)
 
@@ -344,18 +345,33 @@ class PlantModuleCalculator:
         d_r = self.d_r_max * np.minimum(1, relative_gdd_index)
         return d_r
 
-    def calculate_nsc_stem_remob(self, Cstem, Cleaf):
+    def calculate_nsc_stem_remob(self, Cstem, Cleaf, current_gdd):
+        """
+        Calculates the non-structural carbohydrate (NSC) remobilization from the stem during a specific growth phase.
+
+        Parameters:
+        ----------
+        Cstem : float or array_like
+            Carbon content in the stem (gC m-2).
+        Cleaf : float or array_like
+            Carbon content in the leaves (gC m-2).
+        current_gdd : float
+            The current growing degree days (GDD), used to determine if the plant is in the specified remobilization phase.
+
+        Returns:
+        -------
+        float or array_like
+            The rate of stem remobilization based on the stem-to-leaf carbon ratio if the plant is in the remobilization phase, otherwise returns 0.
         """
         
-        """
-        # Convert inputs to numpy arrays to handle scalar or array_like inputs
-        #Cstem = np.asarray(Cstem)
-        #Cleaf = np.asarray(Cleaf)
-        # Calculate the actual stem:leaf ratio
-        R_stem_leaf_actual = Cstem / Cleaf
-        # C_organ = np.minimum(R_stem_leaf_actual/R_stem_leaf_opt,1)
-        C_organ = R_stem_leaf_actual #/R_stem_leaf_opt
-        L = self.Vmaxremob * C_organ/(self.Kmremob + C_organ)
-        return L
+        if self.PlantDev.is_in_phase(current_gdd, self.remob_phase):
+            # Calculate the actual stem:leaf ratio
+            R_stem_leaf_actual = Cstem / Cleaf
+            # C_organ = np.minimum(R_stem_leaf_actual/R_stem_leaf_opt,1)
+            C_organ = R_stem_leaf_actual #/R_stem_leaf_opt
+            L = self.Vmaxremob * C_organ/(self.Kmremob + C_organ)
+            return L
+        else:
+            return 0
 
 

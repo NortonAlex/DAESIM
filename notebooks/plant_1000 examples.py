@@ -190,7 +190,7 @@ leaf = LeafGasExchangeModule2(Site=site)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 plantch2o = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange)
 plantalloc = PlantOptimalAllocation(Plant=plantch2o,dWL_factor=1.01,dWR_factor=1.02)
-plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o,PlantAlloc=plantalloc)
+plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o,PlantAlloc=plantalloc,remob_phase="anthesis")
 
 dydt = plant.calculate(
     _Cleaf,
@@ -237,19 +237,43 @@ time_axis = np.arange(122, 332, 1)   ## Note: time_axis represents the simulatio
 sowing_date=122
 harvest_date=332
 
-ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
+# %%
+## PlantDev
+# PlantDevX = PlantGrowthPhases(
+#     gdd_requirements=[100,600,160,140],
+#     allocation_coeffs = [
+#         [0.0, 0.1, 0.9, 0.0, 0.0],
+#         [0.5, 0.1, 0.4, 0.0, 0.0],
+#         [0.25, 0.4, 0.25, 0.1, 0.0],
+#         [0.15, 0.2, 0.15, 0.5, 0.0]
+#     ],
+#     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
+#                       [0.0366, 0.002, 0.0083, 0.0, 0.0],
+#                       [0.0633, 0.002, 0.0083, 0.0, 0.0],
+#                       [0.1, 0.008, 0.05, 0.0001, 0.0]])
+
+
+## PlantDev with specific spike formation phase - especially important for for wheat
 PlantDevX = PlantGrowthPhases(
-    gdd_requirements=[100,600,160,140],
+    phases=["germination", "vegetative", "spike", "anthesis", "fruiting"],
+    gdd_requirements=[50,500,150,160,140],
+    vd_requirements=[0, 40, 0, 0, 0],
     allocation_coeffs = [
         [0.0, 0.1, 0.9, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
+        [0.20, 0.6, 0.20, 0.0, 0.0],
         [0.25, 0.4, 0.25, 0.1, 0.0],
-        [0.15, 0.2, 0.15, 0.5, 0.0]
+        [0.1, 0.1, 0.1, 0.7, 0.0]
     ],
     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
                       [0.0366, 0.002, 0.0083, 0.0, 0.0],
+                      [0.0366, 0.002, 0.0083, 0.0, 0.0],
                       [0.0633, 0.002, 0.0083, 0.0, 0.0],
                       [0.1, 0.008, 0.05, 0.0001, 0.0]])
+
+# %%
+ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
+
 LeafX = LeafGasExchangeModule2(Site=SiteX)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
@@ -266,7 +290,7 @@ PlantX = PlantModuleCalculator(
     propHarvestLeaf=0.75,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
     d_r_max=2.0,
-    Vmaxremob=0.5,
+    Vmaxremob=5.0,
     Kmremob=0.5,
 )
 
@@ -301,8 +325,8 @@ res = Model.run(
     # atol=1e-2
 )
 
-# %%
-### Calculate diagnostic variables
+# %% [markdown]
+# ### Calculate diagnostic variables
 
 # %%
 LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
@@ -359,7 +383,7 @@ for it,t in enumerate(time_axis):
     _Rm_l[it] = Rml
     _Rm_r[it] = Rmr
     _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
-    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it])
+    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][4,it])
     
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
@@ -428,7 +452,7 @@ for it,t in enumerate(time_axis):
 # %%
 site_year = "2021"
 site_name = "Site - Generic Crop"
-site_filename = "Site_GenericCrop"
+site_filename = "Site_GenericCrop_wspikephase_wstemremob_CUE0p6"
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -499,7 +523,7 @@ axes[2].plot(res["t"], _E*18.015/1000*(60*60*24))
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-# axes[2].set_ylim([0,0.0043])
+axes[2].set_ylim([0,6])
 
 # axes[4].plot(df_forcing.index.values[364:-1], 0.5*np.cumsum(GPP[364:]))
 axes[3].plot(res["t"], res["y"][4])
@@ -549,7 +573,7 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_mlsoil_test2_dynamic_d_r.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -717,7 +741,7 @@ axes[1,2].set_title("Hydrothermal Time per Day")
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -801,17 +825,9 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([xminlim, xmaxlim])
 
 # plt.grid(True)
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil_test2_dynamic_d_r.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
-
-# %%
-plt.plot(res["t"], _hc)
-plt.show()
-
-plt.plot(res["t"], _d_r)
-
-# %%
 
 # %% [markdown]
 # ### Compare numerical solvers

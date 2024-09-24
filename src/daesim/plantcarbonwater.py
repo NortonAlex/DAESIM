@@ -54,7 +54,7 @@ class PlantModel:
         self,
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
         W_R,         ## root structural dry biomass (g d.wt m-2)
-        soilTheta,   ## volumetric soil water content per layer (m3 m-3), dimensions (layer, time)
+        soilTheta,   ## volumetric soil water content per layer (m3 m-3), dimensions (soil layer,)
         leafTempC,   ## leaf temperature (deg C)
         airTempC,    ## air temperature (deg C), outside leaf boundary layer 
         airRH,      ## relative humidity of air (%), outside leaf boundary layer
@@ -70,9 +70,8 @@ class PlantModel:
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
         self.SoilLayers.set_index()
         z_soil, d_soil = self.SoilLayers.discretise_layers()
-        d_soil_2d = np.array(d_soil).reshape(self.SoilLayers.nlevmlsoil, soilTheta.shape[1])
-        if soilTheta.shape[0] != self.SoilLayers.nlevmlsoil:
-            raise ValueError("First dimension of the soil moisture input must be the same size as the defined number of soil layers.")
+        if soilTheta.size != self.SoilLayers.nlevmlsoil:
+            raise ValueError("Size of the soil moisture input must be the same size as the defined number of soil layers.")
 
         if W_L < 0 or W_R < 0:
             raise ValueError(f"States W_L or W_R cannot be negative")
@@ -89,17 +88,16 @@ class PlantModel:
         fc_r_z = self.calculate_root_distribution(d_soil)  # Calculate the cumulative root distribution for all layers
 
         ## Calculate actual root fraction per layer (by difference, no loops needed)
-        f_r_z_1d = np.diff(np.insert(fc_r_z, 0, 0, axis=0), axis=0)  # Fractional root density per layer
-        f_r_z_2d = f_r_z_1d.reshape(self.SoilLayers.nlevmlsoil, soilTheta.shape[1])
+        f_r_z = np.diff(np.insert(fc_r_z, 0, 0, axis=0), axis=0)  # Fractional root density per layer
 
         ## Calculate soil-to-root conductivity/conductance (TODO: Check definition and units of conductivity vs conductance)
-        K_sr_z = self.soil_root_hydraulic_conductivity(W_R, K_s_z, f_r_z_2d, d_soil_2d)
+        K_sr_z = self.soil_root_hydraulic_conductivity(W_R, K_s_z, f_r_z, d_soil)
 
         ## Determine weighting in root zone soil layers, used to determine a single, bulk soil-root zone value for both Psi_s and K_sr
         ## Notes: Because we use the soil-to-root hydraulic conductivity to calculate the layer weights, any layers without root biomass will have a weight of zero
-        z_weights = K_sr_z/K_sr_z.sum(axis=0, keepdims=True)
-        Psi_s = np.sum(Psi_s_z*z_weights,axis=0)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
-        K_sr = np.sum(K_sr_z*z_weights,axis=0)   # Average soil-to-root hydraulic conductivity over the root profile
+        z_weights = K_sr_z/K_sr_z.sum()
+        Psi_s = np.sum(Psi_s_z*z_weights)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
+        K_sr = np.sum(K_sr_z*z_weights)   # Average soil-to-root hydraulic conductivity over the root profile
         # Average soil hydraulic conductivity over the root profile (no weighting for this). Note: Because this is a plant module, we determine the soil hydraulic conductivity over the root zone only
         K_s = self.calculate_root_profile_mean(K_s_z, self.root_depth_max, d_soil)
 

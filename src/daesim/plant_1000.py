@@ -100,7 +100,7 @@ class PlantModuleCalculator:
         airRH,         ## relative humidity (%)
         airCO2,        ## partial pressure CO2 (bar)
         airO2,         ## partial pressure O2 (bar)
-        soilTheta,     ## volumetric soil water content (m3 m-3)
+        soilTheta,     ## volumetric soil water content (m3 m-3), dimensions (soil layer,)
         _doy,
         _year,
     ) -> Tuple[float]:
@@ -118,7 +118,7 @@ class PlantModuleCalculator:
         BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
 
         # Germination: hydrothermal time state
-        dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta)
+        dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta[0])  ## assume only the uppermost soil layer controls germination
         # TODO: Need trigger to say, when HTT_time >= self.HTT_Theta_HT, we update the PlantDev to the next development phase
 
         # Development phase index

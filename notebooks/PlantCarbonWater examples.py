@@ -105,7 +105,7 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = np.array([[0.26],[0.30],[0.34],[0.38]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
+soilTheta = np.array([0.26, 0.30, 0.34, 0.38])  # np.array([[0.26],[0.30],[0.34],[0.38]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 

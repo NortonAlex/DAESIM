@@ -29,6 +29,7 @@ from daesim.climate import *
 from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
+from daesim.soillayers import SoilLayers
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
 from daesim.leafgasexchange import LeafGasExchangeModule
@@ -124,6 +125,17 @@ _O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
 _soilTheta =  0.35*np.ones(nrundays)   ## volumetric soil moisture content (m3 m-3)
 _soilTheta = f_soilTheta_norm
 
+## Create a multi-layer soil moisture forcing dataset
+## Option 1: Same soil moisture across all layers
+nlevmlsoil = 2
+_soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
+## Option 2: Adjust soil moisture in each layer
+# _soilTheta_z0 = _soilTheta-0.04
+# _soilTheta_z1 = _soilTheta+0.04
+# _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
+
+# %%
+
 # %% [markdown]
 # ### Convert discrete to continuous forcing data 
 
@@ -140,6 +152,7 @@ Climate_airRH_f = interp1d(time_nday, _RH)
 Climate_airCO2_f = interp1d(time_nday, _CO2)
 Climate_airO2_f = interp1d(time_nday, _O2)
 Climate_soilTheta_f = interp1d(time_nday, _soilTheta)
+Climate_soilTheta_z_f = interp1d(time_nday, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
 Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 
@@ -164,17 +177,18 @@ _airPressure = 101325  ## atmospheric pressure (Pa)
 _airRH = 65.0   ## relative humidity (%) 
 _airCO2 = 400*(_airPressure/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
 _airO2 = 209000*(_airPressure/1e5)*1e-6   ## oxygen partial pressure (bar)
-_soilTheta = 0.30   ## volumetric soil water content (m3 m-3)
+_soilTheta = np.array([0.30,0.30])   ## volumetric soil water content (m3 m-3)
 _doy = time_doy[_nday-1]
 _year = time_year[_nday-1]
 
 management = ManagementModule(plantingDay=30,harvestDay=235)
 site = ClimateModule()
+soillayers = SoilLayers(nlevmlsoil=2,z_max=2.0)
 canopy = CanopyLayers()
 canopyrad = CanopyRadiation(Canopy=canopy)
 leaf = LeafGasExchangeModule2(Site=site)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
-plantch2o = PlantCH2O(Site=site,CanopyGasExchange=canopygasexchange)
+plantch2o = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange)
 plantalloc = PlantOptimalAllocation(Plant=plantch2o,dWL_factor=1.01,dWR_factor=1.02)
 plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o,PlantAlloc=plantalloc)
 
@@ -240,7 +254,8 @@ LeafX = LeafGasExchangeModule2(Site=SiteX)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
-PlantCH2OX = PlantCH2O(Site=SiteX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.5,ksr_coeff=10000)
+SoilLayersX = SoilLayers(nlevmlsoil=2,z_max=2.0)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.5,ksr_coeff=10000,root_depth_max=2.0)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -269,7 +284,7 @@ forcing_inputs = [Climate_solRadswskyb_f,
                   Climate_airRH_f,
                   Climate_airCO2_f,
                   Climate_airO2_f,
-                  Climate_soilTheta_f,
+                  Climate_soilTheta_z_f,
                   Climate_doy_f,
                   Climate_year_f]
 
@@ -285,8 +300,8 @@ res = Model.run(
     # atol=1e-2
 )
 
-# %% [markdown]
-# ### Calculate diagnostic variables
+# %%
+### Calculate diagnostic variables
 
 # %%
 LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
@@ -316,8 +331,6 @@ _Cfluxremob = np.zeros(time_axis.size)
 
 for it,t in enumerate(time_axis):
     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
-
-    _Psi_s[it] = PlantX.PlantCH2O.soil_water_potential(Climate_soilTheta_f(time_axis[it]))
     
     # Development phase index
     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
@@ -336,11 +349,12 @@ for it,t in enumerate(time_axis):
     _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
 
     ## GPP and Transpiration (E)
-    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
+    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
     _Rm_l[it] = Rml
     _Rm_r[it] = Rmr
+    _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it])
     
 
@@ -352,8 +366,6 @@ Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
 BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
 
 fV = PlantX.vernalization_factor(res["y"][5])
-
-# %%
 
 # %%
 ## Calculate diagnostic variables for allocation coefficients and turnover rates
@@ -390,7 +402,7 @@ for it,t in enumerate(time_axis):
     u_L, u_R, _, _, _, _ = PlantX.PlantAlloc.calculate(
         W_L[it],
         W_R[it],
-        Climate_soilTheta_f(time_axis[it]),
+        Climate_soilTheta_z_f(time_axis[it]),
         Climate_airTempC_f(time_axis[it]),
         Climate_airTempC_f(time_axis[it]),
         Climate_airRH_f(time_axis[it]),
@@ -407,6 +419,11 @@ for it,t in enumerate(time_axis):
 
 # %% [markdown]
 # ### Create figures
+
+# %%
+site_year = "2021"
+site_name = "Site - Generic Crop"
+site_filename = "Site_GenericCrop"
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -432,7 +449,9 @@ axes[2].set_ylabel("Relative humidity\n"+r"(%)")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Relative humidity", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
-axes[3].plot(res["t"], 100*Climate_soilTheta_f(time_axis), c="0.4")
+xcolors = np.linspace(0.9,0.1,PlantX.PlantCH2O.SoilLayers.nlevmlsoil).astype(str)
+for iz in range(PlantX.PlantCH2O.SoilLayers.nlevmlsoil):
+    axes[3].plot(res["t"], 100*Climate_soilTheta_z_f(time_axis)[:,iz], c=xcolors[iz])
 axes[3].set_ylabel("Soil moisture\n"+r"(%)")
 # axes[3].tick_params(axis='x', labelrotation=45)
 axes[3].annotate("Soil moisture", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -448,7 +467,7 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 # axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021.png",dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021_mlsoil_test2.png",dpi=300,bbox_inches='tight')
 
 
 
@@ -525,7 +544,7 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_stemremob_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_mlsoil_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -777,7 +796,7 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([xminlim, xmaxlim])
 
 # plt.grid(True)
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_stemremob_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 

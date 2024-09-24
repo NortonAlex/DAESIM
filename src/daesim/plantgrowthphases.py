@@ -55,10 +55,8 @@ class PlantGrowthPhases:
     
     def __attrs_post_init__(self):
         # Validate the length of related attributes to ensure consistency
-        if not (self.ndevphases == len(self.phases) == len(self.gdd_requirements) == np.shape(self.allocation_coeffs)[0] == np.shape(self.turnover_rates)[0]):
-            raise ValueError("The number of developmental phases does not match across phases, GDD requirements, allocation coefficients, and turnover rates. Please correct the attributes to ensure they all match the number of developmental phases.")
-        if not (np.shape(self.allocation_coeffs)[0] == np.shape(self.turnover_rates)[0]):
-            raise ValueError("The number of developmental phases does not match across phases, GDD requirements, allocation coefficients, and turnover rates. Please correct the attributes to ensure they all match the number of developmental phases.")
+        if not (self.ndevphases == len(self.phases) == len(self.gdd_requirements) == len(self.vd_requirements) == np.shape(self.allocation_coeffs)[0] == np.shape(self.turnover_rates)[0]):
+            raise ValueError("The number of developmental phases does not match across phases, GDD requirements, VD requirements, allocation coefficients, and turnover rates. Please correct the attributes to ensure they all match the number of developmental phases.")
         for i, coeffs in enumerate(self.allocation_coeffs):
             if not np.isclose(sum(coeffs), 1):
                 raise ValueError(f"The allocation coefficients for phase {i+1}, {self.phases[i]}, do not sum to 1. Please correct this.")
@@ -123,7 +121,7 @@ class PlantGrowthPhases:
             raise ValueError("'anthesis' phase not found in the growth phases. Please ensure the phase exists to determine developmental progression.")
 
         anthesis_gdd = sum(self.gdd_requirements[:anthesis_index])  # GDD required to reach anthesis (germination + vegetative)
-        
+
         if current_gdd <= 0:
             return 0
         elif current_gdd >= anthesis_gdd:

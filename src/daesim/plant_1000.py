@@ -37,6 +37,7 @@ class PlantModuleCalculator:
     albsoid: float = field(default=0.2)   ## Soil background albedo for diffuse radiation (-) TODO: Place this parameter in a more suitable spot/module
     hc_max: float = field(default=0.6)   ## Maximum canopy height (m)
     hc_max_GDDindex: float = field(default=0.75)    ## Relative growing degree day index at peak canopy height (ranges between 0-1). A rule of thumb is that canopy height peaks at anthesis (see Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017)
+    d_r_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
 
     GDD_method: str = field(
         default="nonlinear"
@@ -126,6 +127,8 @@ class PlantModuleCalculator:
         # Determine canopy height
         relative_gdd = self.PlantDev.calc_relative_gdd_index(Bio_time)
         hc = self.calculate_canopy_height(relative_gdd)
+        relative_gdd_anthesis = self.PlantDev.calc_relative_gdd_to_anthesis(Bio_time)
+        d_r = self.calculate_root_depth(relative_gdd_anthesis)
         # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
         VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
@@ -143,7 +146,7 @@ class PlantModuleCalculator:
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
 
-        _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc)
+        _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
         GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         
         # Calculate NPP
@@ -160,7 +163,7 @@ class PlantModuleCalculator:
         # Set pool turnover rates for optimal allocation
         self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
         self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc)
+        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
 
         # Calculate stem remobilization to grain
         f_remob_stem = 0.3    # May be better represented by a curve (resistance) where the first bit of carbon is easy to remobilize, while the last bits are hard.
@@ -315,6 +318,31 @@ class PlantModuleCalculator:
         """
         hc = self.hc_max * np.minimum(1, (1/self.hc_max_GDDindex)*relative_gdd_index)
         return hc
+
+    def calculate_root_depth(self, relative_gdd_index):
+        """
+        Calculate root depth of an annual herbaceous plants. 
+        Root depth (d_r) is determined as a linear function of growing degree days up 
+        to a point in the season where it reaches a defined maximum. 
+
+        Parameters
+        ----------
+        relative_gdd_index : float or array_like
+            Relative growing degree day index, ranges between 0 and 1, indicating the relative development growth phase from germination to the end of a defined period e.g. anthesis
+
+        Returns
+        -------
+        d_r : float or array_like
+            Root depth (m)
+
+        Notes
+        -----
+
+        References
+        ----------
+        """
+        d_r = self.d_r_max * np.minimum(1, relative_gdd_index)
+        return d_r
 
     def calculate_nsc_stem_remob(self, Cstem, Cleaf):
         """

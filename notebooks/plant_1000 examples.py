@@ -255,7 +255,7 @@ CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
 SoilLayersX = SoilLayers(nlevmlsoil=2,z_max=2.0)
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.5,ksr_coeff=10000,root_depth_max=2.0)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.5,ksr_coeff=10000)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -265,6 +265,7 @@ PlantX = PlantModuleCalculator(
     PlantAlloc=PlantAllocX,
     propHarvestLeaf=0.75,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
+    d_r_max=2.0,
     Vmaxremob=0.5,
     Kmremob=0.5,
 )
@@ -325,6 +326,7 @@ _PHTT = np.zeros(time_axis.size)
 _fV = np.zeros(time_axis.size)
 _relativeGDD = np.zeros(time_axis.size)
 _hc = np.zeros(time_axis.size)
+_d_r = np.zeros(time_axis.size)
 _Psi_s = np.zeros(time_axis.size)
 
 _Cfluxremob = np.zeros(time_axis.size)
@@ -336,6 +338,8 @@ for it,t in enumerate(time_axis):
     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
     _relativeGDD[it] = PlantX.PlantDev.calc_relative_gdd_index(res["y"][4,it])
     _hc[it] = PlantX.calculate_canopy_height(_relativeGDD[it])
+    relative_gdd_anthesis = PlantX.PlantDev.calc_relative_gdd_to_anthesis(res["y"][4,it])
+    _d_r[it] = PlantX.calculate_root_depth(relative_gdd_anthesis)
     PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
     VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
     # Update vernalization days requirement for current developmental phase
@@ -349,7 +353,7 @@ for it,t in enumerate(time_axis):
     _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
 
     ## GPP and Transpiration (E)
-    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it])
+    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_r[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
     _Rm_l[it] = Rml
@@ -412,7 +416,8 @@ for it,t in enumerate(time_axis):
         Climate_solRadswskyb_f(time_axis[it]),
         Climate_solRadswskyd_f(time_axis[it]),
         theta[it],
-        _hc[it])
+        _hc[it],
+        _d_r[it])
 
     _u_Leaf[it] = u_L
     _u_Root[it] = u_R
@@ -544,7 +549,7 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_mlsoil_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_mlsoil_test2_dynamic_d_r.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -796,11 +801,15 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([xminlim, xmaxlim])
 
 # plt.grid(True)
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil_test2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil_test2_dynamic_d_r.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 
 # %%
+plt.plot(res["t"], _hc)
+plt.show()
+
+plt.plot(res["t"], _d_r)
 
 # %%
 

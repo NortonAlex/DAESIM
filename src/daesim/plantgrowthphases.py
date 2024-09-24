@@ -111,3 +111,24 @@ class PlantGrowthPhases:
         """
         return self.vd_t - self.vd_0
 
+    def calc_relative_gdd_to_anthesis(self, current_gdd):
+        """
+        Calculates the relative GDD index between 0 and 1, indicating the
+        relative development growth phase from germination to the start of anthesis.
+        """
+        # Identify the index corresponding to the 'anthesis' phase
+        try:
+            anthesis_index = self.phases.index("anthesis")
+        except ValueError:
+            raise ValueError("'anthesis' phase not found in the growth phases. Please ensure the phase exists to determine developmental progression.")
+
+        anthesis_gdd = sum(self.gdd_requirements[:anthesis_index])  # GDD required to reach anthesis (germination + vegetative)
+        
+        if current_gdd <= 0:
+            return 0
+        elif current_gdd >= anthesis_gdd:
+            return 1
+        else:
+            return current_gdd / anthesis_gdd
+
+

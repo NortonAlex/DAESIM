@@ -42,7 +42,6 @@ class PlantModel:
     ksr_coeff: float = field(default=500)    ## scale factor for soil-to-root conductivity/conductance (TODO: Check units and definition); conversion factor for soil hydraulic conductivity and root biomass density to a soil-to-root conductivity/conductance. In some models this is represented by a single root occupying a cylinder of soil. In principle, it considers the distance water travels from the bulk soil to the root surface, root geometry (e.g. radius) and conducting propoerties of the root. Typical values range from approx 100-18000
     d_soil: float = field(default=1.0)       ## depth of soil layer (m)
     f_r: float = field(default=1.0)          ## fraction of roots in soil layer (unitless)
-    root_depth_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
     root_distr_d50: float = field(default=0.15)  ## Soil depth at which 50% of total root amount is accumulated (m) i.e. 50% of roots occur above this depth
     root_distr_c: float = field(default=-1.2)     ## A dimensionless shape-parameter to describe root distribution in soil profile (-)
     
@@ -65,6 +64,7 @@ class PlantModel:
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
         sza,    ## Solar zenith angle, degrees
         hc,     ## canopy height, m
+        d_r,     ## root depth, m
     ) -> Tuple[float]:
 
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
@@ -85,7 +85,7 @@ class PlantModel:
         K_s_z = self.soil_hydraulic_conductivity(Psi_s_z)
 
         ## Cumulative root fraction for all layers (assume d_soil is a vector for soil layer thickness)
-        fc_r_z = self.calculate_root_distribution(d_soil)  # Calculate the cumulative root distribution for all layers
+        fc_r_z = self.calculate_root_distribution(d_r, d_soil)  # Calculate the cumulative root distribution for all layers
 
         ## Calculate actual root fraction per layer (by difference, no loops needed)
         f_r_z = np.diff(np.insert(fc_r_z, 0, 0, axis=0), axis=0)  # Fractional root density per layer
@@ -99,7 +99,7 @@ class PlantModel:
         Psi_s = np.sum(Psi_s_z*z_weights)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
         K_sr = np.sum(K_sr_z*z_weights)   # Average soil-to-root hydraulic conductivity over the root profile
         # Average soil hydraulic conductivity over the root profile (no weighting for this). Note: Because this is a plant module, we determine the soil hydraulic conductivity over the root zone only
-        K_s = self.calculate_root_profile_mean(K_s_z, self.root_depth_max, d_soil)
+        K_s = self.calculate_root_profile_mean(K_s_z, d_r, d_soil)
 
         ## Convert soil-to-root conductance to leaf-area specific soil-to-root conductance (TODO: Check definition and units of conductivity vs conductance)
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
@@ -565,13 +565,13 @@ class PlantModel:
         f_sv = (1 + np.exp(self.sf*self.Psi_f))/(1 + np.exp(self.sf*(self.Psi_f-Psi_l)))
         return f_sv
 
-    def calculate_root_distribution_conditional(self, d_soil):
+    def calculate_root_distribution_conditional(self, d_r, d_soil):
         """
-        TODO: Modify function so that it takes in actual rooting depth, rather than just assuming the roots 
-        are at their maximum (defined by self.root_depth_max)
+        
 
         Parameters
         ----------
+        d_r : Root depth (m)
         d_soil : Depth from soil surface to bottom of each soil layer (m)
 
         Returns
@@ -615,7 +615,7 @@ class PlantModel:
         Schenk and Jackson (2002, doi:10.1890/0012-9615(2002)072[0311:TGBOR]2.0.CO;2)
         """
 
-        max_rooting_depth = min(self.root_depth_max, self.SoilLayers.z_max)  # rooting depth cannot exceed total soil depth
+        max_rooting_depth = min(d_r, self.SoilLayers.z_max)  # rooting depth cannot exceed total soil depth
 
         if d_soil <= max_rooting_depth:
             Y = 1/(1+(d_soil/self.root_distr_d50)**self.root_distr_c) + (1 - 1/(1+(max_rooting_depth/self.root_distr_d50)**self.root_distr_c))*d_soil/max_rooting_depth
@@ -623,10 +623,11 @@ class PlantModel:
             Y = 1
         return Y
 
-    def calculate_root_distribution(self, d_soil):
+    def calculate_root_distribution(self, d_r, d_soil):
         """
         Parameters
         ----------
+        d_r : Root depth (m)
         d_soil : Depth from soil surface to bottom of each soil layer (m)
 
         Returns
@@ -634,7 +635,7 @@ class PlantModel:
         Cumulative amount of roots from surface to each soil layer (-)
         """
         _vfunc = np.vectorize(self.calculate_root_distribution_conditional,otypes=[float])
-        Y = _vfunc(d_soil)
+        Y = _vfunc(d_r,d_soil)
         return Y
 
     def calculate_root_profile_mean(self, param_z, rooting_depth, d_soil):

@@ -5,6 +5,9 @@ from attrs import define, field
 class SoilLayers:
     """
     Soil discretisation into layers components, including indexing and vertical distribution of parameters.
+
+    Discretises the soil into multiple layers. Three options for how to discretise the soil: (i) Fixed layer 
+    thickness, (ii) exponentially increasing layer thickness with depth or (iii) user-defined layer thickness. 
     """
     nlevmlsoil: int = field(default=5)  ## Number of layers in multilayer soil model. Note: Initialised as None, so it must be assigned after instance is created by set_nlayers method.
 

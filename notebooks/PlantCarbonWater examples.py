@@ -942,13 +942,14 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = 0.30
+soilTheta = np.array([0.30,0.30,0.30,0.30])
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 swskyb = 200.0   ## Atmospheric direct beam solar radiation (W/m2)
 swskyd = 80.0    ## Atmospheric diffuse solar radiation (W/m2)
 sza = 20.0    ## Solar zenith angle (degrees)
 hc = 1.0    ## canopy height (m)
+d_r = 2.0   ## rooting depth (m)
 
 # %%
 ## Leaf biomass
@@ -969,8 +970,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -1026,8 +1027,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -1083,8 +1084,9 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    xsoilTheta_1d = xsoilTheta*np.ones(plant.SoilLayers.nlevmlsoil)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
 
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1141,8 +1143,8 @@ GPP_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc)
+    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
 
 
 fig, axes = plt.subplots(1,4,figsize=(16,3))

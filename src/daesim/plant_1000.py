@@ -80,6 +80,16 @@ class PlantModuleCalculator:
     Vmaxremob: float = field(default=0.5)  ## Maximum potential remobilization rate (analogous to phloem loading rate) for Michaelis-Menten function (g C m-2 d-1)
     Kmremob: float = field(default=0.4)  ## Michaelis-Menten kinetic parameter (unitless; same units as substrate in Michaelis-Menten equation which, in this case, is a unitless ratio)
 
+    specified_phase: str = field(default="spike")  ## Developmental phase when accumulation of a defined carbon flux occurs. Usually used to support the grain production module. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+
+    ## Grain production module parameters for wheat (triticum)
+    grainfill_phase: str = field(default="fruiting")  ## Name of developmental/growth phase in which grain filling occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    W_seedTKW0: float = field(default=35.0)  ## Wheat: Thousand kernel weight of grain (g thousand grains-1), acceptable range 28-48
+    GY_FE: float = field(default=0.1)  ## Wheat: Reproductive (fruiting) efficiency (thousand grains g d.wt of spike-1), acceptable range 80-210
+    GY_GN_max: float = field(default=20)  ## Wheat: Maximum potential grain number per ground area (default 20 thousand grains m-2), acceptable range 18-22
+    GY_SDW_50: float = field(default=100)  ## Wheat: Spike dry weight at anthesis (SDW_a) at which grain number is half of GY_GN_max (default 100 g d.wt m-2), acceptable range 80-150
+    GY_k: float = field(default=0.02)  ## Wheat: Growth rate controlling steepness of grain number sigmoid function (default 0.02), acceptable range 0.01-0.03
+
     ## TODO: Update management module with these parameters later on
     propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
     propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
@@ -94,6 +104,7 @@ class PlantModuleCalculator:
         Bio_time,
         VRN_time,      ## vernalization state
         HTT_time,      ## hydrothermal time state, for germination (MPa degrees Celcius d)
+        Cstate,        ## Ambiguous carbon state to track, provides an input to the grain production module
         solRadswskyb,  ## atmospheric direct beam solar radiation (W/m2)
         solRadswskyd,  ## atmospheric diffuse solar radiation (W/m2)
         airTempCMin,   ## minimum air temperature (degrees Celsius)
@@ -158,25 +169,33 @@ class PlantModuleCalculator:
         # Turnover rates per pool (days-1)
         tr_ = self.PlantDev.turnover_rates[idevphase]
 
+        # Grain production module calculations
+        # Calculate stem remobilization to grain
+        f_remob_stem = 0.3    # TODO: Not implemented yet. We may only be able to remobilise some portion of the stem. This may be better represented by a curve (resistance) where the first bits of carbon are easy to remobilize, while the last bits are hard (expensive).
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem,Cleaf,Bio_time)
+        # Calculate potential grain number
+        GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)
+        
+        # Calculate allocation fraction to grain
+        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)
+        u_Stem = alloc_coeffs[self.PlantDev.istem]
+
         # Set any constant allocation coefficients for optimal allocation
-        self.PlantAlloc.u_Stem = alloc_coeffs[self.PlantDev.istem]
-        self.PlantAlloc.u_Seed = alloc_coeffs[self.PlantDev.iseed]
+        self.PlantAlloc.u_Stem = u_Stem
+        self.PlantAlloc.u_Seed = u_Seed
         # Set pool turnover rates for optimal allocation
         self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
         self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
         u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
 
-        # Calculate stem remobilization to grain
-        f_remob_stem = 0.3    # TODO: Not implemented yet. We may only be able to remobilise some portion of the stem. This may be better represented by a curve (resistance) where the first bits of carbon are easy to remobilize, while the last bits are hard (expensive).
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem,Cleaf,Bio_time)
-
         # ODE for plant carbon pools
         dCleafdt = u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
-        dCstemdt = alloc_coeffs[self.PlantDev.istem]*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
+        dCstemdt = u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
         dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
-        dCseeddt = alloc_coeffs[self.PlantDev.iseed]*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
+        dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
+        dCStatedt = self.calculate_devphase_Cflux(u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain, Bio_time)
 
-        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt)
+        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt)
 
     def calculate_NPP(self,GPP):
         return self.CUE*GPP
@@ -363,7 +382,7 @@ class PlantModuleCalculator:
         float or array_like
             The rate of stem remobilization based on the stem-to-leaf carbon ratio if the plant is in the remobilization phase, otherwise returns 0.
         """
-        
+
         if self.PlantDev.is_in_phase(current_gdd, self.remob_phase):
             # Calculate the actual stem:leaf ratio
             R_stem_leaf_actual = Cstem / Cleaf
@@ -373,5 +392,122 @@ class PlantModuleCalculator:
             return L
         else:
             return 0
+
+    def calculate_devphase_Cflux(self, Cflux, current_gdd):
+        """
+        Returns the Cflux if the plant is in a specified growth phase, otherwise it returns 0. 
+        This is used to determine things like accumulated NPP during spike development in wheat to 
+        input to the grain production module. 
+
+        Parameters:
+        ----------
+        Cflux : float or array_like
+            Carbon flux (gC m-2 d-1).
+        current_gdd : float
+            The current growing degree days (GDD), used to determine if the plant is in the specified remobilization phase.
+
+        Returns:
+        -------
+        float or array_like
+            The carbon flux if the plant is in the specified phase, otherwise returns 0.
+        """
+        
+        if self.PlantDev.is_in_phase(current_gdd, self.specified_phase):
+            return Cflux
+        else:
+            return 0
+
+    def calculate_wheat_grain_number(self, SDW_a):
+        """
+        Calculate the grain number using a sigmoid function based on spike dry weight at anthesis 
+        and the fruiting efficiency. Applicable to wheat (triticum).
+        
+        Parameters
+        ----------
+        SDW_a : float
+            Spike dry weight at anthesis (g d.wt m-2 ground area)
+        FE : float
+            Fruiting efficiency (thousand grains g d.wt of spike-1)
+        GN_max : float
+            Maximum potential grain number (default 20 thousand grains m-2)
+        SDW_50 : float 
+            SDW_a at which grain number is half of GN_max (default 10.0 g d.wt m-2)
+        k : float
+            Growth rate controlling steepness (default 0.02)
+        
+        Returns
+        -------
+        float: Calculated grain number, GN (thousand grains m-2 ground area)
+
+        Notes
+        -----
+        This formulation was designed to capture the relationship of grain number to spike dry weight and 
+        fruiting efficiency as described in Pretini et al. (2021), Terrile et al. (2017) Fischer et al. 
+        (2024) and references therein. The formulation produces a near-linear relationship between SDW_a 
+        and GN when there is adequate levels of SDW_a, while it is non-linear (positive curvi-linear) 
+        as SDW_a nears zero, to capture the potential ability of grain production from new assimilates, 
+        even if spike mass is low after anthesis. It also produces the observed linear relationship 
+        between FE and GN (Fig. 7, Terrile et al., 2017).
+
+        Sensitivity tests and comparison against the literature (e.g. Pretini et al., 2021) show that 
+        the parameters k, SDW_50 and GN_max should be fairly conservative and thus kept relatively constant
+        for wheat, with acceptable ranges of k=[0.01-0.03], SDW_50=[80-150] and GN_max=[18000-20000] for 
+        wheat. The parameter FE typically ranges between 80-210 grains g d.wt-1
+        (FE=[0.08-0.21] thousand grains g d.wt-1), which should be specified per genotype and perhaps 
+        modified for environmental conditions in future (e.g. frost will reduce FE).
+
+        References
+        ----------
+        Pretini et al., 2021, doi:10.1093/jxb/erab080
+        Fischer et al., 2024, doi:10.1016/j.fcr.2024.109497
+        Terrile et al., 2017, doi:10.1016/j.fcr.2016.09.026
+        """
+        # Logistic function for gradual transitions
+        sigmoid_factor = 1 / (1 + np.exp(-self.GY_k * (SDW_a - self.GY_SDW_50)))
+        GN = self.GY_FE * SDW_a * sigmoid_factor
+        return np.minimum(GN, self.GY_GN_max)
+
+    def calculate_grain_alloc_coeff(self, u_S_max, W_seed, W_seed_pot, current_gdd):
+        """
+        Calculates the allocation coefficient to the seed pool given the current and maximum potential
+        seed pool size and developmental state. 
+
+        Parameters
+        ----------
+        u_S_max : float
+            Maximum potential allocation coefficient (-)
+        W_seed : float
+            Current seed biomass pool size (g d.wt m-2)
+        W_seed_pot : float
+            Maximum potential seed biomass pool size (g d.wt m-2)
+
+        Returns
+        -------
+        u_S : float 
+            Allocation coefficient to seed pool
+
+        Notes
+        -----
+        The actual seed biomass pool, W_seed, will be determined by the amount of biomass flowing into the 
+        seed pool over a given time interval i.e. grain filling. This flux should continue until the maximum 
+        potential seed pool size, W_seed_pot, is reached. The allocation coefficient from assimilates to the 
+        seed pool, u_S, is assumed to occur at the maximum until the maximum potential seed pool size is 
+        reached. So, as long as the current seed biomass pool is below the potential, then the flux of carbon 
+        continues at the maximum potential rate.
+
+        """
+        grainfill = self.PlantDev.is_in_phase(current_gdd, self.grainfill_phase)
+        if grainfill:
+            # if plant is in the grain filling phase
+            if W_seed/W_seed_pot <= 1:
+                # if the seed dry weight is below the maximum seed dry weight
+                u_S = u_S_max
+            else:
+                # if the seed dry weight has reached the maximum seed dry weight
+                u_S = 0
+        else:
+            # if the plant is not in the grain filling phase
+            u_S = 0
+        return u_S
 
 

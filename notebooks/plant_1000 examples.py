@@ -51,9 +51,13 @@ from daesim.plant_1000 import PlantModuleCalculator
 # #### - Import forcing data
 
 # %%
-file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2021.csv"
+# file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2021.csv"
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Harden_2001.csv"
 
 df_forcing = pd.read_csv(file)
+
+# %%
+df_forcing
 
 # %% [markdown]
 # #### - Generation temporally-interpolated and scaled soil moisture forcing
@@ -90,9 +94,15 @@ plt.tight_layout()
 
 # %%
 ## Milgadara site location-34.38904277303204, 148.46949938279096
-SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
+# SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
+# start_doy = 1.0
+# start_year = 2021
+# nrundays = df_forcing.index.size
+
+## Harden CSIRO site location-34.52194, 148.30472
+SiteX = ClimateModule(CLatDeg=-34.52194,CLonDeg=148.30472,timezone=10)
 start_doy = 1.0
-start_year = 2021
+start_year = 2001
 nrundays = df_forcing.index.size
 
 # %% [markdown]
@@ -134,8 +144,6 @@ _soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
 # _soilTheta_z1 = _soilTheta+0.04
 # _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
 
-# %%
-
 # %% [markdown]
 # ### Convert discrete to continuous forcing data 
 
@@ -168,6 +176,7 @@ _Cseed = 0.0
 _Bio_time = 0.0
 _VD_time = 0.0
 _HTT_time = 0.0
+_Cprod = 0.0
 _solRadswskyb = 800    ## incoming shortwave radiation, beam (W m-2)
 _solRadswskyd = 200    ## incoming shortwave radiation, diffuse (W m-2)
 _airTempCMin = 13.88358116
@@ -200,6 +209,7 @@ dydt = plant.calculate(
     _Bio_time,
     _VD_time,
     _HTT_time,
+    _Cprod,
     _solRadswskyb,
     _solRadswskyd,
     _airTempCMin,
@@ -221,6 +231,7 @@ print("  dydt(Cseed) = %1.4f" % dydt[3])
 print("  Bio_time = %1.4f" % dydt[4])
 print("  VRN_time = %1.4f" % dydt[5])
 print("  HTT_time = %1.4f" % dydt[6])
+print("  Cprod = %1.4f" % dydt[7])
 
 # %% [markdown]
 # ## Use Model with Numerical Solver
@@ -232,44 +243,47 @@ from daesim.utils import ODEModelSolver
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
 # %%
-time_axis = np.arange(122, 332, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+# time_axis = np.arange(122, 332, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+# sowing_date=122
+# harvest_date=332
 
-sowing_date=122
-harvest_date=332
+time_axis = np.arange(135, 330, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+sowing_date = 135
+harvest_date = 330
 
 # %%
-## PlantDev
+# PlantDev
 # PlantDevX = PlantGrowthPhases(
-#     gdd_requirements=[100,600,160,140],
+#     gdd_requirements=[120,850,450,500],
 #     allocation_coeffs = [
 #         [0.0, 0.1, 0.9, 0.0, 0.0],
-#         [0.5, 0.1, 0.4, 0.0, 0.0],
+#         [0.75, 0.05, 0.2, 0.0, 0.0],
 #         [0.25, 0.4, 0.25, 0.1, 0.0],
 #         [0.15, 0.2, 0.15, 0.5, 0.0]
 #     ],
-#     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
-#                       [0.0366, 0.002, 0.0083, 0.0, 0.0],
-#                       [0.0633, 0.002, 0.0083, 0.0, 0.0],
-#                       [0.1, 0.008, 0.05, 0.0001, 0.0]])
+#     turnover_rates = [[5.000e-04, 5.000e-04, 5.000e-04, 0.000e+00, 0.000e+00],
+#        [1.830e-02, 1.000e-03, 4.150e-03, 0.000e+00, 0.000e+00],
+#        [3.165e-02, 1.000e-03, 4.150e-03, 0.000e+00, 0.000e+00],
+#        [5.000e-02, 4.000e-03, 2.500e-02, 5.000e-05, 0.000e+00]])
 
 
 ## PlantDev with specific spike formation phase - especially important for for wheat
 PlantDevX = PlantGrowthPhases(
     phases=["germination", "vegetative", "spike", "anthesis", "fruiting"],
-    gdd_requirements=[50,500,150,160,140],
+    gdd_requirements=[50,500,200,110,300],
     vd_requirements=[0, 40, 0, 0, 0],
     allocation_coeffs = [
         [0.0, 0.1, 0.9, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.20, 0.6, 0.20, 0.0, 0.0],
-        [0.25, 0.4, 0.25, 0.1, 0.0],
+        [0.25, 0.5, 0.25, 0.0, 0.0],
         [0.1, 0.1, 0.1, 0.7, 0.0]
     ],
     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
                       [0.0366, 0.002, 0.0083, 0.0, 0.0],
                       [0.0366, 0.002, 0.0083, 0.0, 0.0],
                       [0.0633, 0.002, 0.0083, 0.0, 0.0],
-                      [0.1, 0.008, 0.05, 0.0001, 0.0]])
+                      [0.2, 0.016, 0.10, 0.0002, 0.0]])
 
 # %%
 ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
@@ -279,7 +293,7 @@ CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
 SoilLayersX = SoilLayers(nlevmlsoil=2,z_max=2.0)
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=2.5,ksr_coeff=10000)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=5.0,ksr_coeff=1000,SLA=0.050)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -287,18 +301,23 @@ PlantX = PlantModuleCalculator(
     PlantDev=PlantDevX,
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
+    GDD_method="linear1",
+    GDD_Tbase=0.0,
+    GDD_Tupp=25.0,
     propHarvestLeaf=0.75,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
     d_r_max=2.0,
     Vmaxremob=5.0,
     Kmremob=0.5,
+    remob_phase="fruiting",
+    specified_phase="spike",
 )
 
 # %%
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
 
 
 forcing_inputs = [Climate_solRadswskyb_f,
@@ -354,6 +373,7 @@ _d_r = np.zeros(time_axis.size)
 _Psi_s = np.zeros(time_axis.size)
 
 _Cfluxremob = np.zeros(time_axis.size)
+_GN_pot = np.zeros(time_axis.size) # potential grain number
 
 for it,t in enumerate(time_axis):
     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
@@ -384,6 +404,8 @@ for it,t in enumerate(time_axis):
     _Rm_r[it] = Rmr
     _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][4,it])
+
+    _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
     
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
@@ -412,8 +434,10 @@ for it,t in enumerate(time_axis):
     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
     # Allocation fractions per pool
     alloc_coeffs = PlantX.PlantDev.allocation_coeffs[idevphase]
+
+    # Calculate allocation fraction to grain
+    _u_Seed[it] = PlantX.calculate_grain_alloc_coeff(alloc_coeffs[PlantX.PlantDev.iseed], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
     _u_Stem[it] = alloc_coeffs[PlantX.PlantDev.istem]
-    _u_Seed[it] = alloc_coeffs[PlantX.PlantDev.iseed]
     # Turnover rates per pool
     tr_ = PlantX.PlantDev.turnover_rates[idevphase]
     _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
@@ -421,8 +445,9 @@ for it,t in enumerate(time_axis):
     _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
     _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
     # Set any constant allocation coefficients for optimal allocation
-    PlantX.PlantAlloc.u_Stem = alloc_coeffs[PlantX.PlantDev.istem]
-    PlantX.PlantAlloc.u_Seed = alloc_coeffs[PlantX.PlantDev.iseed]
+    PlantX.PlantAlloc.u_Stem = _u_Stem[it]
+    PlantX.PlantAlloc.u_Seed = _u_Seed[it]
+
     # Set pool turnover rates for optimal allocation
     PlantX.PlantAlloc.tr_L = tr_[PlantX.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
     PlantX.PlantAlloc.tr_R = tr_[PlantX.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
@@ -446,13 +471,19 @@ for it,t in enumerate(time_axis):
     _u_Leaf[it] = u_L
     _u_Root[it] = u_R
 
+# %%
+
 # %% [markdown]
 # ### Create figures
 
 # %%
-site_year = "2021"
-site_name = "Site - Generic Crop"
-site_filename = "Site_GenericCrop_wspikephase_wstemremob_CUE0p6"
+# site_year = "2021"
+# site_name = "Site - Generic Crop"
+# site_filename = "Site_GenericCrop_wspikephase_wstemremob_CUE0p6"
+
+site_year = "2001"
+site_name = "Harden - Canola"
+site_filename = "Harden_Canola"
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -496,7 +527,7 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 # axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021_mlsoil_test2.png",dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_Climate_2021_mlsoil_test2.png",dpi=300,bbox_inches='tight')
 
 
 
@@ -507,13 +538,13 @@ axes[0].plot(res["t"], LAI)
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[0].set_ylim([0,3])
+# axes[0].set_ylim([0,3])
 
 axes[1].plot(res["t"], _GPP_gCm2d)
 axes[1].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[1].set_ylim([0,20])
+# axes[1].set_ylim([0,20])
 
 # axes[2].plot(res["t"], _E*1e3)
 # axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mmol \; H_2O \; m^{-2} \; s^{-1}$)")
@@ -523,7 +554,7 @@ axes[2].plot(res["t"], _E*18.015/1000*(60*60*24))
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[2].set_ylim([0,6])
+# axes[2].set_ylim([0,6])
 
 # axes[4].plot(df_forcing.index.values[364:-1], 0.5*np.cumsum(GPP[364:]))
 axes[3].plot(res["t"], res["y"][4])
@@ -551,7 +582,6 @@ axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
 axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
-axes[4].set_ylim([-7,180])
 
 accumulated_carbon = res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3]
 eos_accumulated_carbon = accumulated_carbon[-1]    # end-of-season total carbon (at the end of the simulation period)
@@ -563,7 +593,7 @@ harvest_index_peak_noroot = res["y"][3][-1]/peak_accumulated_carbon_noseedroot
 yield_from_seed_Cpool = res["y"][3][-1]/100 * (1/PlantX.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].set_ylim([0,200])
+# axes[4].set_ylim([0,250])
 
 print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
@@ -573,11 +603,9 @@ axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_TestGN4.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
-
-# %%
 
 # %%
 _Cseed_add_remob = np.zeros(time_axis.size) #res["t"][4]
@@ -741,7 +769,7 @@ axes[1,2].set_title("Hydrothermal Time per Day")
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev_TestGN0.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -825,7 +853,7 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([xminlim, xmaxlim])
 
 # plt.grid(True)
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_mlsoil.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_TestGN3.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 

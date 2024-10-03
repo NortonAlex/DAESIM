@@ -247,7 +247,7 @@ from daesim.utils import ODEModelSolver
 # sowing_date=122
 # harvest_date=332
 
-time_axis = np.arange(135, 330, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+time_axis = np.arange(135, 335, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
 sowing_date = 135
 harvest_date = 330
 
@@ -269,7 +269,7 @@ harvest_date = 330
 
 ## PlantDev with specific spike formation phase - especially important for for wheat
 PlantDevX = PlantGrowthPhases(
-    phases=["germination", "vegetative", "spike", "anthesis", "fruiting"],
+    phases=["germination", "vegetative", "spike", "anthesis", "grainfill"],
     gdd_requirements=[50,500,200,110,300],
     vd_requirements=[0, 40, 0, 0, 0],
     allocation_coeffs = [
@@ -309,8 +309,9 @@ PlantX = PlantModuleCalculator(
     d_r_max=2.0,
     Vmaxremob=5.0,
     Kmremob=0.5,
-    remob_phase="fruiting",
+    remob_phase="grainfill",
     specified_phase="spike",
+    grainfill_phase="grainfill",
 )
 
 # %%
@@ -403,9 +404,9 @@ for it,t in enumerate(time_axis):
     _Rm_l[it] = Rml
     _Rm_r[it] = Rmr
     _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
-    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][4,it])
-
+    
     _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
+    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
     
 
 NPP = PlantX.calculate_NPP(_GPP_gCm2d)
@@ -562,16 +563,34 @@ axes[3].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C d)")
 axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
-for iphase,phase in enumerate(PlantDevX.phases):
-    itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
-    print("iphase, phase =",iphase, phase)
-    print(" itime =",itime, " res[t]=",res["t"][itime])
-    # print("   res[y][4] =",np.abs(res["y"][4]))
-    # print("   np.cumsum(PlantDevX.gdd_requirements)[iphase] =", np.cumsum(PlantDevX.gdd_requirements)[iphase])
-    ax.vlines(x=res["t"][itime],ymin=0,ymax=res["y"][4,itime],color='0.5')
-    text_x = res["t"][itime]
-    text_y = 0.04
-    ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
+ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
+for iphase, phase in enumerate(PlantDevX.phases):
+    if iphase == 0:
+        # Special case for the first phase
+        itime = np.argmin(np.abs(res["y"][4] - 0))
+    else:
+        # For subsequent phases, calculate itime based on cumulative GDD requirements
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase - 1]))
+    # Plot vertical line at the determined time point
+    # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    # Set text position and plot text
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+            fontsize=8, alpha=0.7, rotation=90)
+    if iphase == len(PlantDevX.phases)-1:
+        # For the last phase we also add a line to indicate the maturity
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+        # Plot vertical line at the determined time point
+        # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        # Set text position and plot text
+        text_x = res["t"][itime] + 1.5
+        text_y = 0.5 * ylimmax
+        ax.text(text_x, text_y, "maturity", horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+ax.set_ylim([ylimmin, ylimmax])
 
 alp = 0.6
 axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
@@ -579,6 +598,7 @@ axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
 axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
 axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
 axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
+# axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
 axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
@@ -599,13 +619,136 @@ print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
+axes[0].set_xlim([PlantX.Management.plantingDay,292])
 axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
+# axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_TestGN4.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_sens1c.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
+
+# %%
+
+# %%
+fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)
+
+axes[0].plot(time_axis, res["y"][1,:]/PlantX.f_C, label="Stem")
+axes[0].set_ylabel("Stem dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
+
+ax = axes[0]
+ylimmin, ylimmax = 0, 350.0
+for iphase, phase in enumerate(PlantDevX.phases):
+    if iphase == 0:
+        # Special case for the first phase
+        itime = np.argmin(np.abs(res["y"][4] - 0))
+    else:
+        # For subsequent phases, calculate itime based on cumulative GDD requirements
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase - 1]))            
+    # Plot vertical line at the determined time point
+    # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    # Set text position and plot text
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+            fontsize=8, alpha=0.7, rotation=90)
+    if iphase == len(PlantDevX.phases)-1:
+        # For the last phase we also add a line to indicate the maturity
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+        # Plot vertical line at the determined time point
+        # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        # Set text position and plot text
+        text_x = res["t"][itime] + 1.5
+        text_y = 0.5 * ylimmax
+        ax.text(text_x, text_y, "maturity", horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+ax.set_ylim([ylimmin, ylimmax])
+        
+SDW_a = res["y"][7,-1]/PlantX.f_C
+axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
+
+
+axes[1].plot(time_axis, _GN_pot, c='0.25', label="Potential GN")
+axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual GN")
+axes[1].set_ylabel("GN\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
+axes[1].legend()
+ax = axes[1]
+ylimmin, ylimmax = 0, 21.0
+for iphase, phase in enumerate(PlantDevX.phases):
+    if iphase == 0:
+        # Special case for the first phase
+        itime = np.argmin(np.abs(res["y"][4] - 0))
+    else:
+        # For subsequent phases, calculate itime based on cumulative GDD requirements
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase - 1]))            
+    # Plot vertical line at the determined time point
+    # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    # Set text position and plot text
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+            fontsize=8, alpha=0.7, rotation=90)
+    if iphase == len(PlantDevX.phases)-1:
+        # For the last phase we also add a line to indicate the maturity
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+        # Plot vertical line at the determined time point
+        # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        # Set text position and plot text
+        text_x = res["t"][itime] + 1.5
+        text_y = 0.5 * ylimmax
+        ax.text(text_x, text_y, "maturity", horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+ax.set_ylim([ylimmin, ylimmax])
+
+
+axes[2].plot(time_axis, res["y"][3,:]/PlantX.f_C)
+axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
+ax = axes[2]
+ylimmin, ylimmax = 0, 550.0
+for iphase, phase in enumerate(PlantDevX.phases):
+    if iphase == 0:
+        # Special case for the first phase
+        itime = np.argmin(np.abs(res["y"][4] - 0))
+    else:
+        # For subsequent phases, calculate itime based on cumulative GDD requirements
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase - 1]))            
+    # Plot vertical line at the determined time point
+    # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    # Set text position and plot text
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+            fontsize=8, alpha=0.7, rotation=90)
+    if iphase == len(PlantDevX.phases)-1:
+        # For the last phase we also add a line to indicate the maturity
+        itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
+        # Plot vertical line at the determined time point
+        # ax.vlines(x=res["t"][itime], ymin=0, ymax=res["y"][4,itime], color='0.5')
+        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        # Set text position and plot text
+        text_x = res["t"][itime] + 1.5
+        text_y = 0.5 * ylimmax
+        ax.text(text_x, text_y, "maturity", horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+ax.set_ylim([ylimmin, ylimmax])
+axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
+
+axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlabel("Time (day of year)")
+axes[1].set_xlabel("Time (day of year)")
+axes[2].set_xlabel("Time (day of year)")
+
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_grainprod.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+
+
+# %%
 
 # %%
 _Cseed_add_remob = np.zeros(time_axis.size) #res["t"][4]
@@ -767,9 +910,9 @@ axes[1,2].set_title("Hydrothermal Time per Day")
 #     text_y = 0.04
 #     ax.text(text_x, text_y, phase, horizontalalignment='right', verticalalignment='bottom', fontsize=8, alpha=0.7, rotation=90)
 
-plt.xlim([time_axis[0],time_axis[-1]])
+plt.xlim([time_axis[0],292])
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev_TestGN0.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev_sens1a.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -851,9 +994,10 @@ for iphase, phase in enumerate(PlantDevX.phases):
             fontsize=8, alpha=0.7, rotation=90)
 
 ax.set_ylim([xminlim, xmaxlim])
+ax.set_xlim([PlantX.Management.plantingDay,292])
 
 # plt.grid(True)
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_TestGN3.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_sens1a.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 

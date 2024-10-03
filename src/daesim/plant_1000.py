@@ -170,12 +170,10 @@ class PlantModuleCalculator:
         tr_ = self.PlantDev.turnover_rates[idevphase]
 
         # Grain production module calculations
-        # Calculate stem remobilization to grain
-        f_remob_stem = 0.3    # TODO: Not implemented yet. We may only be able to remobilise some portion of the stem. This may be better represented by a curve (resistance) where the first bits of carbon are easy to remobilize, while the last bits are hard (expensive).
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem,Cleaf,Bio_time)
         # Calculate potential grain number
         GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)
-        
+        # Calculate stem remobilization to grain
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)
         # Calculate allocation fraction to grain
         u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)
         u_Stem = alloc_coeffs[self.PlantDev.istem]
@@ -364,16 +362,20 @@ class PlantModuleCalculator:
         d_r = self.d_r_max * np.minimum(1, relative_gdd_index)
         return d_r
 
-    def calculate_nsc_stem_remob(self, Cstem, Cleaf, current_gdd):
+    def calculate_nsc_stem_remob(self, Cstem, Cleaf, W_seed, W_seed_pot, current_gdd):
         """
         Calculates the non-structural carbohydrate (NSC) remobilization from the stem during a specific growth phase.
 
         Parameters:
         ----------
         Cstem : float or array_like
-            Carbon content in the stem (gC m-2).
+            Carbon content in the stem (gC m-2)
         Cleaf : float or array_like
-            Carbon content in the leaves (gC m-2).
+            Carbon content in the leaves (gC m-2)
+        W_seed : float
+            Current seed biomass pool size (g d.wt m-2)
+        W_seed_pot : float
+            Maximum potential seed biomass pool size (g d.wt m-2)
         current_gdd : float
             The current growing degree days (GDD), used to determine if the plant is in the specified remobilization phase.
 
@@ -384,11 +386,16 @@ class PlantModuleCalculator:
         """
 
         if self.PlantDev.is_in_phase(current_gdd, self.remob_phase):
-            # Calculate the actual stem:leaf ratio
-            R_stem_leaf_actual = Cstem / Cleaf
-            # C_organ = np.minimum(R_stem_leaf_actual/R_stem_leaf_opt,1)
-            C_organ = R_stem_leaf_actual #/R_stem_leaf_opt
-            L = self.Vmaxremob * C_organ/(self.Kmremob + C_organ)
+            if W_seed/W_seed_pot <= 1:
+                # if the seed dry weight is below the maximum seed dry weight
+                # Calculate the actual stem:leaf ratio
+                R_stem_leaf_actual = Cstem / Cleaf
+                # C_organ = np.minimum(R_stem_leaf_actual/R_stem_leaf_opt,1)
+                C_organ = R_stem_leaf_actual #/R_stem_leaf_opt
+                L = self.Vmaxremob * C_organ/(self.Kmremob + C_organ)
+            else:
+                # if the seed dry weight has reached the maximum seed dry weight
+                L = 0
             return L
         else:
             return 0

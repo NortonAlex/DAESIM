@@ -60,8 +60,8 @@ class PlantOptimalAllocation:
         
         
         ## Calculate change in GPP per unit change in biomass pool
-        dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
-        dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
+        # dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
+        # dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
         
         ## Calculate change in GPP-Rm per unit change in biomass pool
         dGPPRmdWleaf = ((GPP_L - Rml_L)-(GPP_0 - Rml_0))/(W_L*self.dWL_factor - W_L)
@@ -73,10 +73,16 @@ class PlantOptimalAllocation:
         dSdWroot = self.tr_R
 
         ## Calculate allocation coefficients
-        # u_L_prime = np.maximum(0,dGPPdWleaf)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
-        # u_R_prime = np.maximum(0,dGPPdWroot)/(np.maximum(0,dGPPdWleaf)+np.maximum(0,dGPPdWroot))
-        u_L_prime = np.maximum(0,dGPPdWleaf/dSdWleaf)/(np.maximum(0,dGPPdWleaf/dSdWleaf)+np.maximum(0,dGPPdWroot/dSdWroot))
-        u_R_prime = np.maximum(0,dGPPdWroot/dSdWroot)/(np.maximum(0,dGPPdWleaf/dSdWleaf)+np.maximum(0,dGPPdWroot/dSdWroot))
+        if dGPPRmdWleaf <= 0:
+            # If marginal gain is >= 0, set coefficient to zero to avoid division with zeros
+            u_L_prime = 0
+        else:
+            u_L_prime = (dGPPRmdWleaf/dSdWleaf)/((dGPPRmdWleaf/dSdWleaf)+np.maximum(0,dGPPRmdWroot/dSdWroot))
+        if dGPPRmdWroot <= 0:
+            # If marginal gain is >= 0, set coefficient to zero to avoid division with zeros
+            u_R_prime = 0
+        else:
+            u_R_prime = (dGPPRmdWroot/dSdWroot)/(np.maximum(0,dGPPRmdWleaf/dSdWleaf)+(dGPPRmdWroot/dSdWroot))
 
         ## Scale optimal allocation coefficients so that the sum of all allocation coefficients is equal to 1
         u_L = (1 - (self.u_Stem+self.u_Seed))*u_L_prime

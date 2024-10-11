@@ -86,7 +86,7 @@ class LeafGasExchangeModule2:
         Jmax = fT_arrheniuspeaked(self.Jmax_opt,T,E_a=self.Jmax_Ea,H_d=self.Jmax_Hd,DeltaS=self.Jmax_DeltaS)       # Maximum electron transport rate, mol e-1 m-2 s-1
         Vcmax = fT_arrheniuspeaked(self.Vcmax_opt,T,E_a=self.Vcmax_Ea,H_d=self.Vcmax_Hd,DeltaS=self.Vcmax_DeltaS)       # Maximum Rubisco activity, mol CO2 m-2 s-1
         TPU = fT_Q10(self.TPU_opt_rVcmax*self.Vcmax_opt,T,Q10=self.TPU_Q10) 
-        Rd = fT_Q10(Vcmax*self.Rds,T,Q10=self.Rd_Q10)
+        Rd = fT_Q10(self.Vcmax_opt*self.Rds,T,Q10=self.Rd_Q10)
         S = fT_arrhenius(self.spfy_opt,T,E_a=self.spfy_Ea)
         Kc = fT_arrhenius(self.Kc_opt,T,E_a=self.Kc_Ea)
         Ko = fT_arrhenius(self.Ko_opt,T,E_a=self.Ko_Ea)

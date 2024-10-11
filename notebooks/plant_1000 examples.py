@@ -361,6 +361,7 @@ W_R = res["y"][2]/PlantX.f_C
 
 ## Calculate diagnostic variables
 _GPP_gCm2d = np.zeros(time_axis.size)
+_Rm_gCm2d = np.zeros(time_axis.size)
 _Rm_l = np.zeros(time_axis.size) # maintenance respiration of leaves
 _Rm_r = np.zeros(time_axis.size) # maintenance respiration of roots
 _Ra = np.zeros(time_axis.size) # autotrophic respiration 
@@ -402,6 +403,7 @@ for it,t in enumerate(time_axis):
     ## GPP and Transpiration (E)
     GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_r[it])
     _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+    _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
     _E[it] = E
     _Rm_l[it] = Rml
     _Rm_r[it] = Rmr
@@ -409,9 +411,10 @@ for it,t in enumerate(time_axis):
     
     _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
-    
 
-NPP = PlantX.calculate_NPP(_GPP_gCm2d)
+
+NPP = PlantX.calculate_NPP_RmRgpropto(_GPP_gCm2d, _Rm_gCm2d)
+Rg_gCm2d = PlantX.alpha_Rg * (_GPP_gCm2d - _Rm_gCm2d)
 Ra = _GPP_gCm2d - NPP  # units of gC m-2 d-1
 Rm_l_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
 Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
@@ -638,6 +641,42 @@ plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_sens1c.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
+
+# %%
+fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
+
+axes[0].plot(res["t"], _GPP_gCm2d)
+axes[0].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[0].tick_params(axis='x', labelrotation=45)
+axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+
+
+axes[1].plot(res["t"], _Rm_gCm2d, label=r"$\rm R_m$")
+axes[1].plot(res["t"], Rg_gCm2d, label=r"$\rm R_g$")
+_Rml_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
+_Rmr_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
+axes[1].plot(res["t"], _Rml_gCm2d, c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
+axes[1].plot(res["t"], _Rmr_gCm2d, c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
+axes[1].set_ylabel("Plant Respiration\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[1].tick_params(axis='x', labelrotation=45)
+axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[1].legend(fontsize=10)
+
+axes[2].plot(res["t"], NPP/_GPP_gCm2d)
+axes[2].set_ylabel(r"CUE")
+# axes[2].tick_params(axis='x', labelrotation=45)
+axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[2].set_ylim([0,1.0])
+
+axes[0].set_xlim([PlantX.Management.plantingDay,292])
+axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+
+axes[0].set_title("%s - %s" % (site_year,site_name))
+# axes[0].set_title("Harden: %s" % site_year)
+plt.tight_layout()
+
+
+# %%
 
 # %%
 fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)

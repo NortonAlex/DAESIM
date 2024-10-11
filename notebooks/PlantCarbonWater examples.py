@@ -126,10 +126,11 @@ d_soil
 # %%
 LAI = plant.calculate_LAI(W_L)
 
-GPP, E = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, hc, sza, swskyb, swskyd)
+GPP, E, Rd = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, hc, sza, swskyb, swskyd)
 
 print("GPP =", GPP)
 print("E =", E)
+print("Rd =", Rd)
 
 # %%
 GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
@@ -141,11 +142,15 @@ print("Psi_l =",Psil_0)
 
 
 
+# %%
+
 # %% [markdown]
 # ## Model Sensitivity Tests
 
 # %% [markdown]
 # ### Forcing and State Variable Sensitivity Tests
+
+# %%
 
 # %%
 n = 100
@@ -195,6 +200,7 @@ for ix, xWR in enumerate(_W_R):
     axes[6].plot(_W_L,K_s_0_,label=r"$\rm W_R=%d$" % W_R)
     axes[7].plot(_W_L,k_srl_0_,label=r"$\rm W_R=%d$" % W_R)
 
+
 axes[0].set_xlabel("Leaf biomass\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[0].set_ylabel(r"GPP ($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[0].legend(handlelength=0.7,fontsize=9)
@@ -230,6 +236,8 @@ axes[0].set_ylim([0,40])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_sensitivity_test_WL_plantsoilhydraulics_by_WR_3.png",dpi=300,bbox_inches='tight')
 
+
+# %%
 
 # %%
 n = 100
@@ -932,9 +940,20 @@ plt.tight_layout()
 from daesim.plantallocoptimal import PlantOptimalAllocation
 
 # %%
+site = ClimateModule()
+leaf = LeafGasExchangeModule2(g0=0.0)
+canopy = CanopyLayers(nlevmlcan=3)
+soillayers = SoilLayers(nlevmlsoil=4,z_max=2.0)
+canopyrad = CanopyRadiation(Canopy=canopy)
+canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
+
+## Module with upstream module dependencies
+# plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=3000,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=5.0,ksr_coeff=1000,SLA=0.050)
+
+# %%
 ## initialise model
-plant.ksr_coeff = 3000
-plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.03,dWR_factor=1.03,tr_L=0.01,tr_R=0.002)
+plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.01,dWR_factor=1.01,tr_L=0.01,tr_R=0.008)
 
 # %%
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
@@ -967,17 +986,23 @@ dGPPRmdWroot = np.zeros(n)
 dSdWleaf = np.zeros(n)
 dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
+Rml_0_ = np.zeros(n)
+Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
 ax = axes[0]
 ax.plot(_W_L,GPP_0_,label=r"$\rm GPP$")
 ax.plot(_W_L,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.plot(_W_L,Rml_0_+Rmr_0_,label=r"$\rm R_{m,L}+R_{m,R}$",c='0.25')
+ax.plot(_W_L,Rml_0_,label=r"$\rm R_{m,L}$",c='0.5',linestyle="--")
+ax.plot(_W_L,Rmr_0_,label=r"$\rm R_{m,R}$",c='0.5',linestyle=":")
 ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
 ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
@@ -1003,10 +1028,14 @@ ax.set_xlabel(r"Leaf biomass ($\rm g \; d.wt \; m^{-2}$)")
 ax.set_ylabel(r"Allocation coefficient")
 ax.legend(handlelength=0.7)
 ax.set_ylim([0,1])
+# ax.set_xlim([40,120])
+ax.grid(True)
 
 plt.tight_layout()
 
 
+
+# %%
 
 # %%
 ## Root biomass
@@ -1024,10 +1053,12 @@ dGPPRmdWroot = np.zeros(n)
 dSdWleaf = np.zeros(n)
 dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
+Rml_0_ = np.zeros(n)
+Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1035,6 +1066,9 @@ fig, axes = plt.subplots(1,4,figsize=(16,3))
 ax = axes[0]
 ax.plot(_W_R,GPP_0_,label=r"$\rm GPP$")
 ax.plot(_W_R,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.plot(_W_L,Rml_0_+Rmr_0_,label=r"$\rm R_{m,L}+R_{m,R}$",c='0.25')
+ax.plot(_W_L,Rml_0_,label=r"$\rm R_{m,L}$",c='0.5',linestyle="--")
+ax.plot(_W_L,Rmr_0_,label=r"$\rm R_{m,R}$",c='0.5',linestyle=":")
 ax.set_xlabel(r"Root biomass ($\rm g \; d.wt \; m^{-2}$)")
 ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
@@ -1081,11 +1115,13 @@ dGPPRmdWroot = np.zeros(n)
 dSdWleaf = np.zeros(n)
 dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
+Rml_0_ = np.zeros(n)
+Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
     xsoilTheta_1d = xsoilTheta*np.ones(plant.SoilLayers.nlevmlsoil)
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
 
     
@@ -1094,6 +1130,9 @@ fig, axes = plt.subplots(1,4,figsize=(16,3))
 ax = axes[0]
 ax.plot(_soilTheta,GPP_0_,label=r"$\rm GPP$")
 ax.plot(_soilTheta,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.plot(_soilTheta,Rml_0_+Rmr_0_,label=r"$\rm R_{m,L}+R_{m,R}$",c='0.25')
+ax.plot(_soilTheta,Rml_0_,label=r"$\rm R_{m,L}$",c='0.5',linestyle="--")
+ax.plot(_soilTheta,Rmr_0_,label=r"$\rm R_{m,R}$",c='0.5',linestyle=":")
 ax.set_xlabel(r"Soil water content ($\rm m^3 \; m^{-3}$)")
 ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)
@@ -1140,10 +1179,12 @@ dGPPRmdWroot = np.zeros(n)
 dSdWleaf = np.zeros(n)
 dSdWroot = np.zeros(n)
 GPP_0_ = np.zeros(n)
+Rml_0_ = np.zeros(n)
+Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
-    GPP_0_[ix], Rml_0, Rmr_0, E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
     u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
 
 
@@ -1152,6 +1193,9 @@ fig, axes = plt.subplots(1,4,figsize=(16,3))
 ax = axes[0]
 ax.plot(_temperature,GPP_0_,label=r"$\rm GPP$")
 ax.plot(_temperature,E_0_*10000,label=r"$\rm E(*1e4)$")
+ax.plot(_temperature,Rml_0_+Rmr_0_,label=r"$\rm R_{m,L}+R_{m,R}$",c='0.25')
+ax.plot(_temperature,Rml_0_,label=r"$\rm R_{m,L}$",c='0.5',linestyle="--")
+ax.plot(_temperature,Rmr_0_,label=r"$\rm R_{m,R}$",c='0.5',linestyle=":")
 ax.set_xlabel(r"Temperature ($\rm ^{\circ}C$)")
 ax.set_ylabel(r"GPP ($\rm g C \; m^{-2} \; s^{-1}$)")
 ax.legend(handlelength=0.7)

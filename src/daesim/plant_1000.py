@@ -30,7 +30,7 @@ class PlantModuleCalculator:
 
     ## Module parameter attributes
     f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
-    CUE: float = field(default=0.5)  ## Plant carbon-use-efficiency (CUE=NPP/GPP)
+    alpha_Rg: float = field(default=0.2)   ## Proportion of assimilates that are respired during growth, assumed to be fixed fraction of (GPP - Rm), usually 0.1-0.3
     SAI: float = field(default=0.1)   ## Stem area index (m2 m-2) TODO: make this a dynamic variable at some point. 
     clumping_factor: float = field(default=0.7)   ## Foliage clumping index (-) TODO: Place this parameter in a more suitable spot/module
     albsoib: float = field(default=0.2)   ## Soil background albedo for beam radiation (-) TODO: Place this parameter in a more suitable spot/module
@@ -160,9 +160,10 @@ class PlantModuleCalculator:
 
         _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
         GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+        Rm = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         
         # Calculate NPP
-        NPP = self.calculate_NPP(GPP)
+        NPP = self.calculate_NPP_RmRgpropto(GPP,Rm)
 
         # Allocation fractions per pool
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
@@ -195,8 +196,11 @@ class PlantModuleCalculator:
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt)
 
-    def calculate_NPP(self,GPP):
-        return self.CUE*GPP
+    def calculate_NPP_RmRgpropto(self,GPP,R_m):
+        R_g = self.alpha_Rg * (GPP - R_m)
+        R_a = R_g+R_m
+        NPP = GPP - R_a
+        return NPP
 
     def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
         if self.GDD_method == "nonlinear":

@@ -8,7 +8,7 @@ from attrs import define, field
 from functools import partial
 from scipy.optimize import OptimizeResult, bisect
 from scipy.integrate import solve_ivp
-from daesim.biophysics_funcs import MinQuadraticSmooth
+from daesim.biophysics_funcs import MinQuadraticSmooth, fT_Q10
 from daesim.climate import ClimateModule
 from daesim.canopygasexchange import CanopyGasExchange
 from daesim.soillayers import SoilLayers
@@ -25,8 +25,9 @@ class PlantModel:
     SoilLayers: Callable = field(default=SoilLayers())     ## It is optional to define SoilLayers for this method. If no argument is passed in here, then default setting for SoilLayers is the default SoilLayers().
 
     ## Class parameters
-    m_r_l: float = field(default=0.02)  ## Maintenance respiration coefficient for leaves (d-1)
-    m_r_r: float = field(default=0.01)  ## Maintenance respiration coefficient for roots (d-1)
+    f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1) TODO: Ensure this is only defined in one module, it is currently defined in plant_1000 and this module.
+    m_r_r_opt: float = field(default=0.01)  ## Maintenance respiration coefficient for roots at optimum temperature i.e. 25 deg C (d-1)
+    m_r_r_Q10: float = field(default=1.4)  ## Root maintenance respiration temperature response Q10 coefficient N.B. because we use air temperature as input, we dampen the Q10 coefficient slightly to account for this, considering actual soil (or root) temperature won't vary as significantly as air temperature
     SLA: float = field(default=0.020)  ## Specific leaf area (m2 g d.wt-1), fresh leaf area per dry leaf mass
     maxLAI: float = field(default=3)  ## Maximum potential leaf area index (m2 m-2)
     SAI: float = field(default=0.0)    ## Stem area index, m2/m2
@@ -75,6 +76,9 @@ class PlantModel:
 
         if W_L < 0 or W_R < 0:
             raise ValueError(f"States W_L or W_R cannot be negative")
+        elif np.isnan(W_L) or np.isnan(W_R):
+            raise ValueError(f"States W_L or W_R cannot be NaN")
+            import pdb; pdb.set_trace()
         
         LAI = self.calculate_LAI(W_L)
 
@@ -105,7 +109,7 @@ class PlantModel:
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
 
         ## Initial estimate of GPP without leaf water potential limitation
-        GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, hc, sza, swskyb, swskyd)
+        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, 1.0, LAI, hc, sza, swskyb, swskyd)
 
         ## Determine the total leaf-area specific conductance from soil-to-root-to-leaf
         ## - assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship 1/k_tot = 1/k_srl + 1/k_rl
@@ -118,7 +122,7 @@ class PlantModel:
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
         ## Calculate actual gpp and stomatal conductance
-        GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
+        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
 
         ## Calculate actual transpiration
         E = LAI * E
@@ -127,8 +131,8 @@ class PlantModel:
         Psi_r = self.root_water_potential(Psi_s,E,k_srl) # TODO: Calculate per layer but write out as a bulk average (analagous to bulk average Psi_l)
 
         ## Calculate maintenance respiration of leaf and root pools
-        Rm_l = self.calculate_Rm_k(W_L,self.m_r_l)
-        Rm_r = self.calculate_Rm_k(W_R,self.m_r_r)
+        Rm_l = Rd   # Total leaf maintenance respiration is assumed to equal total leaf mitochondrial respiration
+        Rm_r = self.calculate_Rm_k(W_R*self.f_C,airTempC,self.m_r_r_opt)
 
         return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
@@ -187,7 +191,7 @@ class PlantModel:
         ## Second function
         def f2(Psi_l):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, E = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
+            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
             return E
 
         # Define the function for which we want to find the root
@@ -510,6 +514,7 @@ class PlantModel:
         -------
         GPP : Canopy total gross primary productivity (umol m-2 s-1; on a ground area basis)
         E : Canopy total transpiration rate (mol m-2 s-1; on a ground area basis)
+        Rd : Canopy total leaf mitochondrial respiration (umol m-2 s-1; on a ground area basis)
 
         """
 
@@ -517,23 +522,26 @@ class PlantModel:
 
         GPP = np.sum(An_ml + Rd_ml)*1e6
 
+        Rd = np.sum(Rd_ml)*1e6
+
         E_ml = self.leaf_transpiration(gs_ml,leafTempC,airTempC,airP,airRH)
         E = np.sum(E_ml)
 
-        return GPP, E
+        return GPP, E, Rd
         
-    def calculate_Rm_k(self,C_k,m_r):
+    def calculate_Rm_k(self,C_k,TempC,m_r_25):
         """
         Parameters
         ----------
-        C_k: carbon pool mass k (kg C m-2)
-        
-        m_r: specific maintenance respiration rate (d-1)
+        C_k: carbon pool mass k (g C m-2)
+        TempC : temperature (degree Celcius)        
+        m_r: specific maintenance respiration rate at standard temperature (d-1)
     
         Returns
         -------
-        R_m: maintenance respiration (kg C m-2 d-1)
+        R_m: maintenance respiration (g C m-2 d-1)
         """
+        m_r = fT_Q10(m_r_25,TempC,Q10=self.m_r_r_Q10)
         R_m = m_r * C_k
         return R_m
 

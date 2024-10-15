@@ -124,14 +124,18 @@ class PlantModuleCalculator:
         _year,
     ) -> Tuple[float]:
 
-        ## Solar calculations
+        # Solar calculations
         eqtime, houranglesunrise, theta = self.Site.solar_calcs(_year,_doy)
+        sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
 
-        ## Climate calculations
+        # Climate calculations
         airTempC = self.Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
 
+        # Sowing event and rate
         F_C_sowing = self.calculate_sowingrate_conditional(_doy)
+        F_C_seed2leaf, F_C_seed2stem, F_C_seed2root = self.calculate_emergence_fluxes(Bio_time, Cseedbed)  # Fluxes from seedbed (i.e. sowed seeds) to plant pools
 
+        # Harvest event and rates
         BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
         BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
         BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
@@ -140,32 +144,39 @@ class PlantModuleCalculator:
         dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta[0])  ## assume only the uppermost soil layer controls germination
         # TODO: Need trigger to say, when HTT_time >= self.HTT_Theta_HT, we update the PlantDev to the next development phase
 
-        # Development phase index
+        # Plant development
+        
+        # Plant development phase index
         idevphase = self.PlantDev.get_active_phase_index(Bio_time)
-        # Determine canopy height
+        
+        # Calculate canopy height
         relative_gdd = self.PlantDev.calc_relative_gdd_index(Bio_time)
         hc = self.calculate_canopy_height(relative_gdd)
+        
+        # Calculate root depth
         relative_gdd_anthesis = self.PlantDev.calc_relative_gdd_to_anthesis(Bio_time)
         d_r = self.calculate_root_depth(relative_gdd_anthesis)
+        
         # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
         VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
-        # Update vernalization days requirement for current developmental phase
-        self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]
+        self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]    # Update vernalization days requirement for current developmental phase
+        deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
+        dVDdt = deltaVD
 
-        sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
+        # Growing degree days (thermal time)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
         fV = self.vernalization_factor(VD)
         fGerm = self.calculate_sowingdepth_factor(Bio_time)
         dGDDdt = fGerm*fV*DTT
 
-        deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
-        dVDdt = deltaVD
-
+        # Live leaf and root biomass pools
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
 
+        # Photosynthesis and plant respiration rates
         if (W_L == 0) or (W_R == 0):
+            # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations
             GPP = 0
             Rm = 0
         else:
@@ -176,34 +187,28 @@ class PlantModuleCalculator:
         # Calculate NPP
         NPP = self.calculate_NPP_RmRgpropto(GPP,Rm)
 
-        # Allocation fractions per pool
+        # Plant carbon allocation 
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
-        # Turnover rates per pool (days-1)
+        # Plant turnover rates
         tr_ = self.PlantDev.turnover_rates[idevphase]
 
         # Grain production module calculations
-        # Calculate potential grain number
-        GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)
-        # Calculate stem remobilization to grain
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)
-        # Calculate allocation fraction to grain
-        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)
+        GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)    # Calculate potential grain number
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate stem remobilization to grain
+        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate allocation fraction to grain
         u_Stem = alloc_coeffs[self.PlantDev.istem]
 
-        # Set any constant allocation coefficients for optimal allocation
-        self.PlantAlloc.u_Stem = u_Stem
-        self.PlantAlloc.u_Seed = u_Seed
-        # Set pool turnover rates for optimal allocation
-        self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-        self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
+        # Dynamic, optimal trajectory carbon allocation to leaves and roots
+        self.PlantAlloc.u_Stem = u_Stem    # Set constant allocation coefficients for optimal allocation
+        self.PlantAlloc.u_Seed = u_Seed    # Set constant allocation coefficients for optimal allocation
+        self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    # Set pool turnover rates for optimal allocation
+        self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    # Set pool turnover rates for optimal allocation
         if (W_L == 0) or (W_R == 0):
+            # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations, assume allocation coefficients are fixed
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
         else:
             u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
-
-        # Fluxes from seedbed (i.e. sowed seeds)
-        F_C_seed2leaf, F_C_seed2stem, F_C_seed2root = self.calculate_emergence_fluxes(Bio_time, Cseedbed)
 
         # ODE for plant carbon pools
         dCseedbeddt = F_C_sowing - F_C_seed2leaf - F_C_seed2stem - F_C_seed2root

@@ -190,7 +190,7 @@ _soilTheta = np.array([0.30,0.30])   ## volumetric soil water content (m3 m-3)
 _doy = time_doy[_nday-1]
 _year = time_year[_nday-1]
 
-management = ManagementModule(plantingDay=30,harvestDay=235)
+management = ManagementModule(sowingDay=30,harvestDay=235)
 site = ClimateModule()
 soillayers = SoilLayers(nlevmlsoil=2,z_max=2.0)
 canopy = CanopyLayers()
@@ -273,7 +273,7 @@ PlantDevX = PlantGrowthPhases(
     gdd_requirements=[50,500,200,110,300,100],
     vd_requirements=[0, 40, 0, 0, 0, 0],
     allocation_coeffs = [
-        [0.0, 0.1, 0.9, 0.0, 0.0],
+        [0.2, 0.1, 0.7, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.20, 0.6, 0.20, 0.0, 0.0],
         [0.25, 0.5, 0.25, 0.0, 0.0],
@@ -288,7 +288,7 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
-ManagementX = ManagementModule(plantingDay=sowing_date,harvestDay=harvest_date)
+ManagementX = ManagementModule(sowingDay=sowing_date,harvestDay=harvest_date)
 
 LeafX = LeafGasExchangeModule2(Site=SiteX)
 CanopyX = CanopyLayers(nlevmlcan=3)
@@ -317,10 +317,12 @@ PlantX = PlantModuleCalculator(
 )
 
 # %%
+
+# %%
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.5, 0.1, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
 
 
 forcing_inputs = [Climate_solRadswskyb_f,
@@ -335,7 +337,7 @@ forcing_inputs = [Climate_solRadswskyb_f,
                   Climate_doy_f,
                   Climate_year_f]
 
-reset_days = [PlantX.Management.plantingDay, PlantX.Management.harvestDay]
+reset_days = [PlantX.Management.sowingDay, PlantX.Management.harvestDay]
 
 res = Model.run(
     time_axis=time_axis,
@@ -401,13 +403,21 @@ for it,t in enumerate(time_axis):
     _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
 
     ## GPP and Transpiration (E)
-    GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_r[it])
-    _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
-    _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
-    _E[it] = E
-    _Rm_l[it] = Rml
-    _Rm_r[it] = Rmr
-    _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
+    if (W_L[it] == 0) or (W_R[it] == 0):
+        _GPP_gCm2d[it] = 0
+        _Rm_gCm2d[it] = 0
+        _E[it] = 0
+        _Rm_l[it] = 0
+        _Rm_r[it] = 0
+        _Psi_s[it] = 0
+    else:
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_r[it])
+        _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+        _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+        _E[it] = E
+        _Rm_l[it] = Rml
+        _Rm_r[it] = Rmr
+        _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
     
     _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
@@ -458,26 +468,31 @@ for it,t in enumerate(time_axis):
     PlantX.PlantAlloc.tr_L = tr_[PlantX.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
     PlantX.PlantAlloc.tr_R = tr_[PlantX.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
 
-    u_L, u_R, _, _, _, _ = PlantX.PlantAlloc.calculate(
-        W_L[it],
-        W_R[it],
-        Climate_soilTheta_z_f(time_axis[it]),
-        Climate_airTempC_f(time_axis[it]),
-        Climate_airTempC_f(time_axis[it]),
-        Climate_airRH_f(time_axis[it]),
-        Climate_airCO2_f(time_axis[it]),
-        Climate_airO2_f(time_axis[it]),
-        Climate_airPressure_f(time_axis[it]),
-        Climate_solRadswskyb_f(time_axis[it]),
-        Climate_solRadswskyd_f(time_axis[it]),
-        theta[it],
-        _hc[it],
-        _d_r[it])
+    if (W_L[it] == 0) or (W_R[it] == 0):
+        u_L = alloc_coeffs[PlantX.PlantDev.ileaf]
+        u_R = alloc_coeffs[PlantX.PlantDev.iroot]
+    else:
+        u_L, u_R, _, _, _, _ = PlantX.PlantAlloc.calculate(
+            W_L[it],
+            W_R[it],
+            Climate_soilTheta_z_f(time_axis[it]),
+            Climate_airTempC_f(time_axis[it]),
+            Climate_airTempC_f(time_axis[it]),
+            Climate_airRH_f(time_axis[it]),
+            Climate_airCO2_f(time_axis[it]),
+            Climate_airO2_f(time_axis[it]),
+            Climate_airPressure_f(time_axis[it]),
+            Climate_solRadswskyb_f(time_axis[it]),
+            Climate_solRadswskyd_f(time_axis[it]),
+            theta[it],
+            _hc[it],
+            _d_r[it])
 
     _u_Leaf[it] = u_L
     _u_Root[it] = u_R
 
-# %%
+# %% [markdown]
+# ### 
 
 # %% [markdown]
 # ### Create figures
@@ -529,7 +544,7 @@ i0, i1 = time_axis[0]-1, time_axis[-1]
 ax2.bar(time_axis, df_forcing["Precipitation"].values[i0:i1], color="0.4")
 ax2.set_ylabel("Daily Precipitation\n(mm)")
 
-axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 # axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
@@ -632,8 +647,8 @@ print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
-axes[0].set_xlim([PlantX.Management.plantingDay,292])
-axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDay,292])
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -668,8 +683,8 @@ axes[2].set_ylabel(r"CUE")
 axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[2].set_ylim([0,1.0])
 
-axes[0].set_xlim([PlantX.Management.plantingDay,292])
-axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDay,292])
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -786,7 +801,7 @@ for iphase, phase in enumerate(PlantDevX.phases):
 ax.set_ylim([ylimmin, ylimmax])
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
 
-axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 axes[0].set_xlabel("Time (day of year)")
 axes[1].set_xlabel("Time (day of year)")
 axes[2].set_xlabel("Time (day of year)")
@@ -871,7 +886,7 @@ print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
-axes[0].set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
@@ -886,7 +901,7 @@ axes[0,0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[0,0].set_xlabel("Time (days)")
 axes[0,0].set_title("Growing Degree Days")
 # axes[0,0].set_ylim([0,1600])
-# axes[0,0].vlines(x=PlantX.Management.plantingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
+# axes[0,0].vlines(x=PlantX.Management.sowingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
 ax = axes[0,0]
 for iphase,phase in enumerate(PlantDevX.phases):
     itime = np.argmin(np.abs(res["y"][4] - np.cumsum(PlantDevX.gdd_requirements)[iphase]))
@@ -901,7 +916,7 @@ axes[1,0].set_ylabel("Daily Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[1,0].set_xlabel("Time (days)")
 axes[1,0].set_title("Growing Degree Days")
 axes[1,0].legend()
-# axes[1,0].vlines(x=PlantX.Management.plantingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
+# axes[1,0].vlines(x=PlantX.Management.sowingDay,ymin=0,ymax=res["y"][4,itime],color='0.5')
 
 
 axes[0,1].plot(res["t"], res["y"][5])
@@ -991,7 +1006,7 @@ ax.plot(df_u_W['Time'], df_u_W['RunningMean_u_Root'], label='Root')
 ax.plot(df_u_W['Time'], df_u_W['u_Stem'], label='Stem')
 ax.plot(df_u_W['Time'], df_u_W['u_Seed'], label='Seed')
 ax.set_ylim([0,1.01])
-ax.set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 ax.set_xlabel("Time (day of year)")
 ax.set_ylabel("Carbon allocation\ncoefficient")
 ax.legend(handlelength=0.75)
@@ -1018,7 +1033,7 @@ ax.plot(time_axis, _tr_Root, label='Root')
 ax.plot(time_axis, _tr_Stem, label='Stem')
 ax.plot(time_axis, _tr_Seed, label='Seed')
 # ax.set_ylim([0,1.01])
-ax.set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 ax.set_xlabel("Time (day of year)")
 ax.set_ylabel("Turnover rate\n"+r"($\rm days^{-1}$)")
 # ax.legend(handlelength=0.75)
@@ -1041,7 +1056,7 @@ for iphase, phase in enumerate(PlantDevX.phases):
             fontsize=8, alpha=0.7, rotation=90)
 
 ax.set_ylim([xminlim, xmaxlim])
-ax.set_xlim([PlantX.Management.plantingDay,time_axis[-1]])
+ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 
 # plt.grid(True)
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_sens1a.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')

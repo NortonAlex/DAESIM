@@ -39,6 +39,11 @@ class PlantModuleCalculator:
     hc_max_GDDindex: float = field(default=0.75)    ## Relative growing degree day index at peak canopy height (ranges between 0-1). A rule of thumb is that canopy height peaks at anthesis (see Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017)
     d_r_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
 
+    ## Seed germination and emergence parameters
+    germination_phase: str = field(default="germination")  ## Name of developmental/growth phase in which germination to first emergence occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    k_sowdepth: float = field(default=1.0)        ## Sowing depth factor that determines how sowing depth impacts the germination and emergence developmental rate (-)
+    sowingDepthMax: float = field(default=0.10)   ## Maximum potential sowing depth, below which germination and emergence are not possible (m)
+
     GDD_method: str = field(
         default="nonlinear"
         ) ## method used to calculate daily thermal time and hence growing degree days. Options are: "nonlinear", "linear1", "linear2", "linear3"
@@ -105,6 +110,7 @@ class PlantModuleCalculator:
         VRN_time,      ## vernalization state
         HTT_time,      ## hydrothermal time state, for germination (MPa degrees Celcius d)
         Cstate,        ## Ambiguous carbon state to track, provides an input to the grain production module
+        Cseedbed,      ## seed bed carbon
         solRadswskyb,  ## atmospheric direct beam solar radiation (W/m2)
         solRadswskyd,  ## atmospheric diffuse solar radiation (W/m2)
         airTempCMin,   ## minimum air temperature (degrees Celsius)
@@ -124,7 +130,7 @@ class PlantModuleCalculator:
         ## Climate calculations
         airTempC = self.Site.compute_mean_daily_air_temp(airTempCMin,airTempCMax)
 
-        BioPlanting = self.calculate_BioPlanting(_doy,self.Management.plantingDay,self.Management.plantingRate,self.Management.plantWeight) ## Modification: using a newly defined parameter in this function instead of "frequPlanting" as used in Stella, considering frequPlanting was being used incorrectly, as its use didn't match with the units or definition.
+        F_C_sowing = self.calculate_sowingrate_conditional(_doy)
 
         BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
         BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
@@ -150,7 +156,8 @@ class PlantModuleCalculator:
         sunrise, solarnoon, sunset = self.Site.solar_day_calcs(_year,_doy)
         DTT = self.calculate_dailythermaltime(airTempCMin,airTempCMax,sunrise,sunset)
         fV = self.vernalization_factor(VD)
-        dGDDdt = fV*DTT
+        fGerm = self.calculate_sowingdepth_factor(Bio_time)
+        dGDDdt = fGerm*fV*DTT
 
         deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
         dVDdt = deltaVD
@@ -158,9 +165,13 @@ class PlantModuleCalculator:
         W_L = Cleaf/self.f_C
         W_R = Croot/self.f_C
 
-        _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
-        GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
-        Rm = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+        if (W_L == 0) or (W_R == 0):
+            GPP = 0
+            Rm = 0
+        else:
+            _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
+            GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+            Rm = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         
         # Calculate NPP
         NPP = self.calculate_NPP_RmRgpropto(GPP,Rm)
@@ -185,16 +196,24 @@ class PlantModuleCalculator:
         # Set pool turnover rates for optimal allocation
         self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
         self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-        u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
+        if (W_L == 0) or (W_R == 0):
+            u_L = alloc_coeffs[self.PlantDev.ileaf]
+            u_R = alloc_coeffs[self.PlantDev.iroot]
+        else:
+            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
+
+        # Fluxes from seedbed (i.e. sowed seeds)
+        F_C_seed2leaf, F_C_seed2stem, F_C_seed2root = self.calculate_emergence_fluxes(Bio_time, Cseedbed)
 
         # ODE for plant carbon pools
-        dCleafdt = u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
-        dCstemdt = u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
-        dCrootdt = u_R*NPP - tr_[self.PlantDev.iroot]*Croot + BioPlanting
+        dCseedbeddt = F_C_sowing - F_C_seed2leaf - F_C_seed2stem - F_C_seed2root
+        dCleafdt = F_C_seed2leaf + u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
+        dCstemdt = F_C_seed2stem + u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
+        dCrootdt = F_C_seed2root + u_R*NPP - tr_[self.PlantDev.iroot]*Croot
         dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
         dCStatedt = self.calculate_devphase_Cflux(u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain, Bio_time)
 
-        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt)
+        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt)
 
     def calculate_NPP_RmRgpropto(self,GPP,R_m):
         R_g = self.alpha_Rg * (GPP - R_m)
@@ -273,31 +292,126 @@ class PlantModuleCalculator:
             fV = 1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD)
         return fV
 
-    def calculate_BioPlanting(self,_doy,plantingDay,plantingRate,plantWeight):
-        """
-        _doy = ordinal day of year
-        propBMPlanting = the proportion of planting that applies to this live biomass pool (e.g. if sowing seeds, calculation of the the non-photosynthetic planting flux will require propBMPlanting=1). Modification: The Stella code uses a parameter "frequPlanting" which isn't the correct use, given its definition. 
-
-        returns:
-        BioPlanting = the flux of carbon planted
-        """
-        _vfunc = np.vectorize(self.calculate_BioPlanting_conditional,otypes=[float])
-        BioPlanting = _vfunc(_doy,plantingDay,plantingRate,plantWeight)
-        return BioPlanting
-
-    def calculate_BioPlanting_conditional(self,_doy,plantingDay,plantingRate,plantWeight):
-        # Modification: I have modified the variables/parameters used in this function as the definitions and units in the Stella code didn't match up (see previous parameters maxDensity and frequPlanting vs new parameters plantingRate and propPhPlanting).
-        PlantingTime = self.calculate_plantingtime_conditional(_doy,plantingDay)
-        BioPlanting = PlantingTime * plantingRate * plantWeight
-        return BioPlanting
-
-    def calculate_plantingtime_conditional(self,_doy,plantingDay):
-        if plantingDay is None:
+    def calculate_sowingtime_conditional(self,_doy):
+        if self.Management.sowingDay is None:
             return 0
-        elif (plantingDay <= _doy < plantingDay+1):
+        elif (self.Management.sowingDay <= _doy < self.Management.sowingDay+1):
             return 1
         else:
             return 0
+
+    def calculate_sowingrate_conditional(self,_doy):
+        """
+        Calculates the sowing rate based on the day of year (DOY) and management parameters. 
+        The sowing rate is converted from the standard units of kg ha-1 to g C m-2 and adjusted 
+        based on the conditional sowing time.
+
+        Parameters
+        ----------
+        _doy : int
+            The day of year (DOY) used to calculate the sowing time conditionally, which is 
+            factored into the final sowing rate calculation.
+
+        Returns
+        -------
+        sowingrate : float
+            The sowing rate in g C m-2
+
+        Notes
+        -----
+        The function first calculates the conditional sowing time based on the day of year (DOY), 
+        using `calculate_sowingtime_conditional`. The management-defined sowing rate (kg ha-1) 
+        is then multiplied by the conditional factor `f_C` and converted to g C m-2.
+        The formula:
+            sowingrate = sowingTime * (sowingRate * f_C * 1000 / 10000)
+        adjusts the sowing rate, where the constant factors convert from kg ha-1 to g C m-2.
+        """
+        sowingTime = self.calculate_sowingtime_conditional(_doy)
+        sowingrate = sowingTime * (self.Management.sowingRate * self.f_C * 1000 / 10000)    # includes conversion of sowing rate units from kg ha-1 to g C m-2
+        return sowingrate
+
+    def calculate_sowingdepth_factor(self, Bio_time):
+        """
+        Calculates the sowing depth scaling factor (f_d) for GDD accumulation during the germination phase.
+        The scaling factor decreases linearly with increasing sowing depth and ensures no germination 
+        occurs if the sowing depth exceeds a specified maximum.
+
+        Parameters
+        ----------
+        Bio_time : float
+            The current growing degree days (thermal time), used to determine the developmental phase of the plant.
+
+        Returns
+        -------
+        f_d : float
+            The sowing depth scaling factor, which modifies the GDD accumulation rate. 
+            If the sowing depth is greater than the specified maximum, f_d is set to 0 (i.e., no germination).
+            If the sowing depth is within the permissible range, f_d scales linearly with depth and is clamped to be non-negative.
+
+        Notes
+        -----
+        This function only modifies the GDD accumulation rate during the germination phase of plant development. 
+        Outside of the germination phase, the scaling factor is set to 1.0, meaning no modification is applied.
+        """
+        if self.PlantDev.is_in_phase(Bio_time, self.germination_phase):
+            f_d = (1 - self.k_sowdepth*self.Management.sowingDepth)*(self.Management.sowingDepth <= self.sowingDepthMax) + (self.Management.sowingDepth > self.sowingDepthMax)*0.0
+            return np.maximum(f_d, 0.0)
+        else:
+            # no sowing depth factor modifier when outside germination developmental phase
+            return 1.0
+
+    def calculate_emergence_fluxes(self, Bio_time, Cseedbed):
+        """
+        Calculates the carbon fluxes from the seedbed pool to the leaf, stem, and root pools during the emergence phase.
+        The transfer of carbon depends on whether the growing degree day (GDD) requirement for emergence has been met.
+
+        Parameters
+        ----------
+        Bio_time : float
+            The current biological time or thermal time, used to determine if the GDD requirement for emergence has been satisfied (deg C)
+            
+        Cseedbed : float
+            The amount of available carbon in the seedbed pool that can be allocated to plant organs (g C m-2)
+
+        Returns
+        -------
+        F_C_seed2leaf : float
+            The flux of carbon from the seedbed pool to the leaf pool. This value is non-zero only after the GDD requirement 
+            for emergence has been reached (g C m-2 d-1)
+            
+        F_C_seed2stem : float
+            The flux of carbon from the seedbed pool to the stem pool. This value is non-zero only after the GDD requirement 
+            for emergence has been reached (g C m-2 d-1)
+            
+        F_C_seed2root : float
+            The flux of carbon from the seedbed pool to the root pool. This value is non-zero only after the GDD requirement 
+            for emergence has been reached (g C m-2 d-1)
+
+        Notes
+        -----
+        The function models carbon allocation based on thermal time, ensuring that carbon transfer from the seedbed pool 
+        to the plant organs (leaf, stem, root) occurs only once the growing degree day requirement for emergence is met. 
+        Before this threshold, no carbon is transferred from the seedbed.
+        """
+        idevphase_germ = self.PlantDev.phases.index(self.germination_phase)
+        u_L = self.PlantDev.allocation_coeffs[idevphase_germ][self.PlantDev.ileaf]
+        u_Stem = self.PlantDev.allocation_coeffs[idevphase_germ][self.PlantDev.istem]
+        u_R = self.PlantDev.allocation_coeffs[idevphase_germ][self.PlantDev.iroot]
+
+        GDD_requirement_emerg = self.PlantDev.gdd_requirements[idevphase_germ]
+        
+        if (Bio_time >= GDD_requirement_emerg):
+            # immediate and complete transfer of carbon from seed bed to leaf, stem and root pools
+            F_C_seed2leaf = u_R * Cseedbed
+            F_C_seed2stem = u_Stem * Cseedbed
+            F_C_seed2root = u_R * Cseedbed
+        else:
+            # have not reached growing-degree-day requirement yet, no input fluxes
+            F_C_seed2leaf = 0.0
+            F_C_seed2stem = 0.0
+            F_C_seed2root = 0.0
+
+        return F_C_seed2leaf, F_C_seed2stem, F_C_seed2root
 
     def calculate_BioHarvest(self,Biomass,_doy,harvestDay,propHarvest,HarvestTurnoverTime):
         _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])

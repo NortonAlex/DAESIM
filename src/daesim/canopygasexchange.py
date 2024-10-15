@@ -1,5 +1,5 @@
 """
-Leaf gas exchange model class: Includes equations, calculators, and parameters
+Canopy gas exchange model class: Includes equations, calculators, and parameters
 """
 
 import numpy as np

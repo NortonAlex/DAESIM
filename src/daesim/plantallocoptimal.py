@@ -1,5 +1,5 @@
 """
-Plant carbon and water model class: Includes equations, calculators, and parameters
+Plant optimal trajectory carbon allocation model class: Includes equations, calculators, and parameters
 """
 
 import numpy as np

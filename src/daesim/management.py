@@ -1,5 +1,5 @@
 """
-Management model class: Includes differential equations, calculators, and parameters
+Management model class: Includes parameters to define management
 """
 
 import numpy as np

@@ -1,5 +1,5 @@
 """
-Plant pools, development and growth phases model class
+Plant development/growth model class: Includes definition of plant structure, development and growth phases
 """
 
 import numpy as np

@@ -1,3 +1,7 @@
+"""
+Soil layers class: Includes parameters and functions to define and discretise the soil profile into layers.
+"""
+
 import numpy as np
 from attrs import define, field
 

@@ -216,7 +216,7 @@ class PlantModuleCalculator:
         dCstemdt = F_C_seed2stem + u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
         dCrootdt = F_C_seed2root + u_R*NPP - tr_[self.PlantDev.iroot]*Croot
         dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
-        dCStatedt = self.calculate_devphase_Cflux(u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain, Bio_time)
+        dCStatedt = self.calculate_devphase_Cflux(dCStatedt, Bio_time)
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt)
 

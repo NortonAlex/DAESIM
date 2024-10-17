@@ -425,9 +425,9 @@ for it,t in enumerate(time_axis):
     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
 
 
-NPP = PlantX.calculate_NPP_RmRgpropto(_GPP_gCm2d, _Rm_gCm2d)
+NPP_gCm2d = PlantX.calculate_NPP_RmRgpropto(_GPP_gCm2d, _Rm_gCm2d)
 Rg_gCm2d = PlantX.alpha_Rg * (_GPP_gCm2d - _Rm_gCm2d)
-Ra = _GPP_gCm2d - NPP  # units of gC m-2 d-1
+Ra_gCm2d = _GPP_gCm2d - NPP_gCm2d  # units of gC m-2 d-1
 Rm_l_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
 Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
 
@@ -619,13 +619,13 @@ print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_pe
 print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,phases_it0[ispike]])
 print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,phases_it0[ianthesis]])
 print("Total (integrated) seasonal GPP =", np.sum(_GPP_gCm2d[phases_it0[0]:it_harvest]))
-print("Total (integrated) seasonal NPP =", np.sum(NPP[phases_it0[0]:it_harvest]))
-print("Total (integrated) seasonal Rml =", np.sum(_Rml_gCm2d[phases_it0[0]:it_harvest]))
-print("Total (integrated) seasonal Rmr =", np.sum(_Rmr_gCm2d[phases_it0[0]:it_harvest]))
+print("Total (integrated) seasonal NPP =", np.sum(NPP_gCm2d[phases_it0[0]:it_harvest]))
+print("Total (integrated) seasonal Rml =", np.sum(Rm_l_gCm2d[phases_it0[0]:it_harvest]))
+print("Total (integrated) seasonal Rmr =", np.sum(Rm_r_gCm2d[phases_it0[0]:it_harvest]))
 print("Total (integrated) seasonal Rg =", np.sum(Rg_gCm2d[phases_it0[0]:it_harvest]))
 print("Total (integrated) seasonal turnover losses =", np.sum(_trflux_total_exclseed[phases_it0[0]:it_harvest]))
 print("Total (integrated) remobilisation to grain =", np.sum(_Cfluxremob[phases_it0[0]:it_harvest]))
-_Cflux_NPP2grain = _u_Seed*NPP
+_Cflux_NPP2grain = _u_Seed*NPP_gCm2d
 print("Total (integrated) allocation to grain =", np.sum(_Cflux_NPP2grain[phases_it0[0]:it_harvest]))
 print("Total (integrated) seasonal transpiration =", np.sum(_E_mmd[phases_it0[0]:it_harvest]))
 print("Leaf area index at peak biomass =", LAI[it_peakbiomass])
@@ -726,9 +726,7 @@ axes[1].set_ylim([0,30])
 
 # axes[2].plot(res["t"], _E*1e3)
 # axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mmol \; H_2O \; m^{-2} \; s^{-1}$)")
-## Conversion notes: When _E units are mol m-2 s-1, multiply by molar mass H2O to get g m-2 s-1, divide by 1000 to get kg m-2 s-1, multiply by 60*60*24 to get kg m-2 d-1, and 1 kg m-2 d-1 = 1 mm d-1. 
-## Noting that 1 kg of water is equivalent to 1 liter (L) of water (because the density of water is 1000 kg/m³), and 1 liter of water spread over 1 square meter results in a depth of 1 mm
-axes[2].plot(res["t"], _E*18.015/1000*(60*60*24))   
+axes[2].plot(res["t"], _E_mmd)
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -825,16 +823,14 @@ axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', vertic
 axes[1].plot(res["t"], _Rm_gCm2d+Rg_gCm2d, label=r"$\rm R_a$", c="k")
 axes[1].plot(res["t"], Rg_gCm2d, label=r"$\rm R_g$", c="C1")
 axes[1].plot(res["t"], _Rm_gCm2d, label=r"$\rm R_m$", c="C0")
-_Rml_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
-_Rmr_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
-axes[1].plot(res["t"], _Rml_gCm2d, c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
-axes[1].plot(res["t"], _Rmr_gCm2d, c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
+axes[1].plot(res["t"], Rm_l_gCm2d, c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
+axes[1].plot(res["t"], Rm_r_gCm2d, c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
 axes[1].set_ylabel("Plant Respiration\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].legend(fontsize=10)
 
-axes[2].plot(res["t"], NPP/_GPP_gCm2d)
+axes[2].plot(res["t"], NPP_gCm2d/_GPP_gCm2d)
 axes[2].set_ylabel(r"CUE")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)

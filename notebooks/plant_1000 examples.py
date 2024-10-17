@@ -642,8 +642,8 @@ print()
 print("--- Grain Production ---")
 print()
 print("Spike dry biomass at anthesis =", res["y"][7,it_harvest])
-print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_harvest])
-print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,phases_it0[imaturity]])
+print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C)
+print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,phases_it0[imaturity]]/PlantX.f_C)
 print("Potential grain number =", _GN_pot[it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C/PlantX.W_seedTKW0)
 
@@ -664,10 +664,11 @@ site_filename = "Harden_2001_Wheat"
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
 
-axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis)+Climate_solRadswskyd_f(time_axis), c='0.4')
-axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis), c='goldenrod', alpha=0.5)
-axes[0].plot(res["t"], Climate_solRadswskyd_f(time_axis), c='C0', alpha=0.5)
+axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis)+Climate_solRadswskyd_f(time_axis), c='0.4', label="Global")
+axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis), c='goldenrod', alpha=0.5, label="Direct")
+axes[0].plot(res["t"], Climate_solRadswskyd_f(time_axis), c='C0', alpha=0.5, label="Diffuse")
 axes[0].set_ylabel("Solar radiation\n"+r"($\rm W \; m^{-2}$)")
+axes[0].legend(loc=1,handlelength=0.75)
 # axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Solar radiation", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,400])
@@ -704,7 +705,7 @@ axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 # axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_climate.png" % site_filename,dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_climate.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
 

@@ -194,7 +194,7 @@ class PlantModuleCalculator:
 
         # Grain production module calculations
         GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)    # Calculate potential grain number
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate stem remobilization to grain
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf+Cstem+Croot, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate stem remobilization to grain
         u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate allocation fraction to grain
         u_Stem = alloc_coeffs[self.PlantDev.istem]
 

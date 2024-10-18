@@ -45,6 +45,7 @@ class PlantModel:
     f_r: float = field(default=1.0)          ## fraction of roots in soil layer (unitless)
     root_distr_d50: float = field(default=0.15)  ## Soil depth at which 50% of total root amount is accumulated (m) i.e. 50% of roots occur above this depth
     root_distr_c: float = field(default=-1.2)     ## A dimensionless shape-parameter to describe root distribution in soil profile (-)
+    SRD: float = field(default=0.01)         ## Specific root depth, represents the ratio of root depth to total root dry biomass (m g.dwt-1)
     
     k_rl: float = field(default=0.10)     ## Leaf-area specific root-to-leaf (from inside the root to bulk leaf) hydraulic conductance (mol m-2 s-1 MPa-1) TODO: should increase with distance i.e. leaf height above root node
     Psi_f: float = field(default=-2.3)   ## Leaf water potential at which half of stomatal conductance occurs (MPa), see Drewry et al. (2010, doi:10.1029/2010JG001340)
@@ -65,7 +66,7 @@ class PlantModel:
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
         sza,    ## Solar zenith angle, degrees
         hc,     ## canopy height, m
-        d_r,     ## root depth, m
+        d_rpot,     ## potential root depth, m
     ) -> Tuple[float]:
 
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
@@ -87,6 +88,9 @@ class PlantModel:
         
         ## Calculate soil properties
         K_s_z = self.soil_hydraulic_conductivity(Psi_s_z)
+
+        ## Calculate actual root depth
+        d_r = self.calculate_root_depth(W_R, d_rpot)
 
         ## Cumulative root fraction for all layers (assume d_soil is a vector for soil layer thickness)
         fc_r_z = self.calculate_root_distribution(d_r, d_soil)  # Calculate the cumulative root distribution for all layers
@@ -681,3 +685,24 @@ class PlantModel:
             d0_soil = np.array([0] + d_soil[:-1])  # Depth from soil surface to top of each layer (m)
             param_mean = np.nanmean(param_z[d0_soil < rooting_depth])
             return param_mean
+
+    def calculate_root_depth(self, W_R, d_rpot):
+        """
+        Calculate the actual root depth as the minimum of the potential root depth (based on 
+        plant developmental rate) and biomass-based root depth (based on root biomass). 
+
+        Parameters
+        ----------
+        W_R : float or array_like
+            Root dry structural biomass (g d.wt m-2)
+        d_rpot : float or array_like
+            Potential root depth (m)
+
+        Returns
+        -------
+        d_r : float or array_like
+            Actual root depth (m)
+        """
+        d_r_srd = W_R * self.SRD    # root depth based on root biomass and specific root depth
+        d_r = np.minimum(d_r_srd, d_rpot) 
+        return d_r

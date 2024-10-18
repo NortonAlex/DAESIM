@@ -40,23 +40,107 @@ from daesim.soillayers import SoilLayers
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=3)
-soillayers = SoilLayers(nlevmlsoil=4,z_max=2.0)
+soillayers = SoilLayers(nlevmlsoil=10,z_max=2.0)
 canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
 ## Module with upstream module dependencies
 plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
 
-# %%
-# soillayers = SoilLayers(nlevmlsoil=3,z_max=1.0)
+# %% [markdown]
+# ### Example of soil-root profile and rooting depth functions
 
+# %%
 z_soil, d_soil = soillayers.discretise_layers()
 
-print("z_soil =",z_soil)
-print("d_soil =",d_soil)
+print(z_soil, d_soil)
 
 d_r = 2.0  # Rooting depth
-plant.calculate_root_distribution(d_r, d_soil)
+fc_r_z = plant.calculate_root_distribution(d_r, d_soil)
+## Calculate actual root fraction per layer (by difference, no loops needed)
+f_r_z = np.diff(np.insert(fc_r_z, 0, 0, axis=0), axis=0)  # Fractional root density per layer
+
+d_soil_midpoints = []
+for i in range(soillayers.nlevmlsoil):
+    d_soil_midpoints.append(d_soil[i] - 0.5*z_soil[i])
+
+## figure
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+xlimmin, xlimmax = 0.5, 1.0
+axes[0].plot(fc_r_z, -np.array(d_soil_midpoints), marker='s')
+axes[0].hlines(y=-np.array(d_soil), xmin=xlimmin, xmax=xlimmax, color='0.5', alpha=0.5)
+axes[0].set_ylim([np.min(-np.array(d_soil)), 0])
+axes[0].set_xlim([xlimmin, xlimmax])
+axes[0].set_xlabel("Cumulative fraction of roots per layer")
+axes[0].set_ylabel("Soil depth (m)")
+
+xlimmin, xlimmax = 0, 1.0
+axes[1].plot(f_r_z, -np.array(d_soil_midpoints), marker='s')
+axes[1].hlines(y=-np.array(d_soil), xmin=xlimmin, xmax=xlimmax, color='0.5', alpha=0.5)
+axes[1].set_ylim([np.min(-np.array(d_soil)), 0])
+axes[1].set_xlim([xlimmin, xlimmax])
+axes[1].set_xlabel("Fraction of roots per layer")
+axes[1].set_ylabel("Soil depth (m)")
+
+plt.tight_layout()
+
+# %%
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+## Effect of potential rooting depth
+n = 100
+_W_R = np.linspace(5,400,n)
+_d_r_dynamic0 = np.zeros(n)
+_d_r_dynamic1 = np.zeros(n)
+_d_r_dynamic2 = np.zeros(n)
+_d_r_dynamic3 = np.zeros(n)
+
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
+
+for i,x in enumerate(_W_R):
+    _d_r_dynamic0[i] = plant0.calculate_root_depth(x, 0.5)
+    _d_r_dynamic1[i] = plant0.calculate_root_depth(x, 1.0)
+    _d_r_dynamic2[i] = plant0.calculate_root_depth(x, 1.5)
+    _d_r_dynamic3[i] = plant0.calculate_root_depth(x, 2.0)
+
+axes[0].plot(_W_R, _d_r_dynamic0, label=r"$\rm d_{r,pot}=0.5$")
+axes[0].plot(_W_R, _d_r_dynamic1, label=r"$\rm d_{r,pot}=1.0$")
+axes[0].plot(_W_R, _d_r_dynamic2, label=r"$\rm d_{r,pot}=1.5$")
+axes[0].plot(_W_R, _d_r_dynamic3, label=r"$\rm d_{r,pot}=2.0$")
+axes[0].legend(handlelength=0.75)
+axes[0].set_title("Potential Root Depth Sensitivity")
+
+
+## Effect of specific root depth
+n = 100
+_W_R = np.linspace(5,400,n)
+_d_r_dynamic0 = np.zeros(n)
+_d_r_dynamic1 = np.zeros(n)
+_d_r_dynamic2 = np.zeros(n)
+_d_r_dynamic3 = np.zeros(n)
+
+d_rpot = 2.0
+
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.005)
+plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
+plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.020)
+plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.040)
+
+for i,x in enumerate(_W_R):
+    _d_r_dynamic0[i] = plant0.calculate_root_depth(x, d_rpot)
+    _d_r_dynamic1[i] = plant1.calculate_root_depth(x, d_rpot)
+    _d_r_dynamic2[i] = plant2.calculate_root_depth(x, d_rpot)
+    _d_r_dynamic3[i] = plant3.calculate_root_depth(x, d_rpot)
+
+axes[1].plot(_W_R, _d_r_dynamic0, label="SRD=%1.3f" % plant0.SRD)
+axes[1].plot(_W_R, _d_r_dynamic1, label="SRD=%1.3f" % plant1.SRD)
+axes[1].plot(_W_R, _d_r_dynamic2, label="SRD=%1.3f" % plant2.SRD)
+axes[1].plot(_W_R, _d_r_dynamic3, label="SRD=%1.3f" % plant3.SRD)
+axes[1].legend(handlelength=0.75)
+axes[1].set_title("Specific Root Depth Sensitivity")
+
+# %%
 
 # %% [markdown]
 # ## Considering the multi-layer soil when determining supply-side transpiration rate
@@ -108,7 +192,7 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = np.array([0.26, 0.30, 0.34, 0.38])  # np.array([[0.26],[0.30],[0.34],[0.38]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
+soilTheta = np.linspace(0.24, 0.38, soillayers.nlevmlsoil)  #np.array([0.26, 0.30, 0.34, 0.38])  # np.array([[0.26],[0.30],[0.34],[0.38]])  ## volumetric soil moisture (m3 m-3), now defined on a per layer basis (first dimension of array represent the layers)
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 
@@ -119,6 +203,9 @@ W_L = 70
 # %%
 z_soil, d_soil = plant.SoilLayers.discretise_layers()
 d_soil
+
+# %%
+soilTheta
 
 # %% [markdown]
 # ### Example run of plant methods
@@ -149,8 +236,6 @@ print("Psi_l =",Psil_0)
 
 # %% [markdown]
 # ### Forcing and State Variable Sensitivity Tests
-
-# %%
 
 # %%
 n = 100
@@ -236,9 +321,6 @@ axes[0].set_ylim([0,40])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_sensitivity_test_WL_plantsoilhydraulics_by_WR_3.png",dpi=300,bbox_inches='tight')
 
-
-# %%
-
 # %%
 n = 100
 
@@ -322,6 +404,8 @@ axes[0].set_ylim([0,40])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_sensitivity_test_WR_plantsoilhydraulics_by_WL_2.png",dpi=300,bbox_inches='tight')
 
+# %% [markdown]
+# ### Soil Moisture Sensitivity - uniform soil moisture profile
 
 # %%
 n = 100
@@ -349,7 +433,7 @@ for ix, xWL in enumerate(_W_L):
     GPP_0_nofPsil_ = np.zeros(n)
     
     for ix,xsoilTheta in enumerate(_soilTheta):
-        soilTheta = xsoilTheta
+        soilTheta = xsoilTheta*np.ones(plant.SoilLayers.nlevmlsoil)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -408,6 +492,94 @@ axes[5].set_ylim([-4,0])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_sensitivity_test_soilmoisture_plantsoilhydraulics_by_WL_2.png",dpi=300,bbox_inches='tight')
 
+
+# %% [markdown]
+# ### Soil Moisture Sensitivity - linear decline in soil moisture from surface to bottom layer saturation
+
+# %%
+n = 100
+
+fig, axes = plt.subplots(1,8,figsize=(20,2.5))
+
+_W_R = np.array([20,50,100,200])
+_W_L = _W_R*1.
+_soilTheta0 = np.linspace(0.20,plant.soilThetaMax,n)
+
+for ix, xWL in enumerate(_W_L):
+    W_L = xWL
+    W_R = _W_R[ix]
+    GPP_0_ = np.zeros(n)
+    Rml_0_ = np.zeros(n)
+    Rmr_0_ = np.zeros(n)
+    E_0_ = np.zeros(n)
+    fPsil_0_ = np.zeros(n)
+    Psil_0_ = np.zeros(n)
+    Psir_0_ = np.zeros(n)
+    Psis_0_ = np.zeros(n)
+    K_s_0_ = np.zeros(n)
+    K_sr_0_ = np.zeros(n)
+    k_srl_0_ = np.zeros(n)
+    GPP_0_nofPsil_ = np.zeros(n)
+    
+    for ix,xsoilTheta in enumerate(_soilTheta0):
+        soilTheta = np.linspace(xsoilTheta, plant.soilThetaMax, plant.SoilLayers.nlevmlsoil)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+        GPP_0_[ix] = GPP_0
+        Rml_0_[ix] = Rml_0
+        Rmr_0_[ix] = Rmr_0
+        E_0_[ix] = E_0
+        fPsil_0_[ix] = fPsil_0
+        Psil_0_[ix] = Psil_0
+        Psir_0_[ix] = Psir_0
+        Psis_0_[ix] = Psis_0
+        K_s_0_[ix] = K_s_0
+        K_sr_0_[ix] = K_sr_0
+        k_srl_0_[ix] = k_srl_0
+
+    
+    axes[0].plot(_soilTheta,GPP_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[1].plot(_soilTheta,E_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[2].plot(_soilTheta,fPsil_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[3].plot(_soilTheta,Psil_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[4].plot(_soilTheta,Psir_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[5].plot(_soilTheta,Psis_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[6].plot(_soilTheta,K_s_0_,label=r"$\rm W_L=%d$" % W_L)
+    axes[7].plot(_soilTheta,k_srl_0_,label=r"$\rm W_L=%d$" % W_L)
+
+axes[0].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[0].set_ylabel(r"GPP ($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[0].legend(handlelength=0.7,fontsize=9)
+
+axes[1].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[1].set_ylabel(r"E ($\rm mol \; H_2O \; m^{-2} \; s^{-1}$)")
+
+axes[2].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[2].set_ylabel(r"$\rm f_{\Psi_l}$ (-)")
+axes[2].set_ylim([0,1])
+
+axes[3].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[3].set_ylabel(r"$\Psi_L$ (MPa)")
+
+axes[4].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[4].set_ylabel(r"$\Psi_R$ (MPa)")
+
+axes[5].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[5].set_ylabel(r"$\Psi_S$ (MPa)")
+
+axes[6].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[6].set_ylabel(r"$K_s$")
+
+axes[7].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[7].set_ylabel(r"$k_{srl}$")
+
+# axes[0].set_ylim([0,15])
+# axes[1].set_ylim([0,0.00085])
+axes[3].set_ylim([-4,0])
+axes[4].set_ylim([-4,0])
+axes[5].set_ylim([-4,0])
+
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_sensitivity_test_soilmoisture_plantsoilhydraulics_by_WL_2.png",dpi=300,bbox_inches='tight')
 
 # %% [markdown]
 # ### - Parameter sensitivity tests
@@ -775,7 +947,7 @@ n = 100
 
 fig, axes = plt.subplots(1,8,figsize=(20,2.5))
 
-_W_R = 80 * np.ones(4)
+_W_R = 200 * np.ones(4)
 _W_L = _W_R*1.
 _rooting_depth = np.array([0.1, 0.6, 1.2, 2.0])
 
@@ -863,6 +1035,8 @@ axes[7].set_ylabel(r"$k_{srl}$")
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_rootdepth.png",dpi=300,bbox_inches='tight')
 
+# %%
+
 # %% [markdown]
 # ## Optimal Trajectory Allocation
 #
@@ -943,7 +1117,7 @@ from daesim.plantallocoptimal import PlantOptimalAllocation
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=3)
-soillayers = SoilLayers(nlevmlsoil=4,z_max=2.0)
+soillayers = SoilLayers(nlevmlsoil=6,z_max=2.0)
 canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 
@@ -953,7 +1127,7 @@ plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasex
 
 # %%
 ## initialise model
-plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.01,dWR_factor=1.01,tr_L=0.01,tr_R=0.008)
+plantalloc = PlantOptimalAllocation(Plant=plant,dWL_factor=1.02,dWR_factor=1.02,tr_L=0.01,tr_R=0.008)
 
 # %%
 ## input variables for canopy layers, canopy radiation and canopy gas exchange
@@ -961,14 +1135,14 @@ leafTempC = 20.0
 airTempC = 20.0
 airRH = 70.0
 airP = 101325    ## air pressure, Pa
-soilTheta = np.array([0.30,0.30,0.30,0.30])
+soilTheta = np.linspace(0.30,0.40,plant.SoilLayers.nlevmlsoil)   #np.array([0.30,0.30,0.30,0.30])
 airCO2 = 400*(airP/1e5)*1e-6 ## carbon dioxide partial pressure (bar)
 airO2 = 209000*(airP/1e5)*1e-6   ## oxygen partial pressure (bar)
 swskyb = 200.0   ## Atmospheric direct beam solar radiation (W/m2)
 swskyd = 80.0    ## Atmospheric diffuse solar radiation (W/m2)
 sza = 20.0    ## Solar zenith angle (degrees)
 hc = 1.0    ## canopy height (m)
-d_r = 2.0   ## rooting depth (m)
+d_rpot = 2.0   ## potential rooting depth (m)
 
 # %%
 ## Leaf biomass
@@ -991,8 +1165,8 @@ Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_L in enumerate(_W_L):
-    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
     
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1036,8 +1210,6 @@ plt.tight_layout()
 
 
 # %%
-
-# %%
 ## Root biomass
 n = 50
 _W_R = np.linspace(20,400,n)
@@ -1058,8 +1230,8 @@ Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xW_R in enumerate(_W_R):
-    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,xW_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
 
@@ -1121,8 +1293,8 @@ E_0_ = np.zeros(n)
 
 for ix,xsoilTheta in enumerate(_soilTheta):
     xsoilTheta_1d = xsoilTheta*np.ones(plant.SoilLayers.nlevmlsoil)
-    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,xsoilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
 
     
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1184,8 +1356,8 @@ Rmr_0_ = np.zeros(n)
 E_0_ = np.zeros(n)
 
 for ix,xTemp in enumerate(_temperature):
-    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
-    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_r)
+    GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
+    u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(W_L,W_R,soilTheta,xTemp,xTemp,airRH,airCO2,airO2,airP,swskyb,swskyd,sza,hc,d_rpot)
 
 
 fig, axes = plt.subplots(1,4,figsize=(16,3))
@@ -1223,6 +1395,5 @@ ax.legend(handlelength=0.7)
 ax.set_ylim([0,1])
 
 plt.tight_layout()
-
 
 # %%

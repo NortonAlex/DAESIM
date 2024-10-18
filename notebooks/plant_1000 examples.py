@@ -140,9 +140,9 @@ _soilTheta = f_soilTheta_norm
 nlevmlsoil = 2
 _soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
 ## Option 2: Adjust soil moisture in each layer
-# _soilTheta_z0 = _soilTheta-0.04
-# _soilTheta_z1 = _soilTheta+0.04
-# _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
+_soilTheta_z0 = _soilTheta-0.04
+_soilTheta_z1 = _soilTheta+0.04
+_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
 
 # %% [markdown]
 # ### Convert discrete to continuous forcing data 
@@ -378,6 +378,7 @@ _fV = np.zeros(time_axis.size)
 _fGerm = np.zeros(time_axis.size)
 _relativeGDD = np.zeros(time_axis.size)
 _hc = np.zeros(time_axis.size)
+_d_rpot = np.zeros(time_axis.size)
 _d_r = np.zeros(time_axis.size)
 _Psi_s = np.zeros(time_axis.size)
 
@@ -392,7 +393,8 @@ for it,t in enumerate(time_axis):
     _relativeGDD[it] = PlantX.PlantDev.calc_relative_gdd_index(res["y"][4,it])
     _hc[it] = PlantX.calculate_canopy_height(_relativeGDD[it])
     relative_gdd_anthesis = PlantX.PlantDev.calc_relative_gdd_to_anthesis(res["y"][4,it])
-    _d_r[it] = PlantX.calculate_root_depth(relative_gdd_anthesis)
+    _d_rpot[it] = PlantX.calculate_root_depth(relative_gdd_anthesis)   # potential root depth based on developmental rate
+    _d_r[it] = PlantX.PlantCH2O.calculate_root_depth(res["y"][2,it], _d_rpot[it])   # actual root depth based on developmental rate and root biomass
     PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
     VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
     # Update vernalization days requirement for current developmental phase
@@ -415,7 +417,7 @@ for it,t in enumerate(time_axis):
         _Rm_r[it] = 0
         _Psi_s[it] = 0
     else:
-        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_r[it])
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_rpot[it])
         _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         _E[it] = E
@@ -787,7 +789,7 @@ axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plant1000_dynamics.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plant1000_dynamics.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -869,7 +871,7 @@ axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
-plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_carbon_balance.png" % site_filename,dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_carbon_balance.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
 # %%
@@ -1126,7 +1128,7 @@ for ax in axes:
     ax.set_ylim([ylimmin, ylimmax])
 
 # plt.grid(True)
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr_sens1a.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 

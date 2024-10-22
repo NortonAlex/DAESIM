@@ -292,13 +292,17 @@ class BoundaryLayerModule:
         k_wl: float
             empirical factor for the leaf-wind boundary layer relationship (s^{1/2} m-1), typically ranges 0.004-0.006
 
+        It is assumed that the power law relationship between resistance and the ratio of leaf dimension to wind speed, (d/u)**0.5, 
+        is only applicable to wind speeds above 0.05 m s-1. Below this lower limit, the leaf boundary layer resistance is assumed 
+        to be constant. This prevents the leaf boundary layer resistance from approaching infinity as wind speed approaches zero. 
+
         References
         ----------
         Nobel (2009) Chapters 7, 8, doi:10.1016/B978-0-12-374143-1.X0001-4, ISBN:978-0-12-374143-1
         """
         #D_H2O_std = 2.42e-5  ## reference binary diffusion coefficient for water vapor in air at reference temperature and std pressure (m2 s-1)
         #D_H2O_Tref = 20.0    ## reference temperature (degrees Celsius) for the reference binary diffusion coefficient for water vapor in air
-        delta_bl = self.k_wl * np.sqrt(d/u)  ## boundary layer thickness (m), see Nobel (2009) p. 337, Eq. 7.10
+        delta_bl = np.minimum(self.k_wl * np.sqrt(d/u), self.k_wl * np.sqrt(d/0.05))  ## boundary layer thickness (m), see Nobel (2009) p. 337, Eq. 7.10
         D_H2O = self.Site.diffusion_coefficient_powerlaw(self.Site.D_H2O_T20,T+273.15,p,Tref=273.15+20.0)  ## diffusion coefficient for water vapor in air
         r_bl = delta_bl/D_H2O   ## boundary layer resistance (s m-1)
         return r_bl

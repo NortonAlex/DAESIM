@@ -32,6 +32,7 @@ from daesim.management import ManagementModule
 from daesim.soillayers import SoilLayers
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
+from daesim.boundarylayer import BoundaryLayerModule
 from daesim.leafgasexchange import LeafGasExchangeModule
 from daesim.leafgasexchange2 import LeafGasExchangeModule2
 from daesim.canopygasexchange import CanopyGasExchange
@@ -40,6 +41,8 @@ from daesim.plantallocoptimal import PlantOptimalAllocation
 
 # %%
 from daesim.plant_1000 import PlantModuleCalculator
+
+# %%
 
 # %% [markdown]
 # # Site Level Simulation
@@ -157,6 +160,7 @@ Climate_solRadswskyb_f = interp1d(time_nday, _Rsb_Wm2)
 Climate_solRadswskyd_f = interp1d(time_nday, _Rsd_Wm2)
 Climate_airPressure_f = interp1d(time_nday, _p)
 Climate_airRH_f = interp1d(time_nday, _RH)
+Climate_airU_f = interp1d(time_nday, df_forcing["Uavg"].values)
 Climate_airCO2_f = interp1d(time_nday, _CO2)
 Climate_airO2_f = interp1d(time_nday, _O2)
 Climate_soilTheta_f = interp1d(time_nday, _soilTheta)
@@ -290,12 +294,13 @@ PlantDevX = PlantGrowthPhases(
 # %%
 ManagementX = ManagementModule(sowingDay=sowing_date,harvestDay=harvest_date)
 
+BoundLayerX = BoundaryLayerModule(Site=SiteX)
 LeafX = LeafGasExchangeModule2(Site=SiteX)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
 SoilLayersX = SoilLayers(nlevmlsoil=2,z_max=2.0)
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,maxLAI=5.0,ksr_coeff=1000,SLA=0.040)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=1000,SLA=0.040)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -333,6 +338,7 @@ forcing_inputs = [Climate_solRadswskyb_f,
                   Climate_airRH_f,
                   Climate_airCO2_f,
                   Climate_airO2_f,
+                  Climate_airU_f,
                   Climate_soilTheta_z_f,
                   Climate_doy_f,
                   Climate_year_f]
@@ -378,6 +384,7 @@ _fV = np.zeros(time_axis.size)
 _fGerm = np.zeros(time_axis.size)
 _relativeGDD = np.zeros(time_axis.size)
 _hc = np.zeros(time_axis.size)
+_airUhc = np.zeros(time_axis.size)
 _d_rpot = np.zeros(time_axis.size)
 _d_r = np.zeros(time_axis.size)
 _Psi_s = np.zeros(time_axis.size)
@@ -417,7 +424,9 @@ for it,t in enumerate(time_axis):
         _Rm_r[it] = 0
         _Psi_s[it] = 0
     else:
-        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],_hc[it],_d_rpot[it])
+        # Calculate wind speed at top-of-canopy
+        _airUhc[it] = PlantX.calculate_wind_speed_hc(Climate_airU_f(time_axis[it]),_hc[it],LAI[it]+PlantX.SAI)    ## TODO: Make sure SAI is handled consistently across modules
+        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],_airUhc[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],PlantX.SAI,_hc[it],_d_rpot[it])
         _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
         _E[it] = E
@@ -506,11 +515,13 @@ for it,t in enumerate(time_axis):
             Climate_airCO2_f(time_axis[it]),
             Climate_airO2_f(time_axis[it]),
             Climate_airPressure_f(time_axis[it]),
+            _airUhc[it],
             Climate_solRadswskyb_f(time_axis[it]),
             Climate_solRadswskyd_f(time_axis[it]),
             theta[it],
+            PlantX.SAI,
             _hc[it],
-            _d_r[it])
+            _d_rpot[it])
 
     _u_Leaf[it] = u_L
     _u_Root[it] = u_R
@@ -529,8 +540,6 @@ for it,t in enumerate(time_axis):
     _Cflux_harvest_Stem[it] = PlantX.calculate_BioHarvest(res["y"][1,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestStem,PlantX.Management.PhHarvestTurnoverTime)
     _Cflux_harvest_Seed[it] = PlantX.calculate_BioHarvest(res["y"][3,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestSeed,PlantX.Management.PhHarvestTurnoverTime)
     
-
-# %%
 
 # %% [markdown]
 # ### Scalar Variables
@@ -789,7 +798,7 @@ axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plant1000_dynamics.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_dynamics.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
 
@@ -883,17 +892,18 @@ axes[0].plot(time_axis, res["y"][1,:]/PlantX.f_C, label="Stem")
 axes[0].set_ylabel("Stem dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")       
 SDW_a = res["y"][7,-1]/PlantX.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
-
+axes[0].set_ylim([0,500])
 
 axes[1].plot(time_axis, _GN_pot, c='0.25', label="Potential GN")
 axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual GN")
 axes[1].set_ylabel("GN\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
 axes[1].legend()
+axes[1].set_ylim([0,22])
 
 axes[2].plot(time_axis, res["y"][3,:]/PlantX.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
-
+axes[2].set_ylim([0,500])
 
 ## Add annotations for developmental phases
 for ax in axes:
@@ -913,7 +923,7 @@ axes[1].set_xlabel("Time (day of year)")
 axes[2].set_xlabel("Time (day of year)")
 
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_grainprod.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_grainprod.png" % (site_filename),dpi=300,bbox_inches='tight')
 
 
 # %%
@@ -1061,7 +1071,7 @@ axes[1,2].set_title("Hydrothermal Time per Day")
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_plantdev_sens1a.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plantdev.png" % (site_filename),dpi=300,bbox_inches='tight')
 
 
 
@@ -1090,8 +1100,8 @@ df_u_W['RunningMean_u_Seed'] = df_u_W['u_Seed'].rolling(window=window_size).mean
 fig, axes = plt.subplots(2,1,figsize=(8,4),sharex=True)
 
 ax = axes[0]
-ax.plot(df_u_W['Time'], df_u_W['RunningMean_u_Leaf'], label='Leaf')
-ax.plot(df_u_W['Time'], df_u_W['RunningMean_u_Root'], label='Root')
+ax.plot(df_u_W['Time'], df_u_W['u_Leaf'], label='Leaf')
+ax.plot(df_u_W['Time'], df_u_W['u_Root'], label='Root')
 ax.plot(df_u_W['Time'], df_u_W['u_Stem'], label='Stem')
 ax.plot(df_u_W['Time'], df_u_W['u_Seed'], label='Seed')
 ax.set_ylim([0,1.01])
@@ -1128,7 +1138,7 @@ for ax in axes:
     ax.set_ylim([ylimmin, ylimmax])
 
 # plt.grid(True)
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_alloctr.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_alloctr.png" % (site_filename),dpi=300,bbox_inches='tight')
 plt.show()
 
 

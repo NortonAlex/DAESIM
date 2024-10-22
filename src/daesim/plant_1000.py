@@ -119,6 +119,7 @@ class PlantModuleCalculator:
         airRH,         ## relative humidity (%)
         airCO2,        ## partial pressure CO2 (bar)
         airO2,         ## partial pressure O2 (bar)
+        airU,          ## wind speed (m s-1) at measurement height specified in Site module
         soilTheta,     ## volumetric soil water content (m3 m-3), dimensions (soil layer,)
         _doy,
         _year,
@@ -180,7 +181,11 @@ class PlantModuleCalculator:
             GPP = 0
             Rm = 0
         else:
-            _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
+            # Calculate wind speed at top-of-canopy
+            LAI = self.PlantCH2O.calculate_LAI(W_L)
+            airUhc = self.calculate_wind_speed_hc(airU,hc,LAI+self.SAI)    ## TODO: Make sure SAI is handled consistently across modules
+            # Calculate canopy carbon and water dynamics
+            _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
             GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
             Rm = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         
@@ -208,7 +213,7 @@ class PlantModuleCalculator:
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
         else:
-            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,solRadswskyb,solRadswskyd,theta,hc,d_r)
+            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
 
         # ODE for plant carbon pools
         dCseedbeddt = F_C_sowing - F_C_seed2leaf - F_C_seed2stem - F_C_seed2root
@@ -640,4 +645,31 @@ class PlantModuleCalculator:
             u_S = 0
         return u_S
 
+    def calculate_wind_speed_hc(self, airU, hc, PAI):
+        """
+        Calculates wind speed at the top-of-canopy based on wind speed at a given measurement height.
 
+        Parameters
+        ----------
+        airU : float
+            Wind speed at measurement height (m s-1)
+        hc : float
+            Canopy height (m)
+        PAI : float
+            Plant area index (m2 m-2) i.e. leaf-area index plus stem-area index
+
+        Returns
+        -------
+        Wind speed at top-of-canopy (m s-1)
+        """
+
+        # Calculate zero-plane displacement height
+        d = hc * self.PlantCH2O.BoundaryLayer.calculate_R_d_h(PAI)
+        # Calculate the ratio of friction velocity to mean velocity at height hc
+        R_ustar_Uh = self.PlantCH2O.BoundaryLayer.calculate_R_ustar_Uh(PAI)
+        # Calculate the roughness length (z0)
+        z0 = hc * self.PlantCH2O.BoundaryLayer.calculate_R_z0_h(PAI,R_ustar_Uh)
+        # Calculate wind speed at top-of-canopy based on derived wind speed profile above canopy
+        airUhc = self.PlantCH2O.BoundaryLayer.estimate_wind_profile_log(airU, self.Site.met_z_meas, hc, d, z0)
+
+        return airUhc

@@ -36,6 +36,7 @@ class ClimateModule:
         default=0.09
     )  ## initial soil depth (m)
     cellArea = 1  ## area of the unit considered (m2)
+    met_z_meas: float = field(default=10.0)   ## Measurement height for wind speed forcing (m)
 
 
     ## Unit conversion factors

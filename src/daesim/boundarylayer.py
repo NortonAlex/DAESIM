@@ -3,9 +3,11 @@ Boundary layer class: Includes module parameters calculations to determine bound
 """
 
 import numpy as np
+from typing import Callable
 from attrs import define, field
 from datetime import datetime, date, timedelta
 from daesim.climate_funcs import *
+from daesim.climate import *
 
 @define
 class BoundaryLayerModule:
@@ -13,9 +15,13 @@ class BoundaryLayerModule:
     Boundary layer module
     """
 
+    ## Module dependencies
+    Site: Callable = field(default=ClimateModule())    ## It is optional to define Site for this method. If no argument is passed in here, then default setting for Site is the default ClimateModule(). Note that this may be important as it defines many site-specific variables used in the calculations.
+
     ## Class parameters
     kappa: float = field(default=0.41)  ## von Karman's constant (-)
     beta: float = field(default=0.5)  ## empirical coefficient for the exponential decay model (-)
+    k_wl: float = field(default=0.004)  ## empirical factor for the leaf boundary layer resistance relationship to wind speed (s^{1/2} m-1), typically ranges 0.004-0.006
 
     def calculate_wind_profile_exp_L(self, Uh, L_cumulative, L_total):
         """
@@ -259,7 +265,7 @@ class BoundaryLayerModule:
         u_z = _vfunc(u_z_meas,z_meas,z,d,z0)
         return u_z
 
-    def calculate_leaf_boundary_resistance(self,T,p,u,d,Site):
+    def calculate_leaf_boundary_resistance(self,T,p,u,d):
         """
         Calculates the leaf boundary layer layer resistance for water vapour.
 
@@ -281,18 +287,23 @@ class BoundaryLayerModule:
         r_bl: float
             leaf boundary layer resistance (s m-1)
 
+        Notes
+        -----
+        k_wl: float
+            empirical factor for the leaf-wind boundary layer relationship (s^{1/2} m-1), typically ranges 0.004-0.006
+
         References
         ----------
         Nobel (2009) Chapters 7, 8, doi:10.1016/B978-0-12-374143-1.X0001-4, ISBN:978-0-12-374143-1
         """
         #D_H2O_std = 2.42e-5  ## reference binary diffusion coefficient for water vapor in air at reference temperature and std pressure (m2 s-1)
         #D_H2O_Tref = 20.0    ## reference temperature (degrees Celsius) for the reference binary diffusion coefficient for water vapor in air
-        delta_bl = 0.0040 * np.sqrt(d/u)  ## boundary layer thickness (m), see Nobel (2009) p. 337, Eq. 7.10
-        D_H2O = Site.diffusion_coefficient_powerlaw(Site.D_H2O_T20,T+273.15,p,Tref=273.15+20.0)  ## diffusion coefficient for water vapor in air
+        delta_bl = self.k_wl * np.sqrt(d/u)  ## boundary layer thickness (m), see Nobel (2009) p. 337, Eq. 7.10
+        D_H2O = self.Site.diffusion_coefficient_powerlaw(self.Site.D_H2O_T20,T+273.15,p,Tref=273.15+20.0)  ## diffusion coefficient for water vapor in air
         r_bl = delta_bl/D_H2O   ## boundary layer resistance (s m-1)
         return r_bl
 
-    def calculate_aerodynamic_resistance(self,u_z,z_meas,h,k=0.41):
+    def calculate_aerodynamic_resistance(self,u_z,z_meas,h):
         """
         Calculates the aerodynamic resistance by applying the Monin-Obukhov similarity theory
         assuming neutral atmospheric stability conditions. 
@@ -307,9 +318,6 @@ class BoundaryLayerModule:
             
         h: float
             canopy height (m)
-    
-        k: float
-            von Karman's constant (-)
     
         Returns
         -------
@@ -330,7 +338,7 @@ class BoundaryLayerModule:
             raise ValueError("The ratio (z_meas - d):z_om must be greater than 1. It equals %1.2f. Check defined meteorological measurement height (z_meas=%1.1fm) and canopy height (h=%1.1fm)" % ((z_meas - d)/z_om,z_meas,h))
         elif (z_meas - d)/z_oh <= 1:
             raise ValueError("The ratio (z_meas - d):z_oh must be greater than 1. It equals %1.2f. Check defined meteorological measurement height (z_meas=%1.1fm) and canopy height (h=%1.1fm)" % ((z_meas - d)/z_oh,z_meas,h))
-        r_a = (np.log((z_meas - d)/z_om) * np.log((z_meas - d)/z_oh))/(k**2 * u_z)
+        r_a = (np.log((z_meas - d)/z_om) * np.log((z_meas - d)/z_oh))/(self.kappa**2 * u_z)
         return r_a
     
     def calculate_surface_resistance(self,r_1,LAI_active):

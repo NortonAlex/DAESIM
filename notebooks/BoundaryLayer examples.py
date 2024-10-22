@@ -58,7 +58,7 @@ canopy.set_index()
 # ## Boundary Layer
 
 # %%
-boundarylayer = BoundaryLayerModule()
+boundarylayer = BoundaryLayerModule(Site=Site)
 
 # %% [markdown]
 # ### Relationship between wind speed and leaf boundary layer resistance
@@ -66,7 +66,7 @@ boundarylayer = BoundaryLayerModule()
 # %%
 n = 50
 _u = np.linspace(0.01,10,n)
-_r_bl = boundarylayer.calculate_leaf_boundary_resistance(T,p,_u,0.015,Site)
+_r_bl = boundarylayer.calculate_leaf_boundary_resistance(T,p,_u,0.015)
 
 fig, axes = plt.subplots(1,2,figsize=(7,3))
 ax = axes[0]
@@ -210,6 +210,8 @@ plt.scatter(u_z_meas,z_meas,marker='s',label="Wind speed measurement",c='k',zord
 plt.hlines(h,xmin=0,xmax=u_z_meas*1.1,color='0.5',label="Top of canopy (h)",linestyle="--")
 plt.hlines(d,xmin=0,xmax=u_z_meas*1.1,color='0.75',label="Displacement height (d)",linestyle="--")
 plt.legend()
+plt.xlabel("Wind Speed\n"+r"($\rm m \; s^{-1}$)")
+plt.ylabel("Height\n(m)")
 plt.xlim([0,u_z_meas*1.1])
 plt.ylim([0,z_meas*1.1])
 plt.show()
@@ -224,7 +226,7 @@ dsai = canopy.cast_parameter_over_layers_betacdf(SAI,canopy.beta_sai_a,canopy.be
 dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
 ntop,nbot = canopy.index_canopy()
 u_z = boundarylayer.calculate_wind_profile_exp(Uh,dpai,ntop)
-_r_bl = boundarylayer.calculate_leaf_boundary_resistance(20.0,101325,u_z,0.015,Site)
+_r_bl = boundarylayer.calculate_leaf_boundary_resistance(20.0,101325,u_z,0.015)
 
 fig, axes = plt.subplots(1,3,figsize=(10,3))
 
@@ -246,7 +248,7 @@ dlai = canopy.cast_parameter_over_layers_betacdf(LAI,1,1)  # Canopy layer leaf a
 dsai = canopy.cast_parameter_over_layers_betacdf(SAI,1,1)  # Canopy layer stem area index (m2/m2)
 dpai = dlai+dsai  # Canopy layer plant area index (m2/m2)
 u_z = boundarylayer.calculate_wind_profile_exp(Uh,dpai,ntop)
-_r_bl = boundarylayer.calculate_leaf_boundary_resistance(20.0,101325,u_z,0.015,Site)
+_r_bl = boundarylayer.calculate_leaf_boundary_resistance(20.0,101325,u_z,0.015)
 
 ax = axes[0]
 ax.plot(u_z,np.arange(canopy.nlevmlcan))

@@ -32,7 +32,6 @@ class PlantModel:
     m_r_r_Q10: float = field(default=1.4)  ## Root maintenance respiration temperature response Q10 coefficient N.B. because we use air temperature as input, we dampen the Q10 coefficient slightly to account for this, considering actual soil (or root) temperature won't vary as significantly as air temperature
     SLA: float = field(default=0.020)  ## Specific leaf area (m2 g d.wt-1), fresh leaf area per dry leaf mass
     maxLAI: float = field(default=3)  ## Maximum potential leaf area index (m2 m-2)
-    SAI: float = field(default=0.0)    ## Stem area index, m2/m2  TODO: Modify this so it is an input to the methods, not a parameter
     CI: float = field(default=0.5)    ## Foliage clumping index (-)  TODO: Double check default values of clumping index that is suitable for crops
     d_leaf: float = field(default=0.015)     ## Leaf dimension parameter (m), defined as the mean length of the leaf in the downwind direction, used to determine leaf boundary layer resistance
     
@@ -123,7 +122,7 @@ class PlantModel:
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
 
         ## Initial estimate of GPP without leaf water potential limitation
-        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, 1.0, LAI, hc, sza, swskyb, swskyd)
+        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, 1.0, LAI, SAI, hc, sza, swskyb, swskyd)
 
         ## Determine the total leaf-area specific conductance from soil-to-root-to-leaf
         ## - assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship 1/k_tot = 1/k_srl + 1/k_rl
@@ -136,7 +135,7 @@ class PlantModel:
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
         ## Calculate actual gpp and stomatal conductance
-        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
+        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd)
 
         ## Calculate actual transpiration
         E = LAI * E
@@ -151,7 +150,7 @@ class PlantModel:
         return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
-    def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, hc, sza, swskyb, swskyd):
+    def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, SAI, hc, sza, swskyb, swskyd):
         """
         Calculate leaf water potential that balances water supply (root uptake) and water loss (transpiration) using the bisection method.
     
@@ -159,6 +158,8 @@ class PlantModel:
         ----------
         LAI : float
             Leaf area index (m2 m-2).
+        SAI : float
+            Stem area index (m2 m-2).
         hc : float
             Canopy height (m).
         Psi_s : float
@@ -207,7 +208,7 @@ class PlantModel:
         ## Second function
         def f2(Psi_l):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, hc, sza, swskyb, swskyd)
+            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd)
             return E
 
         # Define the function for which we want to find the root
@@ -507,7 +508,7 @@ class PlantModel:
         LAI = MinQuadraticSmooth(W_L*self.SLA,self.maxLAI)
         return LAI
 
-    def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, hc, sza, swskyb, swskyd):
+    def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd):
         """
         Parameters
         ----------
@@ -540,7 +541,7 @@ class PlantModel:
 
         """
 
-        An_ml, gs_ml, Rd_ml = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,self.SAI,self.CI,hc,sza,swskyb,swskyd)  # TODO: Modify this so SAI is an input not a module parameter
+        An_ml, gs_ml, Rd_ml = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,self.CI,hc,sza,swskyb,swskyd)  # TODO: Modify this so SAI is an input not a module parameter
 
         GPP = np.sum(An_ml + Rd_ml)*1e6
 

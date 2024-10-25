@@ -122,7 +122,7 @@ class PlantModel:
         k_srl = self.soil_root_hydraulic_conductance_l(K_sr,LAI)
 
         ## Initial estimate of GPP without leaf water potential limitation
-        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, 1.0, LAI, SAI, hc, sza, swskyb, swskyd)
+        # GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, 1.0, LAI, SAI, hc, sza, swskyb, swskyd)
 
         ## Determine the total leaf-area specific conductance from soil-to-root-to-leaf
         ## - assumes a one-dimensional pathway (in series) and Ohm's law for the hydraulic conductances i.e. the relationship 1/k_tot = 1/k_srl + 1/k_rl
@@ -220,9 +220,9 @@ class PlantModel:
 
         # Find the root
         # Initial interval [a, b] for the bisection method
-        a = -100.0
+        a = -20.0
         b = 0.0
-        Psi_l = bisect(fpartial,a,b,xtol=1e-4)
+        Psi_l = bisect(fpartial,a,b,xtol=1e-3)
         
         return Psi_l
 

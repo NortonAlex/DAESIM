@@ -129,7 +129,7 @@ class PlantModel:
         k_tot = (k_srl*self.k_rl)/(self.k_rl+k_srl)
 
         ## Calculate leaf water potential
-        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, LAI, hc, sza, swskyb, swskyd)
+        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, LAI, SAI, hc, sza, swskyb, swskyd)
 
         ## Calculate actual leaf water potential scaling factor on photosynthesis/dry-matter production
         f_Psi_l = self.tuzet_fsv(Psi_l)
@@ -137,17 +137,17 @@ class PlantModel:
         ## Calculate actual gpp and stomatal conductance
         GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd)
 
-        ## Calculate actual transpiration
-        E = LAI * E
-
         ## Calculate root water potential
         Psi_r = self.root_water_potential(Psi_s,E,k_srl) # TODO: Calculate per layer but write out as a bulk average (analagous to bulk average Psi_l)
+
+        ## Calculate canopy total transpiration
+        E_c = LAI * E
 
         ## Calculate maintenance respiration of leaf and root pools
         Rm_l = Rd   # Total leaf maintenance respiration is assumed to equal total leaf mitochondrial respiration
         Rm_r = self.calculate_Rm_k(W_R*self.f_C,airTempC,self.m_r_r_opt)
 
-        return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
+        return (GPP, Rm_l, Rm_r, E_c, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
     def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, SAI, hc, sza, swskyb, swskyd):

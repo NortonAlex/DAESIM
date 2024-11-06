@@ -47,7 +47,7 @@ canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyra
 boundarylayer = BoundaryLayerModule(Site=site,k_wl=0.006)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
 
 # %% [markdown]
 # ### Example of soil-root profile and rooting depth functions
@@ -98,8 +98,8 @@ _d_r_dynamic1 = np.zeros(n)
 _d_r_dynamic2 = np.zeros(n)
 _d_r_dynamic3 = np.zeros(n)
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
-
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
+ 
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, 0.5)
     _d_r_dynamic1[i] = plant0.calculate_root_depth(x, 1.0)
@@ -124,10 +124,10 @@ _d_r_dynamic3 = np.zeros(n)
 
 d_rpot = 2.0
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.005)
-plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
-plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.020)
-plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,SAI=0.2,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.040)
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.005)
+plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
+plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.020)
+plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,CI=0.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.040)
 
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, d_rpot)
@@ -141,6 +141,8 @@ axes[1].plot(_W_R, _d_r_dynamic2, label="SRD=%1.3f" % plant2.SRD)
 axes[1].plot(_W_R, _d_r_dynamic3, label="SRD=%1.3f" % plant3.SRD)
 axes[1].legend(handlelength=0.75)
 axes[1].set_title("Specific Root Depth Sensitivity")
+
+# %%
 
 # %%
 
@@ -205,11 +207,6 @@ W_R = 40
 W_L = 70
 
 # %%
-z_soil, d_soil = plant.SoilLayers.discretise_layers()
-d_soil
-
-# %%
-soilTheta
 
 # %% [markdown]
 # ### Example run of plant methods
@@ -217,7 +214,7 @@ soilTheta
 # %%
 LAI = plant.calculate_LAI(W_L)
 
-GPP, E, Rd = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, hc, sza, swskyb, swskyd)
+GPP, E, Rd = plant.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, SAI, hc, sza, swskyb, swskyd)
 
 print("GPP =", GPP)
 print("E =", E)
@@ -230,6 +227,8 @@ print("GPP =", GPP_0)
 print("E =", E_0)
 print("f_Psi_l =",fPsil_0)
 print("Psi_l =",Psil_0)
+print("Psi_r =",Psir_0)
+print("Psi_s =",Psis_0)
 
 
 

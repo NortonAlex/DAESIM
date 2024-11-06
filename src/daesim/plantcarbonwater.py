@@ -113,9 +113,9 @@ class PlantModel:
         ## Determine weighting in root zone soil layers, used to determine a single, bulk soil-root zone value for both Psi_s and K_sr
         ## Notes: Because we use the soil-to-root hydraulic conductivity to calculate the layer weights, any layers without root biomass will have a weight of zero
         z_weights = K_sr_z/K_sr_z.sum()
-        Psi_s = np.sum(Psi_s_z*z_weights)  # Average soil water potential over the soil profile TODO: Fix this and its use below in other functions
-        K_sr = np.sum(K_sr_z*z_weights)   # Average soil-to-root hydraulic conductivity over the root profile
-        # Average soil hydraulic conductivity over the root profile (no weighting for this). Note: Because this is a plant module, we determine the soil hydraulic conductivity over the root zone only
+        Psi_s = np.sum(Psi_s_z*z_weights)  # Average soil water potential over the root zone
+        K_sr = np.sum(K_sr_z*z_weights)   # Average soil-to-root hydraulic conductivity over the root zone
+        # Average soil hydraulic conductivity over the root profile (no weighting for this as it is not dependent on roots). Note: Because this is a plant module, we determine the soil hydraulic conductivity over the root zone only
         K_s = self.calculate_root_profile_mean(K_s_z, d_r, d_soil)
 
         ## Convert soil-to-root conductance to leaf-area specific soil-to-root conductance (TODO: Check definition and units of conductivity vs conductance)

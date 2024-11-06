@@ -59,7 +59,6 @@ class LeafGasExchangeModule2:
 
     Rds: float = field(default=0.01)  ## Scalar for dark respiration, dimensionless
 
-    effcon: float = field(default=0.25)  ## Efficiency of conversion. TODO: Add better notes here
     atheta: float = field(default=1-1e-04)  ## Empirical smoothing parameter to allow for co-limitation of Vc and Ve. In Johnson and Berry (2021) model this must equal 1 (i.e. no smoothing). 
 
     ## Stomatal conductance constants

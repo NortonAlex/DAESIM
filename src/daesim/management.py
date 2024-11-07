@@ -13,6 +13,7 @@ class ManagementModule:
     """
 
     # Class parameters
+    cropType: str = field(default="Wheat")  ## crop type
     sowingDay: float = field(default=None)  ## day that sowing occurs, in units of ordinal day of year (DOY). If there is no sowing, set sowingDay=None
     harvestDay: float = field(default=None)  ## day that harvest occurs, in units of ordinal day of year (DOY). If there is no harvest, set plantingDay=None
     sowingRate: float = field(default=80)    ## seed sowing rate at start of season (kg ha-1)

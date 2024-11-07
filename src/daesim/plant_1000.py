@@ -95,6 +95,13 @@ class PlantModuleCalculator:
     GY_SDW_50: float = field(default=100)  ## Wheat: Spike dry weight at anthesis (SDW_a) at which grain number is half of GY_GN_max (default 100 g d.wt m-2), acceptable range 80-150
     GY_k: float = field(default=0.02)  ## Wheat: Growth rate controlling steepness of grain number sigmoid function (default 0.02), acceptable range 0.01-0.03
 
+    ## Grain production module parameters for canola (Brassica napus L.)
+    GY_B: float = field(default=100)  ## Rate constant (g C m-2 ground area) describing the rate of increase in potential seed density relative to cumulative NPP during anthesis
+    GY_S_dmin: float = field(default=30)  ## Minimum potential seed density (thousand seeds m-2 ground area)
+    GY_S_dmax: float = field(default=130)  ## Maximum potential seed density (thousand seeds m-2 ground area)
+    GY_W_TKWseed_base: float = field(default=4.0)  ## Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0.
+    GY_k_comp: float = field(default=0.01)  ## Compensation factor that controls the rate of increase in seed weight as potential seed density decreases from GY_S_dmax
+
     ## TODO: Update management module with these parameters later on
     propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
     propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
@@ -202,9 +209,16 @@ class PlantModuleCalculator:
         tr_ = self.PlantDev.turnover_rates[idevphase]
 
         # Grain production module calculations
-        GN_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)    # Calculate potential grain number
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf+Cstem+Croot, Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate stem remobilization to grain
-        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, GN_pot*self.W_seedTKW0, Bio_time)    # Calculate allocation fraction to grain
+        if self.Management.cropType == "Wheat":
+            S_d_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)    # Calculate potential seed density (often called grain number density for wheat)
+            W_seed_pot = S_d_pot*self.W_seedTKW0  # Calculate potential grain mass
+        if self.Management.cropType == "Canola":
+            S_d_pot = self.calculate_canola_seed_density(Cstate)   # Calculate potential seed density
+            W_TKWseed_pot = self.seed_mass_compensation(S_d_pot)   # Calculate potential seed thousand kernel weight, considering compensation
+            W_seed_pot = W_TKWseed_pot * S_d_pot    # Calculate potential seed mass
+
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf+Cstem+Croot, Cseed/self.f_C, W_seed_pot, Bio_time)    # Calculate stem remobilization to seed
+        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, W_seed_pot, Bio_time)    # Calculate allocation fraction to seed/grain pool
         u_Stem = alloc_coeffs[self.PlantDev.istem]
 
         # Dynamic, optimal trajectory carbon allocation to leaves and roots
@@ -249,7 +263,7 @@ class PlantModuleCalculator:
                 'fV': fV,
                 'fGerm': fGerm,
                 'DTT': DTT,
-                'GN_pot': GN_pot,
+                'S_d_pot': S_d_pot,
                 'F_C_stem2grain': F_C_stem2grain,
                 'idevphase': idevphase,
             }
@@ -582,6 +596,70 @@ class PlantModuleCalculator:
             return Cflux
         else:
             return 0
+
+    def calculate_canola_seed_density(self, NPP_anthesis):
+        """
+        NPP_anthesis : float 
+            Total assimilate supply during anthesis period (g C m-2 ground area)
+        B : float
+            Rate constant (g C m-2 ground area)
+        S_dmax : float
+            Maximum potential seed density (thousand seeds m-2 ground area)
+        S_dmin : float
+            Minimum potential seed density (thousand seeds m-2 ground area)
+        """
+        S_dpot = self.GY_S_dmax * (1 - np.exp(-NPP_anthesis/self.GY_B))
+        return np.maximum(S_dpot,self.GY_S_dmin)
+
+    def seed_mass_compensation_conditional(self, S_dpot):
+        """
+        Calculates the compensated seed weight (W_seed) based on potential seed density (S_dpot). This 
+        describes a linear increase in seed weight to compensate for low seed density, constrained to be 
+        within typical limits. 
+        
+        Parameters
+        ----------
+        S_dpot : float
+            Potential seed density (thousand seeds m-2 ground area), determined during anthesis.
+        S_dmin : float
+            Minimum potential seed density (thousand seeds m-2 ground area).
+        S_dmax : float
+            Maximum potential seed density (thousand seeds m-2 ground area).
+        W_seed_base : float
+            Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0.
+        k_comp : float
+            Compensation factor that controls the rate of increase in W_seed as S_dpot decreases from S_dmax.
+        
+        Returns
+        -------
+        float: Compensated seed weight (W_seed).
+
+        Notes
+        -----
+        For canola, the typical range for k_comp is likely between 0-0.02. 
+
+        References
+        ----------
+        Kirkegaard et al. (2018) The critical period for yield and quality determination in canola (Brassica napus L.), doi: 10.1016/j.fcr.2018.03.018
+        Labra et al. (2017) Plasticity of seed weight compensates reductions in seed number of oilseed rape in response to shading at flowering, doi: 10.1016/j.eja.2016.12.011
+        Zhang and Flottmann (2018) Source-sink manipulations indicate seed yield in canola is limited by source availability, doi: 10.1016/j.eja.2018.03.005
+        """
+        # When S_dpot >= S_dmax, W_seed = W_seed_base
+        if S_dpot >= self.GY_S_dmax:
+            return self.GY_W_TKWseed_base
+        # When S_dmin <= S_dpot < S_dmax, linearly increase W_seed with slope k_comp
+        elif self.GY_S_dmin <= S_dpot < self.GY_S_dmax:
+            W_seed = self.GY_W_TKWseed_base + self.GY_k_comp * (self.GY_S_dmax - S_dpot)
+            return W_seed
+        # When S_dpot < S_dmin, keep W_seed constant at the value when S_dpot = S_dmin
+        else:
+            W_seed_min = self.GY_W_TKWseed_base + self.GY_k_comp * (self.GY_S_dmax - self.GY_S_dmin)
+            return W_seed_min
+
+    def seed_mass_compensation(self, S_dpot):
+        _vfunc = np.vectorize(self.seed_mass_compensation_conditional)
+        W_seed = _vfunc(S_dpot)
+        return W_seed
 
     def calculate_wheat_grain_number(self, SDW_a):
         """

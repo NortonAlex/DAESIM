@@ -256,19 +256,23 @@ sowing_date = 135
 harvest_date = 330
 
 # %%
-# PlantDev
+## PlantDev
 # PlantDevX = PlantGrowthPhases(
-#     gdd_requirements=[120,850,450,500],
+#     phases=["germination", "vegetative", "anthesis", "grainfill", "maturity"],
+#     gdd_requirements=[120,850,350,200,300],
+#     vd_requirements=[0,30,0,0,0],
 #     allocation_coeffs = [
 #         [0.0, 0.1, 0.9, 0.0, 0.0],
 #         [0.75, 0.05, 0.2, 0.0, 0.0],
 #         [0.25, 0.4, 0.25, 0.1, 0.0],
+#         [0.15, 0.2, 0.15, 0.5, 0.0],
 #         [0.15, 0.2, 0.15, 0.5, 0.0]
 #     ],
 #     turnover_rates = [[5.000e-04, 5.000e-04, 5.000e-04, 0.000e+00, 0.000e+00],
 #        [1.830e-02, 1.000e-03, 4.150e-03, 0.000e+00, 0.000e+00],
 #        [3.165e-02, 1.000e-03, 4.150e-03, 0.000e+00, 0.000e+00],
-#        [5.000e-02, 4.000e-03, 2.500e-02, 5.000e-05, 0.000e+00]])
+#        [5.000e-02, 4.000e-03, 2.500e-02, 5.000e-05, 0.000e+00],
+#         [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 
 ## PlantDev with specific spike formation phase - especially important for for wheat
@@ -292,7 +296,7 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
-ManagementX = ManagementModule(sowingDay=sowing_date,harvestDay=harvest_date)
+ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
 LeafX = LeafGasExchangeModule2(Site=SiteX)
@@ -440,7 +444,8 @@ it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= Plant
 # Developmental phase indexes
 igermination = PlantX.PlantDev.phases.index("germination")
 ivegetative = PlantX.PlantDev.phases.index("vegetative")
-ispike = PlantX.PlantDev.phases.index("spike")
+if PlantX.Management.cropType == "Wheat":
+    ispike = PlantX.PlantDev.phases.index("spike")
 ianthesis = PlantX.PlantDev.phases.index("anthesis")
 igrainfill = PlantX.PlantDev.phases.index("grainfill")
 imaturity = PlantX.PlantDev.phases.index("maturity")
@@ -451,8 +456,9 @@ print("Total dry biomass at peak biomass =", total_carbon_t[it_peakbiomass]/Plan
 print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,it_peakbiomass]/PlantX.f_C)
 print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,it_peakbiomass]/PlantX.f_C)
 print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_peakbiomass]/PlantX.f_C)
-ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
-print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
+if PlantX.Management.cropType == "Wheat":
+    ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
+    print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
 ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
 print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
 print("Total (integrated) seasonal GPP =", np.sum(diagnostics['GPP'][it_sowing:it_harvest+1]))
@@ -471,7 +477,8 @@ print("--- Development ---")
 print()
 print("Total GDD to maturity =", PlantX.PlantDev.totalgdd)
 print("Relative GDD to vegetative =", (sum(PlantX.PlantDev.gdd_requirements[:ivegetative-1]) + PlantX.PlantDev.gdd_requirements[ivegetative-1])/PlantX.PlantDev.totalgdd)
-print("Relative GDD to spike =", (sum(PlantX.PlantDev.gdd_requirements[:ispike-1]) + PlantX.PlantDev.gdd_requirements[ispike-1])/PlantX.PlantDev.totalgdd)
+if PlantX.Management.cropType == "Wheat":
+    print("Relative GDD to spike =", (sum(PlantX.PlantDev.gdd_requirements[:ispike-1]) + PlantX.PlantDev.gdd_requirements[ispike-1])/PlantX.PlantDev.totalgdd)
 print("Relative GDD to anthesis =", (sum(PlantX.PlantDev.gdd_requirements[:ianthesis-1]) + PlantX.PlantDev.gdd_requirements[ianthesis-1])/PlantX.PlantDev.totalgdd)
 print("Relative GDD to grain filling =", (sum(PlantX.PlantDev.gdd_requirements[:igrainfill-1]) + PlantX.PlantDev.gdd_requirements[igrainfill-1])/PlantX.PlantDev.totalgdd)
 print("Relative GDD to maturity =", (sum(PlantX.PlantDev.gdd_requirements[:imaturity-1]) + PlantX.PlantDev.gdd_requirements[imaturity-1])/PlantX.PlantDev.totalgdd)
@@ -482,10 +489,8 @@ print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.f_C)
 print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C)
 ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
 print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.f_C)
-print("Potential grain number =", diagnostics['GN_pot'][it_harvest])
+print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C/PlantX.W_seedTKW0)
-
-# %%
 
 # %% [markdown]
 # ### Create figures
@@ -494,10 +499,6 @@ print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX
 site_year = "2001"
 site_name = "Harden - Wheat"
 site_filename = "Harden_2001_Wheat"
-
-# %%
-
-# %%
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -716,11 +717,11 @@ SDW_a = res["y"][7,-1]/PlantX.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
 axes[0].set_ylim([0,500])
 
-axes[1].plot(diagnostics['t'], diagnostics['GN_pot'], c='0.25', label="Potential GN")
-axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual GN")
-axes[1].set_ylabel("GN\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
+axes[1].plot(diagnostics['t'], diagnostics['S_d_pot'], c='0.25', label="Potential seed density")
+axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual seed density")
+axes[1].set_ylabel(r"$\rm S_d$"+"\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
 axes[1].legend()
-axes[1].set_ylim([0,22])
+# axes[1].set_ylim([0,22])
 
 axes[2].plot(time_axis, res["y"][3,:]/PlantX.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")

@@ -3,8 +3,9 @@ Utilities: Includes utility and helper functions to support the DAESIM model cod
 """
 
 import inspect
-from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from dataclasses import dataclass, field
+from collections import defaultdict
+from typing import Any, Callable, List, Optional, Tuple, Dict
 from scipy.integrate import solve_ivp, OdeSolution
 import numpy as np
 
@@ -99,6 +100,8 @@ class ODEModelSolver:
     calculator: Callable        # Generic callable (e.g. GenericClass.calculator method)
     states_init: List[float]    # List of initial state values
     time_start: float
+    log_diagnostics: bool = False  # New flag to control diagnostics logging
+    diagnostics: Dict[str, List[Any]] = field(default_factory=lambda: defaultdict(list))  # To store diagnostic data
 
     def run(
         self,
@@ -160,7 +163,21 @@ class ODEModelSolver:
         def func_to_solve(t: float, y: np.ndarray) -> np.ndarray:
             forcing_values = [forcing_input(t) for forcing_input in forcing_inputs]
             inputargs = y.tolist() + forcing_values
-            dydt = self.calculator(*inputargs)
+            # Separate dydt and diagnostics, assuming that diagnostics are always the last element returned
+            *dydt, diagnostics = self.calculator(*inputargs, return_diagnostics=self.log_diagnostics)  # Unpack all but the last element into dydt, and the last into diagnostics
+
+            # Log diagnostic outputs if they are available
+            if diagnostics is not None:
+                # Add time to the diagnostic outputs dictionary for context
+                diagnostics_entry = {'t': t, **diagnostics}
+
+                # Append time to the 'time' key
+                self.diagnostics['t'].append(t)
+
+                # Append values for each key in the diagnostics
+                for key, value in diagnostics.items():
+                    self.diagnostics[key].append(value)
+
             return np.array(dydt)
 
         return func_to_solve

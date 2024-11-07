@@ -123,6 +123,7 @@ class PlantModuleCalculator:
         soilTheta,     ## volumetric soil water content (m3 m-3), dimensions (soil layer,)
         _doy,
         _year,
+        return_diagnostics: bool = False  # This flag is set and used by ODEModelSolver
     ) -> Tuple[float]:
 
         # Solar calculations
@@ -176,21 +177,24 @@ class PlantModuleCalculator:
         W_R = Croot/self.f_C
 
         # Photosynthesis and plant respiration rates
-        if (W_L == 0) or (W_R == 0):
+        if (W_L <= 0) or (W_R <= 0):
             # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations
-            GPP = 0
-            Rm = 0
+            LAI = 0
+            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         else:
             # Calculate wind speed at top-of-canopy
             LAI = self.PlantCH2O.calculate_LAI(W_L)
             airUhc = self.calculate_wind_speed_hc(airU,hc,LAI+self.SAI)    ## TODO: Make sure SAI is handled consistently across modules
             # Calculate canopy carbon and water dynamics
-            _GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
-            GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
-            Rm = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
+        
+        GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+        Rml = _Rml * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+        Rmr = _Rmr * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
+        Rm = (Rml+Rmr) #* 12.01 * (60*60*24) / 1e6  ## Maintenance respiration. Converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         
         # Calculate NPP
-        NPP = self.calculate_NPP_RmRgpropto(GPP,Rm)
+        NPP, Rg = self.calculate_NPP_RmRgpropto(GPP,Rm)
 
         # Plant carbon allocation 
         alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
@@ -208,7 +212,7 @@ class PlantModuleCalculator:
         self.PlantAlloc.u_Seed = u_Seed    # Set constant allocation coefficients for optimal allocation
         self.PlantAlloc.tr_L = tr_[self.PlantDev.ileaf]    # Set pool turnover rates for optimal allocation
         self.PlantAlloc.tr_R = tr_[self.PlantDev.iroot]    # Set pool turnover rates for optimal allocation
-        if (W_L == 0) or (W_R == 0):
+        if (W_L <= 0) or (W_R <= 0):
             # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations, assume allocation coefficients are fixed
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
@@ -223,13 +227,39 @@ class PlantModuleCalculator:
         dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
         dCStatedt = self.calculate_devphase_Cflux(dCstemdt, Bio_time)
 
-        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt)
+        # Prepare diagnostics if requested (N.B. diagnostics must always be the last item in the returned output)
+        diagnostics = None
+        if return_diagnostics:
+            diagnostics = {
+                'LAI': LAI,
+                'E': E, 
+                'GPP': GPP,
+                'NPP': NPP,
+                'Rm': Rm,
+                'Rg': Rg,
+                'Rml': Rml,
+                'Rmr': Rmr,
+                'u_Leaf': u_L,
+                'u_Stem': u_Stem,
+                'u_Root': u_R,
+                'u_Seed': u_Seed,
+                'h_c': hc,
+                'd_r': d_r,
+                'fV': fV,
+                'fGerm': fGerm,
+                'DTT': DTT,
+                'GN_pot': GN_pot,
+                'F_C_stem2grain': F_C_stem2grain,
+                'idevphase': idevphase,
+            }
+
+        return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt, diagnostics)   # N.B. diagnostics must always be the last item in the returned output
 
     def calculate_NPP_RmRgpropto(self,GPP,R_m):
         R_g = self.alpha_Rg * (GPP - R_m)
         R_a = R_g+R_m
         NPP = GPP - R_a
-        return NPP
+        return NPP, R_g
 
     def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
         if self.GDD_method == "nonlinear":

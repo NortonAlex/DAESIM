@@ -81,7 +81,7 @@ class PlantModuleCalculator:
     HTT_k: float = field(default=0.07)  ## Germination slope of linear increase in psi_b when temperature increases (MPa degrees Celsius-1)
     HTT_Theta_HT: float = field(default=60.0)  ## HTT requirement for germination (MPa degrees Celcius d)
 
-    remob_phase: str = field(default="spike")  ## Developmental phase when stem remobilization occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    remob_phase: str = field(default="grainfill")  ## Developmental phase when stem remobilization occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
     Vmaxremob: float = field(default=0.5)  ## Maximum potential remobilization rate (analogous to phloem loading rate) for Michaelis-Menten function (g C m-2 d-1)
     Kmremob: float = field(default=0.4)  ## Michaelis-Menten kinetic parameter (unitless; same units as substrate in Michaelis-Menten equation which, in this case, is a unitless ratio)
 

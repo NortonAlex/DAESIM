@@ -172,70 +172,70 @@ Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal
 # ### Test the rate of change calculate method
 
 # %%
-_nday = 1
-_Cleaf = 100.0
-_Cstem = 50.0
-_Croot = 90.0
-_Cseed = 0.0
-_Bio_time = 0.0
-_VD_time = 0.0
-_HTT_time = 0.0
-_Cprod = 0.0
-_solRadswskyb = 800    ## incoming shortwave radiation, beam (W m-2)
-_solRadswskyd = 200    ## incoming shortwave radiation, diffuse (W m-2)
-_airTempCMin = 13.88358116
-_airTempCMax = 28.99026108
-_airTempC = (_airTempCMin + _airTempCMax)/2
-_airPressure = 101325  ## atmospheric pressure (Pa)
-_airRH = 65.0   ## relative humidity (%) 
-_airCO2 = 400*(_airPressure/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
-_airO2 = 209000*(_airPressure/1e5)*1e-6   ## oxygen partial pressure (bar)
-_soilTheta = np.array([0.30,0.30])   ## volumetric soil water content (m3 m-3)
-_doy = time_doy[_nday-1]
-_year = time_year[_nday-1]
+# _nday = 1
+# _Cleaf = 100.0
+# _Cstem = 50.0
+# _Croot = 90.0
+# _Cseed = 0.0
+# _Bio_time = 0.0
+# _VD_time = 0.0
+# _HTT_time = 0.0
+# _Cprod = 0.0
+# _solRadswskyb = 800    ## incoming shortwave radiation, beam (W m-2)
+# _solRadswskyd = 200    ## incoming shortwave radiation, diffuse (W m-2)
+# _airTempCMin = 13.88358116
+# _airTempCMax = 28.99026108
+# _airTempC = (_airTempCMin + _airTempCMax)/2
+# _airPressure = 101325  ## atmospheric pressure (Pa)
+# _airRH = 65.0   ## relative humidity (%) 
+# _airCO2 = 400*(_airPressure/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
+# _airO2 = 209000*(_airPressure/1e5)*1e-6   ## oxygen partial pressure (bar)
+# _soilTheta = np.array([0.30,0.30])   ## volumetric soil water content (m3 m-3)
+# _doy = time_doy[_nday-1]
+# _year = time_year[_nday-1]
 
-management = ManagementModule(sowingDay=30,harvestDay=235)
-site = ClimateModule()
-soillayers = SoilLayers(nlevmlsoil=2,z_max=2.0)
-canopy = CanopyLayers()
-canopyrad = CanopyRadiation(Canopy=canopy)
-leaf = LeafGasExchangeModule2(Site=site)
-canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
-plantch2o = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange)
-plantalloc = PlantOptimalAllocation(Plant=plantch2o,dWL_factor=1.01,dWR_factor=1.02)
-plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o,PlantAlloc=plantalloc,remob_phase="anthesis")
+# management = ManagementModule(sowingDay=30,harvestDay=235)
+# site = ClimateModule()
+# soillayers = SoilLayers(nlevmlsoil=2,z_max=2.0)
+# canopy = CanopyLayers()
+# canopyrad = CanopyRadiation(Canopy=canopy)
+# leaf = LeafGasExchangeModule2(Site=site)
+# canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
+# plantch2o = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange)
+# plantalloc = PlantOptimalAllocation(Plant=plantch2o,dWL_factor=1.01,dWR_factor=1.02)
+# plant = PlantModuleCalculator(Site=site,Management=management,PlantCH2O=plantch2o,PlantAlloc=plantalloc,remob_phase="anthesis")
 
-dydt = plant.calculate(
-    _Cleaf,
-    _Cstem,
-    _Croot,
-    _Cseed,
-    _Bio_time,
-    _VD_time,
-    _HTT_time,
-    _Cprod,
-    _solRadswskyb,
-    _solRadswskyd,
-    _airTempCMin,
-    _airTempCMax,
-    _airPressure,
-    _airRH,
-    _airCO2,
-    _airO2,
-    _soilTheta,
-    _doy,
-    _year,
-)
-print("dy/dt =", dydt)
-print()
-print("  dydt(Cleaf) = %1.4f" % dydt[0])
-print("  dydt(Cstem) = %1.4f" % dydt[1])
-print("  dydt(Croot) = %1.4f" % dydt[2])
-print("  dydt(Cseed) = %1.4f" % dydt[3])
-print("  Bio_time = %1.4f" % dydt[4])
-print("  VRN_time = %1.4f" % dydt[5])
-print("  HTT_time = %1.4f" % dydt[6])
-print("  Cprod = %1.4f" % dydt[7])
+# dydt = plant.calculate(
+#     _Cleaf,
+#     _Cstem,
+#     _Croot,
+#     _Cseed,
+#     _Bio_time,
+#     _VD_time,
+#     _HTT_time,
+#     _Cprod,
+#     _solRadswskyb,
+#     _solRadswskyd,
+#     _airTempCMin,
+#     _airTempCMax,
+#     _airPressure,
+#     _airRH,
+#     _airCO2,
+#     _airO2,
+#     _soilTheta,
+#     _doy,
+#     _year,
+# )
+# print("dy/dt =", dydt)
+# print()
+# print("  dydt(Cleaf) = %1.4f" % dydt[0])
+# print("  dydt(Cstem) = %1.4f" % dydt[1])
+# print("  dydt(Croot) = %1.4f" % dydt[2])
+# print("  dydt(Cseed) = %1.4f" % dydt[3])
+# print("  Bio_time = %1.4f" % dydt[4])
+# print("  VRN_time = %1.4f" % dydt[5])
+# print("  HTT_time = %1.4f" % dydt[6])
+# print("  Cprod = %1.4f" % dydt[7])
 
 # %% [markdown]
 # ## Use Model with Numerical Solver
@@ -322,12 +322,10 @@ PlantX = PlantModuleCalculator(
 )
 
 # %%
-
-# %%
 ## Define the callable calculator that defines the right-hand-side ODE function
 PlantXCalc = PlantX.calculate
 
-Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0])
+Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0], log_diagnostics=True)
 
 
 forcing_inputs = [Climate_solRadswskyb_f,
@@ -355,191 +353,36 @@ res = Model.run(
     # atol=1e-2
 )
 
-# %%
-
 # %% [markdown]
-# ### Calculate diagnostic variables
+# ### Diagnostic outputs
 
 # %%
-LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
+# Convert the defaultdict to a regular dictionary
+_diagnostics = dict(Model.diagnostics)
+# Convert each list in the dictionary to a NumPy array
+diagnostics = {key: np.array(value) for key, value in _diagnostics.items()}
 
-eqtime, houranglesunrise, theta = SiteX.solar_calcs(Climate_year_f(time_axis),Climate_doy_f(time_axis))
-airTempC = PlantX.Site.compute_mean_daily_air_temp(Climate_airTempCMin_f(time_axis),Climate_airTempCMax_f(time_axis))
-
-W_L = res["y"][0]/PlantX.f_C
-W_R = res["y"][2]/PlantX.f_C
-
-## Calculate diagnostic variables
-_GPP_gCm2d = np.zeros(time_axis.size)
-_Rm_gCm2d = np.zeros(time_axis.size)
-_Rm_l = np.zeros(time_axis.size) # maintenance respiration of leaves
-_Rm_r = np.zeros(time_axis.size) # maintenance respiration of roots
-_Ra = np.zeros(time_axis.size) # autotrophic respiration 
-_E = np.zeros(time_axis.size)
-_DTT = np.zeros(time_axis.size)
-_deltaVD = np.zeros(time_axis.size)
-_deltaHTT = np.zeros(time_axis.size)
-_PHTT = np.zeros(time_axis.size)
-_fV = np.zeros(time_axis.size)
-_fGerm = np.zeros(time_axis.size)
-_relativeGDD = np.zeros(time_axis.size)
-_hc = np.zeros(time_axis.size)
-_airUhc = np.zeros(time_axis.size)
-_d_rpot = np.zeros(time_axis.size)
-_d_r = np.zeros(time_axis.size)
-_Psi_s = np.zeros(time_axis.size)
-
-_Cfluxremob = np.zeros(time_axis.size)
-_GN_pot = np.zeros(time_axis.size) # potential grain number
-
-for it,t in enumerate(time_axis):
-    sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
-    
-    # Development phase index
-    idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
-    _relativeGDD[it] = PlantX.PlantDev.calc_relative_gdd_index(res["y"][4,it])
-    _hc[it] = PlantX.calculate_canopy_height(_relativeGDD[it])
-    relative_gdd_anthesis = PlantX.PlantDev.calc_relative_gdd_to_anthesis(res["y"][4,it])
-    _d_rpot[it] = PlantX.calculate_root_depth(relative_gdd_anthesis)   # potential root depth based on developmental rate
-    _d_r[it] = PlantX.PlantCH2O.calculate_root_depth(res["y"][2,it], _d_rpot[it])   # actual root depth based on developmental rate and root biomass
-    PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
-    VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
-    # Update vernalization days requirement for current developmental phase
-    PlantX.VD50 = 0.5 * PlantX.PlantDev.vd_requirements[idevphase]
-    _deltaVD[it] = PlantX.calculate_vernalizationtime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
-    _fV[it] = PlantX.vernalization_factor(res["y"][5,it])
-    _fGerm[it] = PlantX.calculate_sowingdepth_factor(res["y"][4,it])
-
-    _deltaHTT[it] = PlantX.calculate_dailyhydrothermaltime(airTempC[it], Climate_soilTheta_f(time_axis[it]))
-    #_PHTT[it] = PlantX.calculate_P_HTT(res["y"][6,it], airTempC[it], Climate_soilTheta_f(time_axis[it]))
-
-    _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
-
-    ## GPP and Transpiration (E)
-    if (W_L[it] == 0) or (W_R[it] == 0):
-        _GPP_gCm2d[it] = 0
-        _Rm_gCm2d[it] = 0
-        _E[it] = 0
-        _Rm_l[it] = 0
-        _Rm_r[it] = 0
-        _Psi_s[it] = 0
-    else:
-        # Calculate wind speed at top-of-canopy
-        _airUhc[it] = PlantX.calculate_wind_speed_hc(Climate_airU_f(time_axis[it]),_hc[it],LAI[it]+PlantX.SAI)    ## TODO: Make sure SAI is handled consistently across modules
-        GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],_airUhc[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],PlantX.SAI,_hc[it],_d_rpot[it])
-        _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
-        _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
-        _E[it] = E
-        _Rm_l[it] = Rml
-        _Rm_r[it] = Rmr
-        _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
-    
-    _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
-    _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
-
-
-NPP_gCm2d = PlantX.calculate_NPP_RmRgpropto(_GPP_gCm2d, _Rm_gCm2d)
-Rg_gCm2d = PlantX.alpha_Rg * (_GPP_gCm2d - _Rm_gCm2d)
-Ra_gCm2d = _GPP_gCm2d - NPP_gCm2d  # units of gC m-2 d-1
-Rm_l_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
-Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
-
+# %%
 ## Conversion notes: When _E units are mol m-2 s-1, multiply by molar mass H2O to get g m-2 s-1, divide by 1000 to get kg m-2 s-1, multiply by 60*60*24 to get kg m-2 d-1, and 1 kg m-2 d-1 = 1 mm d-1. 
 ## Noting that 1 kg of water is equivalent to 1 liter (L) of water (because the density of water is 1000 kg/m³), and 1 liter of water spread over 1 square meter results in a depth of 1 mm
-_E_mmd = _E*18.015/1000*(60*60*24)
+diagnostics["E_mmd"] = diagnostics["E"]*18.015/1000*(60*60*24)
 
-BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
-
-fV = PlantX.vernalization_factor(res["y"][5])
-
-# %%
-## Calculate diagnostic variables for allocation coefficients and turnover rates
-_u_Leaf = np.zeros(time_axis.size)
-_u_Root = np.zeros(time_axis.size)
-_u_Stem = np.zeros(time_axis.size)
-_u_Seed = np.zeros(time_axis.size)
-
-_marginalgain_leaf = np.zeros(time_axis.size)
-_marginalgain_root = np.zeros(time_axis.size)
-_marginalcost_leaf = np.zeros(time_axis.size)
-_marginalcost_root = np.zeros(time_axis.size)
-
-_tr_Leaf = np.zeros(time_axis.size)
-_tr_Root = np.zeros(time_axis.size)
-_tr_Stem = np.zeros(time_axis.size)
-_tr_Seed = np.zeros(time_axis.size)
-_trflux_Leaf = np.zeros(time_axis.size)
-_trflux_Root = np.zeros(time_axis.size)
-_trflux_Stem = np.zeros(time_axis.size)
-_trflux_Seed = np.zeros(time_axis.size)
-
-_Cflux_harvest_Leaf = np.zeros(time_axis.size)
-_Cflux_harvest_Stem = np.zeros(time_axis.size)
-_Cflux_harvest_Seed = np.zeros(time_axis.size)
-
-for it,t in enumerate(time_axis):
-
-    idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
-    # Allocation fractions per pool
-    alloc_coeffs = PlantX.PlantDev.allocation_coeffs[idevphase]
-
-    # Calculate allocation fraction to grain
-    _u_Seed[it] = PlantX.calculate_grain_alloc_coeff(alloc_coeffs[PlantX.PlantDev.iseed], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
-    _u_Stem[it] = alloc_coeffs[PlantX.PlantDev.istem]
-    # Turnover rates per pool
-    tr_ = PlantX.PlantDev.turnover_rates[idevphase]
+# Turnover rates per pool
+_tr_Leaf = np.zeros(diagnostics['t'].size)
+_tr_Root = np.zeros(diagnostics['t'].size)
+_tr_Stem = np.zeros(diagnostics['t'].size)
+_tr_Seed = np.zeros(diagnostics['t'].size)
+for it, t in enumerate(diagnostics['t']):
+    tr_ = PlantX.PlantDev.turnover_rates[diagnostics['idevphase'][it]]
     _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
     _tr_Root[it] = tr_[PlantX.PlantDev.iroot]
     _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
     _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
-    # Set any constant allocation coefficients for optimal allocation
-    PlantX.PlantAlloc.u_Stem = _u_Stem[it]
-    PlantX.PlantAlloc.u_Seed = _u_Seed[it]
 
-    # Set pool turnover rates for optimal allocation
-    PlantX.PlantAlloc.tr_L = tr_[PlantX.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-    PlantX.PlantAlloc.tr_R = tr_[PlantX.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
-
-    if (W_L[it] == 0) or (W_R[it] == 0):
-        u_L = alloc_coeffs[PlantX.PlantDev.ileaf]
-        u_R = alloc_coeffs[PlantX.PlantDev.iroot]
-        dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0
-    else:
-        u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = PlantX.PlantAlloc.calculate(
-            W_L[it],
-            W_R[it],
-            Climate_soilTheta_z_f(time_axis[it]),
-            Climate_airTempC_f(time_axis[it]),
-            Climate_airTempC_f(time_axis[it]),
-            Climate_airRH_f(time_axis[it]),
-            Climate_airCO2_f(time_axis[it]),
-            Climate_airO2_f(time_axis[it]),
-            Climate_airPressure_f(time_axis[it]),
-            _airUhc[it],
-            Climate_solRadswskyb_f(time_axis[it]),
-            Climate_solRadswskyd_f(time_axis[it]),
-            theta[it],
-            PlantX.SAI,
-            _hc[it],
-            _d_rpot[it])
-
-    _u_Leaf[it] = u_L
-    _u_Root[it] = u_R
-
-    _marginalgain_leaf[it] = dGPPRmdWleaf
-    _marginalgain_root[it] = dGPPRmdWroot
-    _marginalcost_leaf[it] = dSdWleaf
-    _marginalcost_root[it] = dSdWroot
-
-    _trflux_Leaf[it] = _tr_Leaf[it]*res["y"][0,it]
-    _trflux_Stem[it] = _tr_Leaf[it]*res["y"][1,it]
-    _trflux_Root[it] = _tr_Leaf[it]*res["y"][2,it]
-    _trflux_Seed[it] = _tr_Leaf[it]*res["y"][3,it]
-
-    _Cflux_harvest_Leaf[it] = PlantX.calculate_BioHarvest(res["y"][0,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestLeaf,PlantX.Management.PhHarvestTurnoverTime)
-    _Cflux_harvest_Stem[it] = PlantX.calculate_BioHarvest(res["y"][1,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestStem,PlantX.Management.PhHarvestTurnoverTime)
-    _Cflux_harvest_Seed[it] = PlantX.calculate_BioHarvest(res["y"][3,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestSeed,PlantX.Management.PhHarvestTurnoverTime)
-    
+diagnostics['tr_Leaf'] = _tr_Leaf
+diagnostics['tr_Root'] = _tr_Root
+diagnostics['tr_Stem'] = _tr_Stem
+diagnostics['tr_Seed'] = _tr_Seed
 
 # %% [markdown]
 # ### Scalar Variables
@@ -582,35 +425,16 @@ for it,t in enumerate(time_axis):
 total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
 total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
 
-_trflux_total = _trflux_Leaf + _trflux_Root + _trflux_Root + _trflux_Seed
-_trflux_total_exclseed = _trflux_Leaf + _trflux_Root + _trflux_Root
-
 it_peakbiomass = np.argmax(total_carbon_t)
 it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t)
 
+it_sowing = np.where(time_axis == PlantX.Management.sowingDay)[0][0]
 it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
 
-## Determine time indexes for developmental phase transition points
-phases_x = PlantX.PlantDev.phases
-phases_it0 = []
-phases_it1 = []
-
-gdd_phase_transitions = np.insert(np.cumsum(PlantX.PlantDev.gdd_requirements), 0, 0)
-
-for iphase, phase in enumerate(phases_x):
-    gdd_to_phase_start = gdd_phase_transitions[iphase]
-    itime0 = np.argmax(res["y"][4] >= gdd_to_phase_start)   # time index for first time-step in this developmental phase
-    phases_it0.append(itime0)
-    if iphase+1 == len(phases_x):
-        # For last phase, usually this is maturity, which is a phase that doesn't have an end, so we set it to be the time of harvest or the last time step of the simulation, whichever is first
-        itime1_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
-        itime1_tend = len(time_axis) - 1
-        phases_it1.append(min(itime1_harvest,itime1_tend))
-    else:
-        gdd_to_phase_end = gdd_phase_transitions[iphase+1]
-        itime1 = np.argmax(res["y"][4] >= gdd_to_phase_end) - 1
-        phases_it1.append(itime1)
-    print(iphase, phase, ", time index",phases_it0[iphase], 'to', phases_it1[iphase], '(inclusive)')
+# Diagnose time indexes when developmental phase transitions occur
+it_phase_transitions = np.where(np.diff(diagnostics['idevphase']) != 0)[0] + 1
+# Filter out transitions that occur after the harvest day
+it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= PlantX.Management.harvestDay]
 
 # %%
 # Developmental phase indexes
@@ -627,19 +451,21 @@ print("Total dry biomass at peak biomass =", total_carbon_t[it_peakbiomass]/Plan
 print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,it_peakbiomass]/PlantX.f_C)
 print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,it_peakbiomass]/PlantX.f_C)
 print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_peakbiomass]/PlantX.f_C)
-print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,phases_it0[ispike]]/PlantX.f_C)
-print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,phases_it0[ianthesis]]/PlantX.f_C)
-print("Total (integrated) seasonal GPP =", np.sum(_GPP_gCm2d[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal NPP =", np.sum(NPP_gCm2d[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal Rml =", np.sum(Rm_l_gCm2d[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal Rmr =", np.sum(Rm_r_gCm2d[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal Rg =", np.sum(Rg_gCm2d[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal turnover losses =", np.sum(_trflux_total_exclseed[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) remobilisation to grain =", np.sum(_Cfluxremob[phases_it0[0]:it_harvest+1]))
-_Cflux_NPP2grain = _u_Seed*NPP_gCm2d
-print("Total (integrated) allocation to grain =", np.sum(_Cflux_NPP2grain[phases_it0[0]:it_harvest+1]))
-print("Total (integrated) seasonal transpiration =", np.sum(_E_mmd[phases_it0[0]:it_harvest+1]))
-print("Leaf area index at peak biomass =", LAI[it_peakbiomass])
+ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
+print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
+ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
+print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
+print("Total (integrated) seasonal GPP =", np.sum(diagnostics['GPP'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal NPP =", np.sum(diagnostics['NPP'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal Rml =", np.sum(diagnostics['Rml'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal Rmr =", np.sum(diagnostics['Rmr'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal Rg =", np.sum(diagnostics['Rg'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal turnover losses =", np.sum(diagnostics['trflux_total'][it_sowing:it_harvest+1]))
+print("Total (integrated) remobilisation to grain =", np.sum(diagnostics['F_C_stem2grain'][it_sowing:it_harvest+1]))
+_Cflux_NPP2grain = diagnostics['u_Seed'] * diagnostics['NPP']
+print("Total (integrated) allocation to grain =", np.sum(_Cflux_NPP2grain[it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal transpiration =", np.sum(diagnostics['E_mmd'][it_sowing:it_harvest+1]))
+print("Leaf area index at peak biomass =", diagnostics['LAI'][it_peakbiomass])
 print()
 print("--- Development ---")
 print()
@@ -654,21 +480,24 @@ print("--- Grain Production ---")
 print()
 print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.f_C)
 print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C)
-print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,phases_it0[imaturity]]/PlantX.f_C)
-print("Potential grain number =", _GN_pot[it_harvest])
+ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
+print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.f_C)
+print("Potential grain number =", diagnostics['GN_pot'][it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C/PlantX.W_seedTKW0)
+
+# %%
 
 # %% [markdown]
 # ### Create figures
 
 # %%
-# site_year = "2021"
-# site_name = "Site - Generic Crop"
-# site_filename = "Site_GenericCrop_wspikephase_wstemremob_CUE0p6"
-
 site_year = "2001"
 site_name = "Harden - Wheat"
 site_filename = "Harden_2001_Wheat"
+
+# %%
+
+# %%
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -721,13 +550,13 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
 
-axes[0].plot(res["t"], LAI)
+axes[0].plot(diagnostics["t"], diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,5])
 
-axes[1].plot(res["t"], _GPP_gCm2d)
+axes[1].plot(diagnostics["t"], diagnostics["GPP"])
 axes[1].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -735,7 +564,7 @@ axes[1].set_ylim([0,30])
 
 # axes[2].plot(res["t"], _E*1e3)
 # axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mmol \; H_2O \; m^{-2} \; s^{-1}$)")
-axes[2].plot(res["t"], _E_mmd)
+axes[2].plot(diagnostics["t"], diagnostics["E_mmd"])
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -748,11 +577,11 @@ axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
 ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
-for iphase, phase in enumerate(PlantDevX.phases):
-    itime = phases_it0[iphase]
+for itime in it_phase_transitions:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
+    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
     ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
             fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([ylimmin, ylimmax])
@@ -805,22 +634,22 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
 
-axes[0].plot(res["t"], _GPP_gCm2d)
+axes[0].plot(diagnostics["t"], diagnostics["GPP"])
 axes[0].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
-axes[1].plot(res["t"], _Rm_gCm2d+Rg_gCm2d, label=r"$\rm R_a$", c="k")
-axes[1].plot(res["t"], Rg_gCm2d, label=r"$\rm R_g$", c="C1")
-axes[1].plot(res["t"], _Rm_gCm2d, label=r"$\rm R_m$", c="C0")
-axes[1].plot(res["t"], Rm_l_gCm2d, c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
-axes[1].plot(res["t"], Rm_r_gCm2d, c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
+axes[1].plot(diagnostics["t"], diagnostics["Rm"]+diagnostics["Rg"], label=r"$\rm R_a$", c="k")
+axes[1].plot(diagnostics["t"], diagnostics["Rg"], label=r"$\rm R_g$", c="C1")
+axes[1].plot(diagnostics["t"], diagnostics["Rm"], label=r"$\rm R_m$", c="C0")
+axes[1].plot(diagnostics["t"], diagnostics["Rml"], c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
+axes[1].plot(diagnostics["t"], diagnostics["Rmr"], c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
 axes[1].set_ylabel("Plant Respiration\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].legend(fontsize=10)
 
-axes[2].plot(res["t"], NPP_gCm2d/_GPP_gCm2d)
+axes[2].plot(diagnostics["t"], diagnostics["NPP"]/diagnostics["GPP"])
 axes[2].set_ylabel(r"CUE")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -833,27 +662,23 @@ axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
 
-
-# %%
-
 # %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
 
-axes[0].plot(res["t"], _GPP_gCm2d, c="k")
+axes[0].plot(diagnostics['t'], diagnostics['GPP'], c="k")
 axes[0].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,30])
 
-axes[1].plot(res["t"], _Rm_gCm2d + Rg_gCm2d, label=r"$\rm R_a$", c='k')
+axes[1].plot(diagnostics['t'], diagnostics['Rm'] + diagnostics['Rg'], label=r"$\rm R_a$", c='k')
 axes[1].set_ylabel(r"$\rm R_a$"+"\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].legend(fontsize=10)
 axes[1].set_ylim([0,10])
 
-_trflux_total = _trflux_Leaf + _trflux_Root + _trflux_Root + _trflux_Seed
-axes[2].plot(res["t"], _trflux_total, c="k")
+axes[2].plot(diagnostics['t'], diagnostics['trflux_total'], c="k")
 # _Cflux_harvest_total = _Cflux_harvest_Leaf+_Cflux_harvest_Stem+_Cflux_harvest_Seed
 # axes[2].plot(res["t"], _Cflux_harvest_total)
 axes[2].set_ylabel("Turnover\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
@@ -864,11 +689,11 @@ axes[2].set_ylim([0,50])
 ## Add annotations for developmental phases
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
-    for iphase, phase in enumerate(PlantDevX.phases):
-        itime = phases_it0[iphase]
+    for itime in it_phase_transitions:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
         text_y = 0.5 * ylimmax
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
         ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
                 fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
@@ -882,9 +707,6 @@ axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_carbon_balance.png" % site_filename,dpi=300,bbox_inches='tight')
 
-
-# %%
-
 # %%
 fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)
 
@@ -894,7 +716,7 @@ SDW_a = res["y"][7,-1]/PlantX.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
 axes[0].set_ylim([0,500])
 
-axes[1].plot(time_axis, _GN_pot, c='0.25', label="Potential GN")
+axes[1].plot(diagnostics['t'], diagnostics['GN_pot'], c='0.25', label="Potential GN")
 axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual GN")
 axes[1].set_ylabel("GN\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
 axes[1].legend()
@@ -908,11 +730,11 @@ axes[2].set_ylim([0,500])
 ## Add annotations for developmental phases
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
-    for iphase, phase in enumerate(PlantDevX.phases):
-        itime = phases_it0[iphase]
+    for itime in it_phase_transitions:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
         text_y = 0.5 * ylimmax
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
         ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
                 fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
@@ -925,82 +747,6 @@ axes[2].set_xlabel("Time (day of year)")
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_grainprod.png" % (site_filename),dpi=300,bbox_inches='tight')
 
-
-# %%
-
-# %%
-
-# %%
-fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
-
-axes[0].plot(res["t"], _Cfluxremob)
-axes[0].set_ylabel("Remobilization flux\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
-axes[0].tick_params(axis='x', labelrotation=45)
-# axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[0].set_ylim([0,2.5])
-
-# axes[1].plot(res["t"], (res["y"][0]+res["y"][1])/res["y"][2],label=r"$\rm (L+S)/R$")
-axes[1].plot(res["t"], res["y"][1]/(res["y"][0]+res["y"][1]+res["y"][2]),label="S/(L+S+R)")
-axes[1].plot(res["t"], res["y"][1]/res["y"][0],label="S/L")
-axes[1].set_ylim([0,1])
-axes[1].legend(fontsize=9,handlelength=0.8)
-
-axes[2].plot(res["t"], res["y"][1]/res["y"][0],label=r"$\rm R_{S,L}$")
-axes[2].plot(res["t"], res["y"][1]/(res["y"][0]+res["y"][2]),label=r"$\rm R_{S,L+R}$")
-axes[2].plot(res["t"], res["y"][1]/(res["y"][0]+res["y"][1]+res["y"][2]),label=r"$\rm R_{S,L+R+S}$")
-axes[2].set_ylabel("Plant pool ratios\n"+r"(-)")
-axes[2].set_xlabel("Time (days)")
-axes[2].legend(fontsize=9,handlelength=0.8)
-axes[2].set_ylim([0,3])
-
-axes[3].plot(res["t"], res["y"][4])
-axes[3].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C d)")
-axes[3].set_xlabel("Time (days)")
-axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-ax = axes[3]
-ylimmin, ylimmax = ax.get_ylim()
-for iphase, phase in enumerate(PlantDevX.phases):
-    itime = phases_it0[iphase]
-    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-    text_x = res["t"][itime] + 1.5
-    text_y = 0.5 * ylimmax
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-            fontsize=8, alpha=0.7, rotation=90)
-ax.set_ylim([ylimmin, ylimmax])
-
-alp = 0.6
-axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
-axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
-axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
-axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
-axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
-axes[4].set_xlabel("Time (day of year)")
-axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
-axes[4].set_ylim([-7,180])
-
-accumulated_carbon = res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3]
-eos_accumulated_carbon = accumulated_carbon[-1]    # end-of-season total carbon (at the end of the simulation period)
-peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
-peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
-harvest_index = res["y"][3][-1]/(res["y"][0][-1]+res["y"][1][-1]+res["y"][2][-1]+res["y"][3][-1])
-harvest_index_peak = res["y"][3][-1]/peak_accumulated_carbon_noseed
-harvest_index_peak_noroot = res["y"][3][-1]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3][-1]/100 * (1/PlantX.f_C)   ## convert gC m-2 to t dry biomass ha-1
-axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-
-print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
-print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
-print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
-
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
-
-axes[0].set_title("%s - %s" % (site_year,site_name))
-plt.tight_layout()
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/MilgaSite_DAESim_%s_%s_RH2.png" % (site_year,site_filename),dpi=300,bbox_inches='tight')
-
-
 # %%
 fig, axes = plt.subplots(2,3,figsize=(12,6),sharex=True)
 
@@ -1010,18 +756,18 @@ axes[0,0].set_xlabel("Time (days)")
 axes[0,0].set_title("Growing Degree Days")
 ax = axes[0,0]
 ylimmin, ylimmax = ax.get_ylim()
-for iphase, phase in enumerate(PlantDevX.phases):
-    itime = phases_it0[iphase]
-    ax.vlines(x=res["t"][itime], ymin=0,ymax=res["y"][4,itime], color='0.5',linestyle="--")
-    text_x = res["t"][itime]
-    text_y = 0.04
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='bottom',
+for itime in it_phase_transitions:
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
             fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
-axes[1,0].plot(res["t"], _DTT, c='C0', linestyle=":", label="DTT")
-axes[1,0].plot(res["t"], _DTT*_fV, c='C0', linestyle="-", label=r"$\rm DTT \times f_V$")
-axes[1,0].plot(res["t"], _DTT*_fV*_fGerm, c='C0', linestyle=":", label=r"$\rm DTT \times f_V \times f_{germ}$")
+axes[1,0].plot(diagnostics['t'], diagnostics['DTT'], c='C0', linestyle=":", label="DTT")
+axes[1,0].plot(diagnostics['t'], diagnostics['DTT'] * diagnostics['fV'], c='C0', linestyle="-", label=r"$\rm DTT \times f_V$")
+axes[1,0].plot(diagnostics['t'], diagnostics['DTT'] * diagnostics['fV'] * diagnostics['fGerm'], c='C0', linestyle=":", label=r"$\rm DTT \times f_V \times f_{germ}$")
 axes[1,0].set_ylabel("Daily Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[1,0].set_xlabel("Time (days)")
 axes[1,0].set_title("Growing Degree Days")
@@ -1034,28 +780,28 @@ axes[0,1].set_title("Vernalization Days")
 # axes[0,1].set_ylim([0,125])
 ax = axes[0,1]
 ylimmin, ylimmax = ax.get_ylim()
-for iphase, phase in enumerate(PlantDevX.phases):
-    itime = phases_it0[iphase]
-    ax.vlines(x=res["t"][itime], ymin=0,ymax=res["y"][5,itime], color='0.5',linestyle="--")
-    text_x = res["t"][itime]
-    text_y = 0.04
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='bottom',
+for itime in it_phase_transitions:
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
             fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
-axes[1,1].plot(res["t"], _fV)
+axes[1,1].plot(diagnostics['t'], diagnostics['fV'])
 axes[1,1].set_ylabel("Vernalization Factor")
 axes[1,1].set_xlabel("Time (days)")
 axes[1,1].set_title("Vernalization Factor\n(Modifier on GDD)")
 # axes[1,1].set_ylim([0,1.03])
 ax = axes[1,1]
 ylimmin, ylimmax = ax.get_ylim()
-for iphase, phase in enumerate(PlantDevX.phases):
-    itime = phases_it0[iphase]
-    ax.vlines(x=res["t"][itime], ymin=0,ymax=_fV[itime], color='0.5',linestyle="--")
-    text_x = res["t"][itime]
-    text_y = 0.04
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='bottom',
+for itime in it_phase_transitions:
+    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = res["t"][itime] + 1.5
+    text_y = 0.5 * ylimmax
+    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
             fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
@@ -1064,10 +810,10 @@ axes[0,2].set_ylabel("Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C d)")
 axes[0,2].set_xlabel("Time (days)")
 axes[0,2].set_title("Hydrothermal Time")
 
-axes[1,2].plot(res["t"], _deltaHTT)
-axes[1,2].set_ylabel("Daily Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C)")
-axes[1,2].set_xlabel("Time (days)")
-axes[1,2].set_title("Hydrothermal Time per Day")
+# axes[1,2].plot(res["t"], _deltaHTT)
+# axes[1,2].set_ylabel("Daily Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C)")
+# axes[1,2].set_xlabel("Time (days)")
+# axes[1,2].set_title("Hydrothermal Time per Day")
 
 plt.xlim([time_axis[0],time_axis[-1]])
 plt.tight_layout()
@@ -1076,15 +822,13 @@ plt.tight_layout()
 
 
 # %%
-
-# %%
 # Creating a DataFrame
 df_u_W = pd.DataFrame({
-    'Time': time_axis,
-    'u_Leaf': _u_Leaf,
-    'u_Root': _u_Root,
-    'u_Stem': _u_Stem,
-    'u_Seed': _u_Seed
+    'Time': diagnostics['t'],
+    'u_Leaf': diagnostics['u_Leaf'],
+    'u_Root': diagnostics['u_Root'],
+    'u_Stem': diagnostics['u_Stem'],
+    'u_Seed': diagnostics['u_Seed'],
 })
 
 # Window size for running mean
@@ -1111,10 +855,11 @@ ax.set_ylabel("Carbon allocation\ncoefficient")
 ax.legend(handlelength=0.75)
 
 ax = axes[1]
-ax.plot(time_axis, _tr_Leaf, label='Leaf')
-ax.plot(time_axis, _tr_Root, label='Root')
-ax.plot(time_axis, _tr_Stem, label='Stem')
-ax.plot(time_axis, _tr_Seed, label='Seed')
+_tr_Leaf
+ax.plot(diagnostics['t'], diagnostics['tr_Leaf'], label='Leaf')
+ax.plot(diagnostics['t'], diagnostics['tr_Root'], label='Root')
+ax.plot(diagnostics['t'], diagnostics['tr_Stem'], label='Stem')
+ax.plot(diagnostics['t'], diagnostics['tr_Seed'], label='Seed')
 # ax.set_ylim([0,1.01])
 ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 ax.set_xlabel("Time (day of year)")
@@ -1128,19 +873,206 @@ ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 ## Add annotations for developmental phases
 for ax in axes:
     ylimmin, ylimmax = ax.get_ylim()
-    for iphase, phase in enumerate(PlantDevX.phases):
-        itime = phases_it0[iphase]
+    for itime in it_phase_transitions:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
-        text_y = ylimmax
-        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='top',
+        text_y = 0.5 * ylimmax
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
                 fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
 # plt.grid(True)
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_alloctr.png" % (site_filename),dpi=300,bbox_inches='tight')
-plt.show()
+plt.show
 
+# %%
+
+# %% [markdown]
+# ### Calculate diagnostic variables
+
+# %%
+# LAI = PlantX.PlantCH2O.calculate_LAI(res["y"][0])
+
+# eqtime, houranglesunrise, theta = SiteX.solar_calcs(Climate_year_f(time_axis),Climate_doy_f(time_axis))
+# airTempC = PlantX.Site.compute_mean_daily_air_temp(Climate_airTempCMin_f(time_axis),Climate_airTempCMax_f(time_axis))
+
+# W_L = res["y"][0]/PlantX.f_C
+# W_R = res["y"][2]/PlantX.f_C
+
+# ## Calculate diagnostic variables
+# _GPP_gCm2d = np.zeros(time_axis.size)
+# _Rm_gCm2d = np.zeros(time_axis.size)
+# _Rm_l = np.zeros(time_axis.size) # maintenance respiration of leaves
+# _Rm_r = np.zeros(time_axis.size) # maintenance respiration of roots
+# _Ra = np.zeros(time_axis.size) # autotrophic respiration 
+# _E = np.zeros(time_axis.size)
+# _DTT = np.zeros(time_axis.size)
+# _deltaVD = np.zeros(time_axis.size)
+# _deltaHTT = np.zeros(time_axis.size)
+# _PHTT = np.zeros(time_axis.size)
+# _fV = np.zeros(time_axis.size)
+# _fGerm = np.zeros(time_axis.size)
+# _relativeGDD = np.zeros(time_axis.size)
+# _hc = np.zeros(time_axis.size)
+# _airUhc = np.zeros(time_axis.size)
+# _d_rpot = np.zeros(time_axis.size)
+# _d_r = np.zeros(time_axis.size)
+# _Psi_s = np.zeros(time_axis.size)
+
+# _Cfluxremob = np.zeros(time_axis.size)
+# _GN_pot = np.zeros(time_axis.size) # potential grain number
+
+# for it,t in enumerate(time_axis):
+#     sunrise, solarnoon, sunset = PlantX.Site.solar_day_calcs(Climate_year_f(time_axis[it]),Climate_doy_f(time_axis[it]))
+    
+#     # Development phase index
+#     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
+#     _relativeGDD[it] = PlantX.PlantDev.calc_relative_gdd_index(res["y"][4,it])
+#     _hc[it] = PlantX.calculate_canopy_height(_relativeGDD[it])
+#     relative_gdd_anthesis = PlantX.PlantDev.calc_relative_gdd_to_anthesis(res["y"][4,it])
+#     _d_rpot[it] = PlantX.calculate_root_depth(relative_gdd_anthesis)   # potential root depth based on developmental rate
+#     _d_r[it] = PlantX.PlantCH2O.calculate_root_depth(res["y"][2,it], _d_rpot[it])   # actual root depth based on developmental rate and root biomass
+#     PlantX.PlantDev.update_vd_state(res["y"][5,it],res["y"][4,it])    # Update vernalization state information to track developmental phase changes
+#     VD = PlantX.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
+#     # Update vernalization days requirement for current developmental phase
+#     PlantX.VD50 = 0.5 * PlantX.PlantDev.vd_requirements[idevphase]
+#     _deltaVD[it] = PlantX.calculate_vernalizationtime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
+#     _fV[it] = PlantX.vernalization_factor(res["y"][5,it])
+#     _fGerm[it] = PlantX.calculate_sowingdepth_factor(res["y"][4,it])
+
+#     _deltaHTT[it] = PlantX.calculate_dailyhydrothermaltime(airTempC[it], Climate_soilTheta_f(time_axis[it]))
+#     #_PHTT[it] = PlantX.calculate_P_HTT(res["y"][6,it], airTempC[it], Climate_soilTheta_f(time_axis[it]))
+
+#     _DTT[it] = PlantX.calculate_dailythermaltime(Climate_airTempCMin_f(time_axis[it]),Climate_airTempCMax_f(time_axis[it]),sunrise,sunset)
+
+#     ## GPP and Transpiration (E)
+#     if (W_L[it] == 0) or (W_R[it] == 0):
+#         _GPP_gCm2d[it] = 0
+#         _Rm_gCm2d[it] = 0
+#         _E[it] = 0
+#         _Rm_l[it] = 0
+#         _Rm_r[it] = 0
+#         _Psi_s[it] = 0
+#     else:
+#         # Calculate wind speed at top-of-canopy
+#         _airUhc[it] = PlantX.calculate_wind_speed_hc(Climate_airU_f(time_axis[it]),_hc[it],LAI[it]+PlantX.SAI)    ## TODO: Make sure SAI is handled consistently across modules
+#         GPP, Rml, Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(W_L[it],W_R[it],Climate_soilTheta_z_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airTempC_f(time_axis)[it],Climate_airRH_f(time_axis)[it],Climate_airCO2_f(time_axis)[it],Climate_airO2_f(time_axis)[it],Climate_airPressure_f(time_axis)[it],_airUhc[it],Climate_solRadswskyb_f(time_axis)[it],Climate_solRadswskyd_f(time_axis)[it],theta[it],PlantX.SAI,_hc[it],_d_rpot[it])
+#         _GPP_gCm2d[it] = GPP * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+#         _Rm_gCm2d[it] = (Rml+Rmr) * 12.01 * (60*60*24) / 1e6  ## converts umol C m-2 s-1 to g C m-2 d-1
+#         _E[it] = E
+#         _Rm_l[it] = Rml
+#         _Rm_r[it] = Rmr
+#         _Psi_s[it] = Psis   ## Note: this is the soil water potential in the root zone only
+    
+#     _GN_pot[it] = PlantX.calculate_wheat_grain_number(res["y"][7,it]/PlantX.f_C)
+#     _Cfluxremob[it] = PlantX.calculate_nsc_stem_remob(res["y"][1,it], res["y"][0,it], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
+
+
+# NPP_gCm2d, Rg_gCm2d = PlantX.calculate_NPP_RmRgpropto(_GPP_gCm2d, _Rm_gCm2d)
+# # Rg_gCm2d = PlantX.alpha_Rg * (_GPP_gCm2d - _Rm_gCm2d)
+# Ra_gCm2d = _GPP_gCm2d - NPP_gCm2d  # units of gC m-2 d-1
+# Rm_l_gCm2d = _Rm_l * 12.01 * (60*60*24) / 1e6
+# Rm_r_gCm2d = _Rm_r * 12.01 * (60*60*24) / 1e6
+
+# ## Conversion notes: When _E units are mol m-2 s-1, multiply by molar mass H2O to get g m-2 s-1, divide by 1000 to get kg m-2 s-1, multiply by 60*60*24 to get kg m-2 d-1, and 1 kg m-2 d-1 = 1 mm d-1. 
+# ## Noting that 1 kg of water is equivalent to 1 liter (L) of water (because the density of water is 1000 kg/m³), and 1 liter of water spread over 1 square meter results in a depth of 1 mm
+# _E_mmd = _E*18.015/1000*(60*60*24)
+
+# BioHarvestSeed = PlantX.calculate_BioHarvest(res["y"][3],Climate_doy_f(time_axis),ManagementX.harvestDay,PlantX.propHarvestSeed,ManagementX.PhHarvestTurnoverTime)
+
+# fV = PlantX.vernalization_factor(res["y"][5])
+
+# %%
+# ## Calculate diagnostic variables for allocation coefficients and turnover rates
+# _u_Leaf = np.zeros(time_axis.size)
+# _u_Root = np.zeros(time_axis.size)
+# _u_Stem = np.zeros(time_axis.size)
+# _u_Seed = np.zeros(time_axis.size)
+
+# _marginalgain_leaf = np.zeros(time_axis.size)
+# _marginalgain_root = np.zeros(time_axis.size)
+# _marginalcost_leaf = np.zeros(time_axis.size)
+# _marginalcost_root = np.zeros(time_axis.size)
+
+# _tr_Leaf = np.zeros(time_axis.size)
+# _tr_Root = np.zeros(time_axis.size)
+# _tr_Stem = np.zeros(time_axis.size)
+# _tr_Seed = np.zeros(time_axis.size)
+# _trflux_Leaf = np.zeros(time_axis.size)
+# _trflux_Root = np.zeros(time_axis.size)
+# _trflux_Stem = np.zeros(time_axis.size)
+# _trflux_Seed = np.zeros(time_axis.size)
+
+# _Cflux_harvest_Leaf = np.zeros(time_axis.size)
+# _Cflux_harvest_Stem = np.zeros(time_axis.size)
+# _Cflux_harvest_Seed = np.zeros(time_axis.size)
+
+# for it,t in enumerate(time_axis):
+
+#     idevphase = PlantX.PlantDev.get_active_phase_index(res["y"][4,it])
+#     # Allocation fractions per pool
+#     alloc_coeffs = PlantX.PlantDev.allocation_coeffs[idevphase]
+
+#     # Calculate allocation fraction to grain
+#     _u_Seed[it] = PlantX.calculate_grain_alloc_coeff(alloc_coeffs[PlantX.PlantDev.iseed], res["y"][3,it]/PlantX.f_C, _GN_pot[it]*PlantX.W_seedTKW0, res["y"][4,it])
+#     _u_Stem[it] = alloc_coeffs[PlantX.PlantDev.istem]
+#     # Turnover rates per pool
+#     tr_ = PlantX.PlantDev.turnover_rates[idevphase]
+#     _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
+#     _tr_Root[it] = tr_[PlantX.PlantDev.iroot]
+#     _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
+#     _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
+#     # Set any constant allocation coefficients for optimal allocation
+#     PlantX.PlantAlloc.u_Stem = _u_Stem[it]
+#     PlantX.PlantAlloc.u_Seed = _u_Seed[it]
+
+#     # Set pool turnover rates for optimal allocation
+#     PlantX.PlantAlloc.tr_L = tr_[PlantX.PlantDev.ileaf]    #1 if tr_[self.PlantDev.ileaf] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
+#     PlantX.PlantAlloc.tr_R = tr_[PlantX.PlantDev.iroot]    #1 if tr_[self.PlantDev.iroot] == 0 else max(1, 1/tr_[self.PlantDev.ileaf])
+
+#     if (W_L[it] == 0) or (W_R[it] == 0):
+#         u_L = alloc_coeffs[PlantX.PlantDev.ileaf]
+#         u_R = alloc_coeffs[PlantX.PlantDev.iroot]
+#         dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0
+#     else:
+#         u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = PlantX.PlantAlloc.calculate(
+#             W_L[it],
+#             W_R[it],
+#             Climate_soilTheta_z_f(time_axis[it]),
+#             Climate_airTempC_f(time_axis[it]),
+#             Climate_airTempC_f(time_axis[it]),
+#             Climate_airRH_f(time_axis[it]),
+#             Climate_airCO2_f(time_axis[it]),
+#             Climate_airO2_f(time_axis[it]),
+#             Climate_airPressure_f(time_axis[it]),
+#             _airUhc[it],
+#             Climate_solRadswskyb_f(time_axis[it]),
+#             Climate_solRadswskyd_f(time_axis[it]),
+#             theta[it],
+#             PlantX.SAI,
+#             _hc[it],
+#             _d_rpot[it])
+
+#     _u_Leaf[it] = u_L
+#     _u_Root[it] = u_R
+
+#     _marginalgain_leaf[it] = dGPPRmdWleaf
+#     _marginalgain_root[it] = dGPPRmdWroot
+#     _marginalcost_leaf[it] = dSdWleaf
+#     _marginalcost_root[it] = dSdWroot
+
+#     _trflux_Leaf[it] = _tr_Leaf[it]*res["y"][0,it]
+#     _trflux_Stem[it] = _tr_Leaf[it]*res["y"][1,it]
+#     _trflux_Root[it] = _tr_Leaf[it]*res["y"][2,it]
+#     _trflux_Seed[it] = _tr_Leaf[it]*res["y"][3,it]
+
+#     _Cflux_harvest_Leaf[it] = PlantX.calculate_BioHarvest(res["y"][0,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestLeaf,PlantX.Management.PhHarvestTurnoverTime)
+#     _Cflux_harvest_Stem[it] = PlantX.calculate_BioHarvest(res["y"][1,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestStem,PlantX.Management.PhHarvestTurnoverTime)
+#     _Cflux_harvest_Seed[it] = PlantX.calculate_BioHarvest(res["y"][3,it],Climate_doy_f(time_axis[it]),PlantX.Management.harvestDay,PlantX.propHarvestSeed,PlantX.Management.PhHarvestTurnoverTime)
+
+
+# %%
 
 # %% [markdown]
 # ### Compare numerical solvers

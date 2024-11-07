@@ -239,6 +239,7 @@ class PlantModuleCalculator:
                 'Rg': Rg,
                 'Rml': Rml,
                 'Rmr': Rmr,
+                'trflux_total': tr_[self.PlantDev.ileaf]*Cleaf + tr_[self.PlantDev.istem]*Cstem + tr_[self.PlantDev.iroot]*Croot + tr_[self.PlantDev.iseed]*Cseed,
                 'u_Leaf': u_L,
                 'u_Stem': u_Stem,
                 'u_Root': u_R,

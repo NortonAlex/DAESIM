@@ -239,7 +239,10 @@ class PlantModuleCalculator:
         dCstemdt = F_C_seed2stem + u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
         dCrootdt = F_C_seed2root + u_R*NPP - tr_[self.PlantDev.iroot]*Croot
         dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
-        dCStatedt = self.calculate_devphase_Cflux(dCstemdt, Bio_time)
+        if self.Management.cropType == "Wheat":
+            dCStatedt = self.calculate_devphase_Cflux(dCstemdt, Bio_time)
+        elif self.Management.cropType == "Canola":
+            dCStatedt = self.calculate_devphase_Cflux(NPP, Bio_time)
 
         # Prepare diagnostics if requested (N.B. diagnostics must always be the last item in the returned output)
         diagnostics = None

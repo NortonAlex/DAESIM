@@ -29,12 +29,9 @@ class PlantModuleCalculator:
 
 
     ## Module parameter attributes
-    f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     alpha_Rg: float = field(default=0.2)   ## Proportion of assimilates that are respired during growth, assumed to be fixed fraction of (GPP - Rm), usually 0.1-0.3
     SAI: float = field(default=0.1)   ## Stem area index (m2 m-2) TODO: make this a dynamic variable at some point. 
-    clumping_factor: float = field(default=0.7)   ## Foliage clumping index (-) TODO: Place this parameter in a more suitable spot/module
-    albsoib: float = field(default=0.2)   ## Soil background albedo for beam radiation (-) TODO: Place this parameter in a more suitable spot/module
-    albsoid: float = field(default=0.2)   ## Soil background albedo for diffuse radiation (-) TODO: Place this parameter in a more suitable spot/module
+    CI: float = field(default=0.5)   ## Foliage clumping index (-)
     hc_max: float = field(default=0.6)   ## Maximum canopy height (m)
     hc_max_GDDindex: float = field(default=0.75)    ## Relative growing degree day index at peak canopy height (ranges between 0-1). A rule of thumb is that canopy height peaks at anthesis (see Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017)
     d_r_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
@@ -103,9 +100,9 @@ class PlantModuleCalculator:
     GY_k_comp: float = field(default=0.01)  ## Compensation factor that controls the rate of increase in seed weight as potential seed density decreases from GY_S_dmax
 
     ## TODO: Update management module with these parameters later on
-    propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
-    propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
-    propHarvestStem: float = field(default=0.7)  ## proportion of seed carbon pool removed at harvest
+    # propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
+    # propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
+    # propHarvestStem: float = field(default=0.7)  ## proportion of seed carbon pool removed at harvest
     
     def calculate(
         self,
@@ -145,9 +142,9 @@ class PlantModuleCalculator:
         F_C_seed2leaf, F_C_seed2stem, F_C_seed2root = self.calculate_emergence_fluxes(Bio_time, Cseedbed)  # Fluxes from seedbed (i.e. sowed seeds) to plant pools
 
         # Harvest event and rates
-        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
-        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.propHarvestStem,self.Management.PhHarvestTurnoverTime)
-        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
+        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.Management.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
+        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.Management.propHarvestStem,self.Management.PhHarvestTurnoverTime)
+        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.Management.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
 
         # Germination: hydrothermal time state
         dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta[0])  ## assume only the uppermost soil layer controls germination
@@ -180,8 +177,8 @@ class PlantModuleCalculator:
         dGDDdt = fGerm*fV*DTT
 
         # Live leaf and root biomass pools
-        W_L = Cleaf/self.f_C
-        W_R = Croot/self.f_C
+        W_L = Cleaf/self.PlantCH2O.f_C
+        W_R = Croot/self.PlantCH2O.f_C
 
         # Photosynthesis and plant respiration rates
         if (W_L <= 0) or (W_R <= 0):
@@ -191,9 +188,9 @@ class PlantModuleCalculator:
         else:
             # Calculate wind speed at top-of-canopy
             LAI = self.PlantCH2O.calculate_LAI(W_L)
-            airUhc = self.calculate_wind_speed_hc(airU,hc,LAI+self.SAI)    ## TODO: Make sure SAI is handled consistently across modules
+            airUhc = self.calculate_wind_speed_hc(airU,hc,LAI+self.SAI)
             # Calculate canopy carbon and water dynamics
-            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
+            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
         
         GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         Rml = _Rml * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
@@ -210,15 +207,15 @@ class PlantModuleCalculator:
 
         # Grain production module calculations
         if self.Management.cropType == "Wheat":
-            S_d_pot = self.calculate_wheat_grain_number(Cstate/self.f_C)    # Calculate potential seed density (often called grain number density for wheat)
+            S_d_pot = self.calculate_wheat_grain_number(Cstate/self.PlantCH2O.f_C)    # Calculate potential seed density (often called grain number density for wheat)
             W_seed_pot = S_d_pot*self.W_seedTKW0  # Calculate potential grain mass
         if self.Management.cropType == "Canola":
             S_d_pot = self.calculate_canola_seed_density(Cstate)   # Calculate potential seed density
             W_TKWseed_pot = self.seed_mass_compensation(S_d_pot)   # Calculate potential seed thousand kernel weight, considering compensation
             W_seed_pot = W_TKWseed_pot * S_d_pot    # Calculate potential seed mass
 
-        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf+Cstem+Croot, Cseed/self.f_C, W_seed_pot, Bio_time)    # Calculate stem remobilization to seed
-        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.f_C, W_seed_pot, Bio_time)    # Calculate allocation fraction to seed/grain pool
+        F_C_stem2grain = self.calculate_nsc_stem_remob(Cstem, Cleaf+Cstem+Croot, Cseed/self.PlantCH2O.f_C, W_seed_pot, Bio_time)    # Calculate stem remobilization to seed
+        u_Seed = self.calculate_grain_alloc_coeff(alloc_coeffs[self.PlantDev.iseed], Cseed/self.PlantCH2O.f_C, W_seed_pot, Bio_time)    # Calculate allocation fraction to seed/grain pool
         u_Stem = alloc_coeffs[self.PlantDev.istem]
 
         # Dynamic, optimal trajectory carbon allocation to leaves and roots
@@ -231,7 +228,7 @@ class PlantModuleCalculator:
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
         else:
-            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,hc,d_r)
+            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
 
         # ODE for plant carbon pools
         dCseedbeddt = F_C_sowing - F_C_seed2leaf - F_C_seed2stem - F_C_seed2root
@@ -385,7 +382,7 @@ class PlantModuleCalculator:
         adjusts the sowing rate, where the constant factors convert from kg ha-1 to g C m-2.
         """
         sowingTime = self.calculate_sowingtime_conditional(_doy)
-        sowingrate = sowingTime * (self.Management.sowingRate * self.f_C * 1000 / 10000)    # includes conversion of sowing rate units from kg ha-1 to g C m-2
+        sowingrate = sowingTime * (self.Management.sowingRate * self.PlantCH2O.f_C * 1000 / 10000)    # includes conversion of sowing rate units from kg ha-1 to g C m-2
         return sowingrate
 
     def calculate_sowingdepth_factor(self, Bio_time):

@@ -27,12 +27,11 @@ class PlantModel:
     SoilLayers: Callable = field(default=SoilLayers())     ## It is optional to define SoilLayers for this method. If no argument is passed in here, then default setting for SoilLayers is the default SoilLayers().
 
     ## Class parameters
-    f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1) TODO: Ensure this is only defined in one module, it is currently defined in plant_1000 and this module.
+    f_C: float = field(default=0.45)  ## Fraction of carbon in dry structural biomass (g C g d.wt-1)
     m_r_r_opt: float = field(default=0.01)  ## Maintenance respiration coefficient for roots at optimum temperature i.e. 25 deg C (d-1)
     m_r_r_Q10: float = field(default=1.4)  ## Root maintenance respiration temperature response Q10 coefficient N.B. because we use air temperature as input, we dampen the Q10 coefficient slightly to account for this, considering actual soil (or root) temperature won't vary as significantly as air temperature
     SLA: float = field(default=0.020)  ## Specific leaf area (m2 g d.wt-1), fresh leaf area per dry leaf mass
     maxLAI: float = field(default=3)  ## Maximum potential leaf area index (m2 m-2)
-    CI: float = field(default=0.5)    ## Foliage clumping index (-)  TODO: Double check default values of clumping index that is suitable for crops
     d_leaf: float = field(default=0.015)     ## Leaf dimension parameter (m), defined as the mean length of the leaf in the downwind direction, used to determine leaf boundary layer resistance
     
     soilThetaMax: float = field(default=0.5) ## Volumetric soil water content at saturation (m3 water m-3 soil)
@@ -66,7 +65,8 @@ class PlantModel:
         swskyb, ## Atmospheric direct beam solar radiation, W/m2
         swskyd, ## Atmospheric diffuse solar radiation, W/m2
         sza,    ## Solar zenith angle, degrees
-        SAI,    ## stem area index, m2 m-2  TODO: Make sure this is passed properly to each method
+        SAI,    ## stem area index, m2 m-2
+        CI,     ## foliage clumping index, -
         hc,     ## canopy height, m
         d_rpot,     ## potential root depth, m
     ) -> Tuple[float]:
@@ -129,16 +129,16 @@ class PlantModel:
         k_tot = (k_srl*self.k_rl)/(self.k_rl+k_srl)
 
         ## Calculate leaf water potential
-        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, LAI, SAI, hc, sza, swskyb, swskyd)
+        Psi_l = self.leaf_water_potential_solve(Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, LAI, SAI, CI, hc, sza, swskyb, swskyd)
 
         ## Calculate actual leaf water potential scaling factor on photosynthesis/dry-matter production
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
         ## Calculate actual gpp and stomatal conductance
-        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd)
+        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
 
         ## Calculate root water potential
-        Psi_r = self.root_water_potential(Psi_s,E,k_srl) # TODO: Calculate per layer but write out as a bulk average (analagous to bulk average Psi_l)
+        Psi_r = self.root_water_potential(Psi_s,E,k_srl)
 
         ## Calculate canopy total transpiration
         E_c = LAI * E
@@ -150,7 +150,7 @@ class PlantModel:
         return (GPP, Rm_l, Rm_r, E_c, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
-    def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, SAI, hc, sza, swskyb, swskyd):
+    def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, SAI, CI, hc, sza, swskyb, swskyd):
         """
         Calculate leaf water potential that balances water supply (root uptake) and water loss (transpiration) using the bisection method.
     
@@ -160,6 +160,8 @@ class PlantModel:
             Leaf area index (m2 m-2).
         SAI : float
             Stem area index (m2 m-2).
+        CI : float
+            Foliage clumping index (-).
         hc : float
             Canopy height (m).
         Psi_s : float
@@ -208,7 +210,7 @@ class PlantModel:
         ## Second function
         def f2(Psi_l):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd)
+            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
             return E
 
         # Define the function for which we want to find the root
@@ -508,7 +510,7 @@ class PlantModel:
         LAI = MinQuadraticSmooth(W_L*self.SLA,self.maxLAI)
         return LAI
 
-    def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, hc, sza, swskyb, swskyd):
+    def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd):
         """
         Parameters
         ----------
@@ -541,7 +543,7 @@ class PlantModel:
 
         """
 
-        An_ml, gs_ml, Rd_ml = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,self.CI,hc,sza,swskyb,swskyd)  # TODO: Modify this so SAI is an input not a module parameter
+        An_ml, gs_ml, Rd_ml = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,hc,sza,swskyb,swskyd)
 
         GPP = np.sum(An_ml + Rd_ml)*1e6
 
@@ -672,9 +674,6 @@ class PlantModel:
     def calculate_root_profile_mean(self, param_z, rooting_depth, d_soil):
         """
         Calculate the average of a given parameter over the rooting depth (without weighting by layer depth)
-
-        TODO: Modify function so that it takes in actual rooting depth, rather than just assuming the roots 
-        are at their maximum (defined by self.root_depth_max). 
 
         Parameters
         ----------

@@ -18,6 +18,9 @@ class ManagementModule:
     harvestDay: float = field(default=None)  ## day that harvest occurs, in units of ordinal day of year (DOY). If there is no harvest, set plantingDay=None
     sowingRate: float = field(default=80)    ## seed sowing rate at start of season (kg ha-1)
     sowingDepth: float = field(default=0.03)  ## seed sowing depth (m)
+    propHarvestSeed: float = field(default=1.0)  ## proportion of seed (grain) carbon pool removed at harvest
+    propHarvestLeaf: float = field(default=0.9)  ## proportion of seed (grain) carbon pool removed at harvest
+    propHarvestStem: float = field(default=0.7)  ## proportion of seed (grain) carbon pool removed at harvest
     # frequPlanting: float = field(default=0)  ## frequency of planting (days-1)
     # propPhPlanting: float = field(default=0)  ## fraction of planted biomass that is photosynthetic (almost always equal to 0, as it is seeds that are planted, which have no photosynthetic biomass. Although, this parameter allows planting of seedlings which have some photosynthetic biomass as soon as they're planted). Modification: This variable was previously defined using "frequPlanting", which didn't match with the units or its definition.
     # maxDensity: float = field(default=40)  ## number of individual plants per m2

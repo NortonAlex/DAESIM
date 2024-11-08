@@ -296,7 +296,7 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
-ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date)
+ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date,propHarvestLeaf=0.75)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
 LeafX = LeafGasExchangeModule2(Site=SiteX)
@@ -315,7 +315,6 @@ PlantX = PlantModuleCalculator(
     GDD_method="linear1",
     GDD_Tbase=0.0,
     GDD_Tupp=25.0,
-    propHarvestLeaf=0.75,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
     d_r_max=2.0,
     Vmaxremob=3.0,
@@ -452,15 +451,15 @@ imaturity = PlantX.PlantDev.phases.index("maturity")
 
 print("--- Carbon and Water ---")
 print()
-print("Total dry biomass at peak biomass =", total_carbon_t[it_peakbiomass]/PlantX.f_C)
-print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,it_peakbiomass]/PlantX.f_C)
-print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,it_peakbiomass]/PlantX.f_C)
-print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_peakbiomass]/PlantX.f_C)
+print("Total dry biomass at peak biomass =", total_carbon_t[it_peakbiomass]/PlantX.PlantCH2O.f_C)
+print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,it_peakbiomass]/PlantX.PlantCH2O.f_C)
+print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,it_peakbiomass]/PlantX.PlantCH2O.f_C)
+print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_peakbiomass]/PlantX.PlantCH2O.f_C)
 if PlantX.Management.cropType == "Wheat":
     ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
-    print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
+    print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
-print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.f_C)
+print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 print("Total (integrated) seasonal GPP =", np.sum(diagnostics['GPP'][it_sowing:it_harvest+1]))
 print("Total (integrated) seasonal NPP =", np.sum(diagnostics['NPP'][it_sowing:it_harvest+1]))
 print("Total (integrated) seasonal Rml =", np.sum(diagnostics['Rml'][it_sowing:it_harvest+1]))
@@ -485,12 +484,12 @@ print("Relative GDD to maturity =", (sum(PlantX.PlantDev.gdd_requirements[:imatu
 print()
 print("--- Grain Production ---")
 print()
-print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.f_C)
-print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C)
+print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.PlantCH2O.f_C)
+print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C)
 ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
-print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.f_C)
+print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
-print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.f_C/PlantX.W_seedTKW0)
+print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
 
 # %% [markdown]
 # ### Create figures
@@ -613,7 +612,7 @@ peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    
 harvest_index = res["y"][3,itime_HI]/(res["y"][0,itime_HI]+res["y"][1,itime_HI]+res["y"][2,itime_HI]+res["y"][3,itime_HI])
 harvest_index_peak = res["y"][3,itime_HI]/peak_accumulated_carbon_noseed
 harvest_index_peak_noroot = res["y"][3,itime_HI]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3,itime_HI]/100 * (1/PlantX.f_C)   ## convert gC m-2 to t dry biomass ha-1
+yield_from_seed_Cpool = res["y"][3,itime_HI]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].set_ylim([0,600])
@@ -711,19 +710,19 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)
 
-axes[0].plot(time_axis, res["y"][1,:]/PlantX.f_C, label="Stem")
+axes[0].plot(time_axis, res["y"][1,:]/PlantX.PlantCH2O.f_C, label="Stem")
 axes[0].set_ylabel("Stem dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")       
-SDW_a = res["y"][7,-1]/PlantX.f_C
+SDW_a = res["y"][7,-1]/PlantX.PlantCH2O.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
 axes[0].set_ylim([0,500])
 
 axes[1].plot(diagnostics['t'], diagnostics['S_d_pot'], c='0.25', label="Potential seed density")
-axes[1].plot(time_axis, res["y"][3,:]/PlantX.f_C/PlantX.W_seedTKW0, label="Actual seed density")
+axes[1].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0, label="Actual seed density")
 axes[1].set_ylabel(r"$\rm S_d$"+"\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
 axes[1].legend()
 # axes[1].set_ylim([0,22])
 
-axes[2].plot(time_axis, res["y"][3,:]/PlantX.f_C)
+axes[2].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
 axes[2].set_ylim([0,500])

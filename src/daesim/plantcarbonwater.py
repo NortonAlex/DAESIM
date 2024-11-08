@@ -40,8 +40,6 @@ class PlantModel:
     K_sat: float = field(default=12)         ## Saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1)
     
     ksr_coeff: float = field(default=500)    ## scale factor for soil-to-root conductivity/conductance (TODO: Check units and definition); conversion factor for soil hydraulic conductivity and root biomass density to a soil-to-root conductivity/conductance. In some models this is represented by a single root occupying a cylinder of soil. In principle, it considers the distance water travels from the bulk soil to the root surface, root geometry (e.g. radius) and conducting propoerties of the root. Typical values range from approx 100-18000
-    d_soil: float = field(default=1.0)       ## depth of soil layer (m)
-    f_r: float = field(default=1.0)          ## fraction of roots in soil layer (unitless)
     root_distr_d50: float = field(default=0.15)  ## Soil depth at which 50% of total root amount is accumulated (m) i.e. 50% of roots occur above this depth
     root_distr_c: float = field(default=-1.2)     ## A dimensionless shape-parameter to describe root distribution in soil profile (-)
     SRD: float = field(default=0.01)         ## Specific root depth, represents the ratio of root depth to total root dry biomass (m g.dwt-1)

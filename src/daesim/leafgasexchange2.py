@@ -32,14 +32,14 @@ class LeafGasExchangeModule2:
     )  ## Michaelis-Menten kinetic coefficient for O2 (VonCaemmerer and Furbank, 1999), bar
     spfy_opt: float = field(
         default=2600.0
-    )  ## Specificity (tau in Collatz e.a. 1991). This is, in theory, Vcmax/Vomax.*Ko./Kc, but used as a separate parameter.
+    )  ## Specificity (tau in Collatz et al. 1991). This is, in theory, Vcmax/Vomax.*Ko./Kc, but used as a separate parameter.
 
     Vcmax_opt: float = field(
         default=100.0*1e-6
     )  ## Maximum Rubisco activity at optimum temperature, mol CO2 m-2 s-1
     Jmax_opt: float = field(
         default=150.0*1e-6
-        ) ## Maximum electron transport rate at optimum temperature, mol e-1 m-2 s-1
+        ) ## Maximum electron transport rate at optimum temperature, mol e m-2 s-1
     theta: float = field(default=0.85)  ## Empirical curvature parameter for the shape of light response curve
     alpha: float = field(default=0.24)  ## Quantum yield of electron transport (mol mol-1)
     TPU_opt_rVcmax: float = field(default=0.1666)  ## TPU as a ratio of Vcmax_opt (from Bonan, 2019, Chapter 11, p. 171)

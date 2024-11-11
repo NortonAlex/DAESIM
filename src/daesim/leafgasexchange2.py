@@ -94,7 +94,7 @@ class LeafGasExchangeModule2:
 
         # g1 and g0 are input ALWAYS IN UNITS OF H20
         # G0 must be converted to CO2 (but not G1, see below)
-        g0 = self.g0/1.6
+        g0 = self.g0/self.GCtoGW
 
         VPD = self.Site.compute_VPD(T,RH)*1e-3
         VPDuse = np.maximum(VPD, self.VPDmin)    ## Set VPD values below lower limit to VPDmin to ensure gs doesn't go wacky

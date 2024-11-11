@@ -62,8 +62,8 @@ class LeafGasExchangeModule2:
     atheta: float = field(default=1-1e-04)  ## Empirical smoothing parameter to allow for co-limitation of Vc and Ve. In Johnson and Berry (2021) model this must equal 1 (i.e. no smoothing). 
 
     ## Stomatal conductance constants
-    g0: float = field(default=0.0)   ## g0, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
-    g1: float = field(default=3.0)   ## g1, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
+    g0: float = field(default=0.0)   ## g0, mol H2O m-2 s-1, see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
+    g1: float = field(default=3.0)   ## g1, kPa^(0.5) (N.B. when VPD is expressed in kPa, g1 is in units of kPa^(0.5)), see Medlyn et al. (2011, doi: 10.1111/j.1365-2486.2012.02790.x) 
     VPDmin: float = field(default=0.5)  ## Below vpdmin, VPD=vpdmin, to avoid very high gs, see Duursma (2015, doi: 10.1371/journal.pone.0143346)
     whichA: str = field(default="Ah")  ## Photosynthetic limiting rate that stomatal conductance responds to. One of the options "Ah", "Aj", "Ac". TODO: Add check on initialisation to ensure whichA is defined as one these options. 
     GCtoGW: float = field(default=1.57)  ## Conversion factor from conductance to CO2 to H2O
@@ -105,8 +105,8 @@ class LeafGasExchangeModule2:
         Vj = J/4
 
         # Solve for Ci under both limiting rate conditions
-        Ci_c = self.getCi_c(Vj,GsDIVA,Q,Cs,Rd,Vcmax,Km,Gamma_star)
-        Ci_j = self.getCi_j(Vj,GsDIVA,Q,Cs,Rd,Vcmax,Km,Gamma_star)
+        Ci_c = self.getCi_c(Vj,GsDIVA,Q,Cs,Rd,Vcmax,Km,Gamma_star,g0)
+        Ci_j = self.getCi_j(Vj,GsDIVA,Q,Cs,Rd,Vcmax,Km,Gamma_star,g0)
 
         ## Calculate Rubisco and RuBP-regen photosynthetic rates (without mesophyll conductance)
         Ac = Vcmax*(Ci_c - Gamma_star)/(Ci_c + Km)
@@ -128,7 +128,7 @@ class LeafGasExchangeModule2:
         An = Am - Rd
 
         ## Stomatal conductance to CO2
-        gsc = self.conductance_to_CO2(An, Ac, Aj, Rd, GsDIVA)
+        gsc = self.conductance_to_CO2(An, Ac, Aj, Rd, GsDIVA, g0)
 
         ## Stomatal conductance to H2O
         gsw = gsc*self.GCtoGW
@@ -149,39 +149,39 @@ class LeafGasExchangeModule2:
         J = (self.alpha*Q + Jmax - np.sqrt((self.alpha*Q + Jmax)**2 - 4*self.alpha*self.theta*Q*Jmax))/(2*self.theta)
         return J
 
-    def getCi_c_conditional(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star):
+    def getCi_c_conditional(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0):
         if (Vj == 0) or (Q == 0):
             return (Ca, Ca)
         
         # Solution when Rubisco activity is limiting
         # a, b and c are coefficients to a quadratic equation
-        a = self.g0 + GsDIVA * (Vcmax - Rd)
-        b = (1 - Ca*GsDIVA) * (Vcmax - Rd) + self.g0*(Km - Ca) - GsDIVA*(Vcmax*Gamma_star + Km*Rd)
-        c =  -(1 - Ca*GsDIVA) * (Vcmax*Gamma_star + Km*Rd) - self.g0*Km*Ca
+        a = g0 + GsDIVA * (Vcmax - Rd)
+        b = (1 - Ca*GsDIVA) * (Vcmax - Rd) + g0*(Km - Ca) - GsDIVA*(Vcmax*Gamma_star + Km*Rd)
+        c =  -(1 - Ca*GsDIVA) * (Vcmax*Gamma_star + Km*Rd) - g0*Km*Ca
         Ci_c = self.quadp(a,b,c)
         
         return Ci_c
 
-    def getCi_c(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star):
+    def getCi_c(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0):
         _vfunc = np.vectorize(self.getCi_c_conditional)
-        Ci_c = _vfunc(Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star)
+        Ci_c = _vfunc(Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0)
         return Ci_c
 
-    def getCi_j_conditional(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star):
+    def getCi_j_conditional(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0):
         if (Vj == 0) or (Q == 0):
             return (Ca, Ca)
         
         # Solution when electron transport is limiting
-        a = self.g0 + GsDIVA * (Vj - Rd)
-        b = (1 - Ca*GsDIVA) * (Vj - Rd) + self.g0 * (2.*Gamma_star - Ca) - GsDIVA * (Vj*Gamma_star + 2.*Gamma_star*Rd)
-        c = -(1 - Ca*GsDIVA) * Gamma_star * (Vj + 2*Rd) - self.g0*2*Gamma_star*Ca
+        a = g0 + GsDIVA * (Vj - Rd)
+        b = (1 - Ca*GsDIVA) * (Vj - Rd) + g0 * (2.*Gamma_star - Ca) - GsDIVA * (Vj*Gamma_star + 2.*Gamma_star*Rd)
+        c = -(1 - Ca*GsDIVA) * Gamma_star * (Vj + 2*Rd) - g0*2*Gamma_star*Ca
         Ci_j = self.quadp(a,b,c)
 
         return Ci_j
 
-    def getCi_j(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star):
+    def getCi_j(self,Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0):
         _vfunc = np.vectorize(self.getCi_j_conditional)
-        Ci_j = _vfunc(Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star)
+        Ci_j = _vfunc(Vj,GsDIVA,Q,Ca,Rd,Vcmax,Km,Gamma_star,g0)
         return Ci_j
 
     def adjust_for_lcp_conditional(self, Aj, Rd, Ca, Gamma_star, Vj, Ci_c, Ci_j):
@@ -288,7 +288,7 @@ class LeafGasExchangeModule2:
         Am = _vfunc(Ap,Am)
         return Am
 
-    def conductance_to_CO2(self, An, Ac, Aj, Rd, GsDIVA):
+    def conductance_to_CO2(self, An, Ac, Aj, Rd, GsDIVA, g0):
         """
         Calculates conductance to CO2 based on the chosen limiting rate that stomata respond to. 
         
@@ -315,7 +315,7 @@ class LeafGasExchangeModule2:
         The conductance can be negative (e.g. Am-Rd < 0), so we take the maximum of g0 and the 
         chosen stomatal conductance equation.
         """
-        gs = np.maximum(self.g0, (self.whichA == "Ah")*(self.g0+GsDIVA*An) + (self.whichA == "Ac")*(self.g0+GsDIVA*(Ac-Rd)) + (self.whichA == "Aj")*(self.g0+GsDIVA*(Aj-Rd)))
+        gs = np.maximum(g0, (self.whichA == "Ah")*(g0+GsDIVA*An) + (self.whichA == "Ac")*(g0+GsDIVA*(Ac-Rd)) + (self.whichA == "Aj")*(g0+GsDIVA*(Aj-Rd)))
         return gs
     
     def compute_A_TPU_rate(self,TPU,Ci,Gamma_star):

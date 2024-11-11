@@ -84,25 +84,22 @@ class PlantModuleCalculator:
 
     specified_phase: str = field(default="spike")  ## Developmental phase when accumulation of a defined carbon flux occurs. Usually used to support the grain production module. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
 
+    ## Grain production module parameters
+    grainfill_phase: str = field(default="grainfill")  ## Name of developmental/growth phase in which grain filling occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    
     ## Grain production module parameters for wheat (triticum)
-    grainfill_phase: str = field(default="fruiting")  ## Name of developmental/growth phase in which grain filling occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
     W_seedTKW0: float = field(default=35.0)  ## Wheat: Thousand kernel weight of grain (g thousand grains-1), acceptable range 28-48
     GY_FE: float = field(default=0.1)  ## Wheat: Reproductive (fruiting) efficiency (thousand grains g d.wt of spike-1), acceptable range 80-210
     GY_GN_max: float = field(default=20)  ## Wheat: Maximum potential grain number per ground area (default 20 thousand grains m-2), acceptable range 18-22
     GY_SDW_50: float = field(default=100)  ## Wheat: Spike dry weight at anthesis (SDW_a) at which grain number is half of GY_GN_max (default 100 g d.wt m-2), acceptable range 80-150
     GY_k: float = field(default=0.02)  ## Wheat: Growth rate controlling steepness of grain number sigmoid function (default 0.02), acceptable range 0.01-0.03
-
+    
     ## Grain production module parameters for canola (Brassica napus L.)
     GY_B: float = field(default=100)  ## Rate constant (g C m-2 ground area) describing the rate of increase in potential seed density relative to cumulative NPP during anthesis
     GY_S_dmin: float = field(default=30)  ## Minimum potential seed density (thousand seeds m-2 ground area)
     GY_S_dmax: float = field(default=130)  ## Maximum potential seed density (thousand seeds m-2 ground area)
-    GY_W_TKWseed_base: float = field(default=4.0)  ## Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0.
-    GY_k_comp: float = field(default=0.01)  ## Compensation factor that controls the rate of increase in seed weight as potential seed density decreases from GY_S_dmax
-
-    ## TODO: Update management module with these parameters later on
-    # propHarvestSeed: float = field(default=1.0)  ## proportion of seed carbon pool removed at harvest
-    # propHarvestLeaf: float = field(default=0.9)  ## proportion of seed carbon pool removed at harvest
-    # propHarvestStem: float = field(default=0.7)  ## proportion of seed carbon pool removed at harvest
+    GY_W_TKWseed_base: float = field(default=4.0)  ## Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0 (g thousand seeds-1)
+    GY_k_comp: float = field(default=0.01)  ## Compensation factor that controls the rate of increase in seed weight as potential seed density decreases from GY_S_dmax (g m2 thousand seeds-1)
     
     def calculate(
         self,
@@ -312,19 +309,24 @@ class PlantModuleCalculator:
         Parameters
         ----------
         VD : float or array_like
-            Vernalization days
+            Vernalization days (deg C d)
         VD50 : float
-            Vernalization days where vernalization fraction is 50%
+            Vernalization days where vernalization fraction is 50% (deg C d)
         n : float
-            Vernalization sigmoid function shape parameter for "nonlinear" model
+            Vernalization sigmoid function shape parameter for "nonlinear" model (-)
         Vnd : float
-            Vernalization requirement (vernalization state where total vernalization is achieved) for the "linear" model
+            Vernalization requirement (vernalization state where total vernalization is achieved) for the "linear" model (deg C d)
         Vnb : float
-            Base vernalization days for the "linear" model
+            Base vernalization days for the "linear" model (deg C d)
         Rv : float 
-            Vernalization sensitivity factor for the "APSIM-Wheat-O" model
+            Vernalization sensitivity factor for the "APSIM-Wheat-O" model (-)
         method : str
             One of "linear", "nonlinear", or "APSIM-Wheat-O"
+
+        Returns
+        -------
+        fV : float or array_like
+            Vernalization developmental rate factor (-)
 
         Notes
         -----
@@ -625,14 +627,14 @@ class PlantModuleCalculator:
             Minimum potential seed density (thousand seeds m-2 ground area).
         S_dmax : float
             Maximum potential seed density (thousand seeds m-2 ground area).
-        W_seed_base : float
-            Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0.
+        W_TKWseed_base : float
+            Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0 (g thousand seeds-1)
         k_comp : float
-            Compensation factor that controls the rate of increase in W_seed as S_dpot decreases from S_dmax.
+            Compensation factor that controls the rate of increase in W_seed as S_dpot decreases from S_dmax (g m2 thousand seeds-2).
         
         Returns
         -------
-        float: Compensated seed weight (W_seed).
+        float: Compensated seed weight, W_seed (g thousand seeds-1)
 
         Notes
         -----
@@ -649,6 +651,7 @@ class PlantModuleCalculator:
             return self.GY_W_TKWseed_base
         # When S_dmin <= S_dpot < S_dmax, linearly increase W_seed with slope k_comp
         elif self.GY_S_dmin <= S_dpot < self.GY_S_dmax:
+            g/thsndgrains = g/thsndgrains + k * (thsndgrains/m2 - thsndgrains/m2)
             W_seed = self.GY_W_TKWseed_base + self.GY_k_comp * (self.GY_S_dmax - S_dpot)
             return W_seed
         # When S_dpot < S_dmin, keep W_seed constant at the value when S_dpot = S_dmin
@@ -673,9 +676,9 @@ class PlantModuleCalculator:
         FE : float
             Fruiting efficiency (thousand grains g d.wt of spike-1)
         GN_max : float
-            Maximum potential grain number (default 20 thousand grains m-2)
+            Maximum potential grain number (thousand grains m-2)
         SDW_50 : float 
-            SDW_a at which grain number is half of GN_max (default 10.0 g d.wt m-2)
+            SDW_a at which grain number is half of GN_max (g d.wt m-2)
         k : float
             Growth rate controlling steepness (default 0.02)
         

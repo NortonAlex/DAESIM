@@ -40,6 +40,8 @@ class LeafGasExchangeModule2:
     Jmax_opt: float = field(
         default=150.0*1e-6
         ) ## Maximum electron transport rate at optimum temperature, mol e m-2 s-1
+    Jmax_opt_rVcmax: float = field(default=None)  ## Jmax_opt as a ratio of Vcmax_opt, if not None, then the Jmax_opt parameter is updated using this ratio
+    Jmax_opt_rVcmax_method: str = field(default="linear")  ## Method for relating Jmax_opt to Vcmax_opt, ("linear", "log") (see Walker et al., 2014, doi: 10.1002/ece3.1173)
     theta: float = field(default=0.85)  ## Empirical curvature parameter for the shape of light response curve
     alpha: float = field(default=0.24)  ## Quantum yield of electron transport (mol mol-1)
     TPU_opt_rVcmax: float = field(default=0.1666)  ## TPU as a ratio of Vcmax_opt (from Bonan, 2019, Chapter 11, p. 171)
@@ -80,6 +82,9 @@ class LeafGasExchangeModule2:
         RH,   ## Relative humidity, %
         fgsw, ## Leaf water potential limitation factor on stomatal conductance, unitless
     ) -> Tuple[float]:
+
+        # Ensure Jmax_opt is updated before running calculations, as it can be assigned direction using Jmax_opt or set using a relationship with Vcmax_opt
+        self.update_Jmax_opt()
 
         # Calculate derived variables from constants
         Jmax = fT_arrheniuspeaked(self.Jmax_opt,T,E_a=self.Jmax_Ea,H_d=self.Jmax_Hd,DeltaS=self.Jmax_DeltaS)       # Maximum electron transport rate, mol e-1 m-2 s-1
@@ -327,6 +332,33 @@ class LeafGasExchangeModule2:
 
     def set_Vqmax_for_layer(self, Vqmax_opt, adjustment_factor):
         self.Vqmax_opt =  Vqmax_opt * adjustment_factor
+
+    def update_Jmax_opt(self):
+        """
+        Updates Jmax_opt based on the value of Jmax_opt_rVcmax and Vcmax_opt.
+        If Jmax_opt_rVcmax is None, Jmax_opt remains unchanged.
+
+        Notes
+        -----
+        For Jmax_opt_rVcmax_method == "log", there is a log-transformed relationship 
+        between Jmax_opt and Vcmax_opt as described in Walker et al. (2014). The 
+        global relationship found in that study (as implemented in Walker et al., 
+        2017) suggests that Jmax = np.e * Vcmax**b, where b=0.89 which is the slope 
+        parameter in the log-log transformed relationship. 
+
+        References
+        ----------
+        For background on the log relationship between Jmax and Vcmax, see 
+        Walker et al., 2014, doi: 10.1002/ece3.1173)
+        Walker et al., 2017, doi: 10.1111/nph.14623
+        """
+        if self.Jmax_opt_rVcmax is not None:
+            if self.Jmax_opt_rVcmax_method == "linear":
+                # Linear relationship
+                self.Jmax_opt = self.Jmax_opt_rVcmax * self.Vcmax_opt
+            elif self.Jmax_opt_rVcmax_method == "log":
+                # Power law relationship (Walker et al., 2014; 2017)
+                self.Jmax_opt = np.e * self.Vcmax_opt**self.Jmax_opt_rVcmax
 
     def quadp(self, a, b, c):
         """

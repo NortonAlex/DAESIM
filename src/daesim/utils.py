@@ -334,6 +334,10 @@ class ODEModelSolver:
 
         return result
 
+    def reset_diagnostics(self):
+        """Resets the diagnostics dictionary to its default empty state."""
+        self.diagnostics = defaultdict(list)
+
 
 class SolveError(Exception):
     """Custom exception for solver errors."""

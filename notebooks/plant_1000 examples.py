@@ -255,6 +255,8 @@ time_axis = np.arange(135, 335, 1)   ## Note: time_axis represents the simulatio
 sowing_date = 135
 harvest_date = 330
 
+
+
 # %%
 ## PlantDev
 # PlantDevX = PlantGrowthPhases(
@@ -322,6 +324,7 @@ PlantX = PlantModuleCalculator(
     remob_phase="grainfill",
     specified_phase="spike",
     grainfill_phase="grainfill",
+    downreg_phase="maturity",
 )
 
 # %%
@@ -329,7 +332,6 @@ PlantX = PlantModuleCalculator(
 PlantXCalc = PlantX.calculate
 
 Model = ODEModelSolver(calculator=PlantXCalc, states_init=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], time_start=time_axis[0], log_diagnostics=True)
-
 
 forcing_inputs = [Climate_solRadswskyb_f,
                   Climate_solRadswskyd_f,
@@ -346,6 +348,10 @@ forcing_inputs = [Climate_solRadswskyb_f,
 
 reset_days = [PlantX.Management.sowingDay, PlantX.Management.harvestDay]
 
+# %%
+Model.reset_diagnostics()
+
+# %%
 res = Model.run(
     time_axis=time_axis,
     forcing_inputs=forcing_inputs,
@@ -366,6 +372,9 @@ _diagnostics = dict(Model.diagnostics)
 diagnostics = {key: np.array(value) for key, value in _diagnostics.items()}
 
 # %%
+# In the model idevphase can equal None but that is not useable in post-processing, so we set None values to np.nan
+diagnostics["idevphase"][diagnostics["idevphase"] == None] = np.nan
+
 ## Conversion notes: When _E units are mol m-2 s-1, multiply by molar mass H2O to get g m-2 s-1, divide by 1000 to get kg m-2 s-1, multiply by 60*60*24 to get kg m-2 d-1, and 1 kg m-2 d-1 = 1 mm d-1. 
 ## Noting that 1 kg of water is equivalent to 1 liter (L) of water (because the density of water is 1000 kg/m³), and 1 liter of water spread over 1 square meter results in a depth of 1 mm
 diagnostics["E_mmd"] = diagnostics["E"]*18.015/1000*(60*60*24)
@@ -376,11 +385,18 @@ _tr_Root = np.zeros(diagnostics['t'].size)
 _tr_Stem = np.zeros(diagnostics['t'].size)
 _tr_Seed = np.zeros(diagnostics['t'].size)
 for it, t in enumerate(diagnostics['t']):
-    tr_ = PlantX.PlantDev.turnover_rates[diagnostics['idevphase'][it]]
-    _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
-    _tr_Root[it] = tr_[PlantX.PlantDev.iroot]
-    _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
-    _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
+    if np.isnan(diagnostics['idevphase'][it]):
+        tr_ = PlantX.PlantDev.turnover_rates[-1]
+        _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
+        _tr_Root[it] = tr_[PlantX.PlantDev.iroot]
+        _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
+        _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
+    else:
+        tr_ = PlantX.PlantDev.turnover_rates[diagnostics['idevphase'][it]]
+        _tr_Leaf[it] = tr_[PlantX.PlantDev.ileaf]
+        _tr_Root[it] = tr_[PlantX.PlantDev.iroot]
+        _tr_Stem[it] = tr_[PlantX.PlantDev.istem]
+        _tr_Seed[it] = tr_[PlantX.PlantDev.iseed]
 
 diagnostics['tr_Leaf'] = _tr_Leaf
 diagnostics['tr_Root'] = _tr_Root
@@ -435,7 +451,18 @@ it_sowing = np.where(time_axis == PlantX.Management.sowingDay)[0][0]
 it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
 
 # Diagnose time indexes when developmental phase transitions occur
-it_phase_transitions = np.where(np.diff(diagnostics['idevphase']) != 0)[0] + 1
+
+# Convert the array to a numeric type, handling mixed int and float types
+idevphase = np.array(diagnostics['idevphase'],dtype=np.float64)
+valid_mask = ~np.isnan(idevphase)
+
+# Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
+it_phase_transitions = np.where(
+    ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
+    valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
+    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase_numeric) != 0))  # Number-to-different-number
+)[0] + 1
+
 # Filter out transitions that occur after the harvest day
 it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= PlantX.Management.harvestDay]
 
@@ -548,6 +575,8 @@ plt.tight_layout()
 
 
 # %%
+
+# %%
 fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
 
 axes[0].plot(diagnostics["t"], diagnostics["LAI"])
@@ -581,9 +610,14 @@ for itime in it_phase_transitions:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
-    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-            fontsize=8, alpha=0.7, rotation=90)
+    if ~np.isnan(diagnostics['idevphase'][itime]):
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+    elif np.isnan(diagnostics['idevphase'][itime]):
+        phase = "mature"
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([ylimmin, ylimmax])
 
 alp = 0.6
@@ -632,6 +666,8 @@ plt.tight_layout()
 
 
 # %%
+
+# %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
 
 axes[0].plot(diagnostics["t"], diagnostics["GPP"])
@@ -661,6 +697,10 @@ axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_GPPRaCUE.png" % site_filename,dpi=300,bbox_inches='tight')
+
+
+# %%
 
 # %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
@@ -693,9 +733,14 @@ for ax in axes:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
         text_y = 0.5 * ylimmax
-        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-                fontsize=8, alpha=0.7, rotation=90)
+        if ~np.isnan(diagnostics['idevphase'][itime]):
+            phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
+        elif np.isnan(diagnostics['idevphase'][itime]):
+            phase = "mature"
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
 
@@ -706,6 +751,7 @@ axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_carbon_balance.png" % site_filename,dpi=300,bbox_inches='tight')
+
 
 # %%
 fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)
@@ -734,9 +780,14 @@ for ax in axes:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
         text_y = 0.5 * ylimmax
-        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-                fontsize=8, alpha=0.7, rotation=90)
+        if ~np.isnan(diagnostics['idevphase'][itime]):
+            phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
+        elif np.isnan(diagnostics['idevphase'][itime]):
+            phase = "mature"
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
 axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
@@ -760,9 +811,14 @@ for itime in it_phase_transitions:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
-    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-            fontsize=8, alpha=0.7, rotation=90)
+    if ~np.isnan(diagnostics['idevphase'][itime]):
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+    elif np.isnan(diagnostics['idevphase'][itime]):
+        phase = "mature"
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
 axes[1,0].plot(diagnostics['t'], diagnostics['DTT'], c='C0', linestyle=":", label="DTT")
@@ -784,9 +840,14 @@ for itime in it_phase_transitions:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
-    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-            fontsize=8, alpha=0.7, rotation=90)
+    if ~np.isnan(diagnostics['idevphase'][itime]):
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+    elif np.isnan(diagnostics['idevphase'][itime]):
+        phase = "mature"
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
 axes[1,1].plot(diagnostics['t'], diagnostics['fV'])
@@ -800,9 +861,14 @@ for itime in it_phase_transitions:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
-    phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-    ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-            fontsize=8, alpha=0.7, rotation=90)
+    if ~np.isnan(diagnostics['idevphase'][itime]):
+        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
+    elif np.isnan(diagnostics['idevphase'][itime]):
+        phase = "mature"
+        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
 axes[0,2].plot(res["t"], res["y"][6])
@@ -877,9 +943,14 @@ for ax in axes:
         ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = res["t"][itime] + 1.5
         text_y = 0.5 * ylimmax
-        phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-        ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-                fontsize=8, alpha=0.7, rotation=90)
+        if ~np.isnan(diagnostics['idevphase'][itime]):
+            phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
+        elif np.isnan(diagnostics['idevphase'][itime]):
+            phase = "mature"
+            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
+                    fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
 # plt.grid(True)

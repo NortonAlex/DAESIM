@@ -83,6 +83,7 @@ class PlantModuleCalculator:
     Kmremob: float = field(default=0.4)  ## Michaelis-Menten kinetic parameter (unitless; same units as substrate in Michaelis-Menten equation which, in this case, is a unitless ratio)
 
     specified_phase: str = field(default="spike")  ## Developmental phase when accumulation of a defined carbon flux occurs. Usually used to support the grain production module. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    downreg_phase: str = field(default="maturity")  ## Developmental phase when down-regulation of selected physiological parameters occurs. Usually occurs during maturity or senescence. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
 
     ## Grain production module parameters
     grainfill_phase: str = field(default="grainfill")  ## Name of developmental/growth phase in which grain filling occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
@@ -100,6 +101,11 @@ class PlantModuleCalculator:
     GY_S_dmax: float = field(default=130)  ## Maximum potential seed density (thousand seeds m-2 ground area)
     GY_W_TKWseed_base: float = field(default=4.0)  ## Base thousand kernel weight of seed when S_dpot = S_dmax or when k_comp=0 (g thousand seeds-1)
     GY_k_comp: float = field(default=0.01)  ## Compensation factor that controls the rate of increase in seed weight as potential seed density decreases from GY_S_dmax (g m2 thousand seeds-1)
+
+    ## Parameters that are set and need storage
+    p1: float = field(default=None)
+    p2: float = field(default=None)
+    p3: float = field(default=None)
     
     def calculate(
         self,
@@ -159,11 +165,24 @@ class PlantModuleCalculator:
         # Calculate root depth
         relative_gdd_anthesis = self.PlantDev.calc_relative_gdd_to_anthesis(Bio_time)
         d_r = self.calculate_root_depth(relative_gdd_anthesis)
+
+        # Down-regulate selected physiological parameters during senescence/maturity phase
+        # TODO: This is not good coding practice, need to find a better way to handle this
+        if self.downreg_phase is not None:
+            if self.PlantDev.is_in_phase(Bio_time, self.downreg_phase):
+                scaling_factor = self.PlantDev.index_progress_through_phase(Bio_time, self.downreg_phase)
+                self.PlantCH2O.k_rl = self.scale_parameter(self.p1, 1, scaling_factor)  # assume 100% downregulation of k_rl
+                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.scale_parameter(self.p2, 1, scaling_factor)  # assume 100% downregulation of Vcmax_opt
+                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.scale_parameter(self.p3, 1, scaling_factor)  # assume 100% downregulation of g1
+            else:
+                self.p1 = self.PlantCH2O.k_rl
+                self.p2 = self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt
+                self.p3 = self.PlantCH2O.CanopyGasExchange.Leaf.g1
         
         # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
         VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
-        self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]    # Update vernalization days requirement for current developmental phase
+        self.VD50 = (0.5*self.PlantDev.vd_requirements[idevphase] if idevphase is not None else 0)    # Update vernalization days requirement for current developmental phase
         deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
         dVDdt = deltaVD
 
@@ -197,10 +216,10 @@ class PlantModuleCalculator:
         # Calculate NPP
         NPP, Rg = self.calculate_NPP_RmRgpropto(GPP,Rm)
 
-        # Plant carbon allocation 
-        alloc_coeffs = self.PlantDev.allocation_coeffs[idevphase]
-        # Plant turnover rates
-        tr_ = self.PlantDev.turnover_rates[idevphase]
+        # Plant carbon allocation. N.B. allocation coefficients are zero when idevphase=None (i.e. outside of life cycle)
+        alloc_coeffs = (self.PlantDev.allocation_coeffs[idevphase] if idevphase is not None else [0]*len(self.PlantDev.phases))
+        # Plant turnover rates. N.B. turnover remains active when idevphase=None (i.e. outside of life cycle)
+        tr_ = (self.PlantDev.turnover_rates[idevphase] if idevphase is not None else self.PlantDev.turnover_rates[-1]) 
 
         # Grain production module calculations
         if self.Management.cropType == "Wheat":
@@ -228,11 +247,12 @@ class PlantModuleCalculator:
             u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
 
         # ODE for plant carbon pools
+        # N.B. the NPP allocation fluxes are constrained to be greater than 0 to ensure there is no allocation when the plant has a negative carbon balance (e.g. if Rm > GPP)
         dCseedbeddt = F_C_sowing - F_C_seed2leaf - F_C_seed2stem - F_C_seed2root
-        dCleafdt = F_C_seed2leaf + u_L*NPP - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
-        dCstemdt = F_C_seed2stem + u_Stem*NPP - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
-        dCrootdt = F_C_seed2root + u_R*NPP - tr_[self.PlantDev.iroot]*Croot
-        dCseeddt = u_Seed*NPP - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
+        dCleafdt = F_C_seed2leaf + max(u_L*NPP,0) - tr_[self.PlantDev.ileaf]*Cleaf - BioHarvestLeaf
+        dCstemdt = F_C_seed2stem + max(u_Stem*NPP,0) - tr_[self.PlantDev.istem]*Cstem - BioHarvestStem - F_C_stem2grain
+        dCrootdt = F_C_seed2root + max(u_R*NPP,0) - tr_[self.PlantDev.iroot]*Croot
+        dCseeddt = max(u_Seed*NPP,0) - tr_[self.PlantDev.iseed]*Cseed - BioHarvestSeed + F_C_stem2grain
         if self.Management.cropType == "Wheat":
             dCStatedt = self.calculate_devphase_Cflux(dCstemdt, Bio_time)
         elif self.Management.cropType == "Canola":
@@ -268,9 +288,9 @@ class PlantModuleCalculator:
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt, diagnostics)   # N.B. diagnostics must always be the last item in the returned output
 
     def calculate_NPP_RmRgpropto(self,GPP,R_m):
-        R_g = self.alpha_Rg * (GPP - R_m)
+        R_g = self.alpha_Rg * np.maximum((GPP - R_m),0)  # There can't be negative growth respiration
         R_a = R_g+R_m
-        NPP = GPP - R_a
+        NPP = GPP - R_a   # There can be negative NPP, if R_a is greater than GPP
         return NPP, R_g
 
     def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
@@ -651,7 +671,6 @@ class PlantModuleCalculator:
             return self.GY_W_TKWseed_base
         # When S_dmin <= S_dpot < S_dmax, linearly increase W_seed with slope k_comp
         elif self.GY_S_dmin <= S_dpot < self.GY_S_dmax:
-            g/thsndgrains = g/thsndgrains + k * (thsndgrains/m2 - thsndgrains/m2)
             W_seed = self.GY_W_TKWseed_base + self.GY_k_comp * (self.GY_S_dmax - S_dpot)
             return W_seed
         # When S_dpot < S_dmin, keep W_seed constant at the value when S_dpot = S_dmin
@@ -785,3 +804,21 @@ class PlantModuleCalculator:
         airUhc = self.PlantCH2O.BoundaryLayer.estimate_wind_profile_log(airU, self.Site.met_z_meas, hc, d, z0)
 
         return airUhc
+
+    def scale_parameter(self, original_value, fractional_reduction, scaling_factor):
+        """
+        Scale a parameter based on a fractional reduction and a scaling factor.
+
+        Parameters
+        ----------
+        original_value : float
+            The original value of the parameter (e.g., p0).
+        fractional_reduction : float
+            The fraction of the parameter's value to reduce by when scaling_factor is 1 (e.g., 0.1 for 10% reduction).
+        scaling_factor : float
+            A value between 0 and 1 that determines the degree of scaling (e.g., 0 means no scaling, 1 means full scaling).
+
+        Returns:
+        float : The scaled parameter value.
+        """
+        return original_value * (1 - fractional_reduction * scaling_factor)

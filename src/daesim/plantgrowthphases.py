@@ -81,6 +81,7 @@ class PlantGrowthPhases:
         else:
             return current_gdd / self.totalgdd
 
+    # TODO: change name of current_cumul_gdd and current_gdd to be consistent throughout this module
     def get_active_phase_index(self, current_cumul_gdd):
         """
         Determines the active growth phase based on the given cumulative GDD.
@@ -91,7 +92,7 @@ class PlantGrowthPhases:
             cumulative_gdd += gdd_req
             if current_cumul_gdd <= cumulative_gdd:
                 return i
-        return len(self.gdd_requirements) - 1  # Return the last phase if current_cumul_gdd exceeds total requirements
+        return None  # Return None if that if current_cumul_gdd exceeds total gdd requirements
 
     def update_vd_state(self, VRN_time, current_cumul_gdd):
         """
@@ -109,7 +110,7 @@ class PlantGrowthPhases:
         """
         return self.vd_t - self.vd_0
 
-    def calc_relative_gdd_to_anthesis(self, current_gdd):
+    def calc_relative_gdd_to_anthesis(self, current_gdd): # TODO: delete this function and its use cases as we have included a more generally applicable one below
         """
         Calculates the relative GDD index between 0 and 1, indicating the
         relative development growth phase from germination to the start of anthesis.
@@ -129,6 +130,27 @@ class PlantGrowthPhases:
         else:
             return current_gdd / anthesis_gdd
 
+    def calc_relative_gdd_to_phase(self, current_gdd, phase_name):
+        """
+        Calculates the relative GDD index between 0 and 1, indicating the
+        relative development growth phase from germination to the start of
+        the specified phase.
+        """
+        # Identify the index corresponding to the given phase
+        try:
+            phase_index = self.phases.index(phase_name)
+        except ValueError:
+            raise ValueError("%s phase not found in the growth phases. Please ensure the phase exists to determine developmental progression." % phase_name)
+
+        phase_gdd = sum(self.gdd_requirements[:phase_index])  # GDD required to reach given phase
+
+        if current_gdd <= 0:
+            return 0
+        elif current_gdd >= phase_gdd:
+            return 1
+        else:
+            return current_gdd / phase_gdd
+
     def is_in_phase(self, current_gdd, phase_name):
         """
         Returns True if the current GDD falls within the given phase (phase_name), otherwise False.
@@ -147,4 +169,24 @@ class PlantGrowthPhases:
         
         # Return True if current_gdd is within the phase range, otherwise False
         return start_gdd <= current_gdd < end_gdd
+
+    def index_progress_through_phase(self, current_gdd, phase_name):
+        """
+        Calculates the relative progress through a selected phase and returns an
+        index of that progress which ranges between 0-1. E.g. an index of 0 means
+        there has been no progress through that phase, an index of 0.5 means the
+        plant is halfway through that phase and an index of 1 means the plant is
+        at the end of that phase. If the plant is not within the define phase
+        the function returns None.
+        """
+        if phase_name is not None:
+            if self.is_in_phase(current_gdd, phase_name):
+                # Identify the index of the phase
+                phase_index = self.phases.index(phase_name)
+                # Calculate the cumulative GDD range for the given phase
+                start_gdd = sum(self.gdd_requirements[:phase_index])  # Start GDD for the phase
+                end_gdd = start_gdd + self.gdd_requirements[phase_index]  # End GDD for the phase
+                return min(1, (current_gdd - start_gdd)/self.gdd_requirements[phase_index])
+            else:
+                return None
 

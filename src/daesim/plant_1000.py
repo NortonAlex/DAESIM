@@ -35,6 +35,7 @@ class PlantModuleCalculator:
     hc_max: float = field(default=0.6)   ## Maximum canopy height (m)
     hc_max_GDDindex: float = field(default=0.75)    ## Relative growing degree day index at peak canopy height (ranges between 0-1). A rule of thumb is that canopy height peaks at anthesis (see Kukal and Irmak, 2019, doi:10.2134/agronj2019.01.0017)
     d_r_max: float = field(default=2.0)    ## Maximum potential rooting depth (m)
+    d_r_maxphase: str = field(default="anthesis")  ## Developmental phase when peak rooting depth is achieved (i.e. the start of the defined phase). Usually assumed to be start of anthesis/flowering. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
 
     ## Seed germination and emergence parameters
     germination_phase: str = field(default="germination")  ## Name of developmental/growth phase in which germination to first emergence occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
@@ -163,8 +164,8 @@ class PlantModuleCalculator:
         hc = self.calculate_canopy_height(relative_gdd)
         
         # Calculate root depth
-        relative_gdd_anthesis = self.PlantDev.calc_relative_gdd_to_anthesis(Bio_time)
-        d_r = self.calculate_root_depth(relative_gdd_anthesis)
+        relative_gdd_d_r = self.PlantDev.calc_relative_gdd_to_phase(Bio_time,self.d_r_maxphase)
+        d_r = self.calculate_root_depth(relative_gdd_d_r)
 
         # Down-regulate selected physiological parameters during senescence/maturity phase
         # TODO: This is not good coding practice, need to find a better way to handle this
@@ -283,6 +284,13 @@ class PlantModuleCalculator:
                 'S_d_pot': S_d_pot,
                 'F_C_stem2grain': F_C_stem2grain,
                 'idevphase': idevphase,
+                'fPsil': fPsil,
+                'Psil': Psil,
+                'Psir': Psir,
+                'Psis': Psis,
+                'K_s': K_s,
+                'K_sr': K_sr,
+                'k_srl': k_srl,
             }
 
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt, diagnostics)   # N.B. diagnostics must always be the last item in the returned output

@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 
 # %%
 from daesim.climate import *
-from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
 from daesim.soillayers import SoilLayers
@@ -460,7 +459,7 @@ valid_mask = ~np.isnan(idevphase)
 it_phase_transitions = np.where(
     ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
     valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
-    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase_numeric) != 0))  # Number-to-different-number
+    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
 )[0] + 1
 
 # Filter out transitions that occur after the harvest day

@@ -8,7 +8,7 @@ from attrs import define, field
 from scipy.optimize import OptimizeResult
 from scipy.integrate import solve_ivp
 from daesim.climate import *
-from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3
+from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3, growing_degree_days_DTT_linear4, growing_degree_days_DTT_linearpeaked
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
 from daesim.plantcarbonwater import PlantModel as PlantCH2O
@@ -44,7 +44,7 @@ class PlantModuleCalculator:
 
     GDD_method: str = field(
         default="nonlinear"
-        ) ## method used to calculate daily thermal time and hence growing degree days. Options are: "nonlinear", "linear1", "linear2", "linear3"
+        ) ## method used to calculate daily thermal time and hence growing degree days. Options are: "nonlinear", "linear1", "linear2", "linear3", "linear4", "linearpeaked"
     GDD_Tbase: float = field(
         default=5.0
     )  ## Base temperature (minimum threshold) used for calculating the growing degree days
@@ -314,6 +314,12 @@ class PlantModuleCalculator:
         elif self.GDD_method == "linear3":
             _vfunc = np.vectorize(growing_degree_days_DTT_linear3)
             DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp)
+        elif self.GDD_method == "linear4":
+            _vfunc = np.vectorize(growing_degree_days_DTT_linear4)
+            DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp,self.GDD_Topt)
+        elif self.GDD_method == "linearpeaked":
+            _vfunc = np.vectorize(growing_degree_days_DTT_linearpeaked)
+            DTT = _vfunc(Tmin,Tmax,self.GDD_Tbase,self.GDD_Tupp,self.GDD_Topt)
         return DTT
 
     def calculate_vernalizationtime(self,Tmin,Tmax,sunrise,sunset):

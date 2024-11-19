@@ -419,6 +419,87 @@ def growing_degree_days_DTT_linear3(Tmin,Tmax,Tb,Tu):
     elif Tu < Tavg:
         return Tu - Tb
 
+def growing_degree_days_DTT_linearpeaked(Tmin,Tmax,Tb,Tu,Topt):
+    """
+    Calculates the daily thermal time from the minimum daily temperature, maximum daily
+    temperature, and the cardinal temperatures that describe the daily thermal time 
+    temperature response model. The thermal time model assumes a linear increase from 
+    Tb to Topt, and a linear decrease from Topt to Tu (triangle shaped response). 
+
+    Parameters
+    ----------
+    Tmin: float or ndarray
+        Minimum daily air temperature (degrees Celsius)
+
+    Tmax: float or ndarray
+        Maximum daily air temperature (degrees Celsius)
+
+    Tb : float
+        Minimum threshold temperature or "base" temperature (degrees Celcsius)
+
+    Tu : float
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
+
+    Topt : float
+        Thermal optimum temperature (degrees Celsius)
+
+    Returns
+    -------
+    Daily thermal time (DTT): float or ndarray
+        Daily thermal time (degrees Celsius)
+    """
+    Tavg = (Tmin+Tmax)/2
+    if Tavg < Tb:
+        return 0
+    elif (Tavg > Tb) and (Tavg < Topt):
+        return Tavg - Tb
+    elif (Tavg >= Topt) and (Tavg < Tu):
+        slope = Topt/(Tu-Topt)
+        return Topt - slope*(Tavg - Topt)
+    elif (Tavg >= Tu):
+        return 0
+
+def growing_degree_days_DTT_linear4(Tmin,Tmax,Tb,Tu,Topt):
+    """
+    Calculates the daily thermal time (DTT) using a modified version of the linear
+    "Method 1" in McMaster and Wilhelm (1997, doi:10.1016/S0168-1923(97)00027-0)
+    that includes an upper threshold limit, at which point where DTT=0. Between Topt
+    and Tu the DTT is constant. This function requires the minimum daily temperature,
+    maximum daily temperature, and the cardinal temperatures that describe the daily
+    thermal time temperature response model.
+
+    Parameters
+    ----------
+    Tmin: float or ndarray
+        Minimum daily air temperature (degrees Celsius)
+
+    Tmax: float or ndarray
+        Maximum daily air temperature (degrees Celsius)
+
+    Tb : float
+        Minimum threshold temperature or "base" temperature (degrees Celsius)
+
+    Tu : float
+        Upper threshold temperature or "upper" temperature (degrees Celsius)
+
+    Topt : float
+        Thermal optimum temperature (degrees Celsius)
+
+    Returns
+    -------
+    Daily thermal time (DTT): float or ndarray
+        Daily thermal time (degrees Celsius)
+    """
+    Tavg = (Tmin+Tmax)/2
+    if Tavg < Tb:
+        return 0
+    elif (Tavg > Tb) and (Tavg < Topt):
+        return Tavg - Tb
+    elif (Tavg >= Topt) and (Tavg < Tu):
+        return Topt - Tb
+    elif (Tavg >= Tu):
+        return 0
+
 def MinQuadraticSmooth(x, y, eta=0.99):
     # Ensuring x, y, and eta can be numpy arrays for vector operations
     x = np.asarray(x)

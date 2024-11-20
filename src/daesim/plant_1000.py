@@ -175,6 +175,10 @@ class PlantModuleCalculator:
                 self.PlantCH2O.k_rl = self.scale_parameter(self.p1, 1, scaling_factor)  # assume 100% downregulation of k_rl
                 self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.scale_parameter(self.p2, 1, scaling_factor)  # assume 100% downregulation of Vcmax_opt
                 self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.scale_parameter(self.p3, 1, scaling_factor)  # assume 100% downregulation of g1
+            elif idevphase == None:
+                self.PlantCH2O.k_rl = self.p1  # after downreg_phase we reset the parameter back to its original value
+                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.p2  # after downreg_phase we reset the parameter back to its original value
+                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.p3  # after downreg_phase we reset the parameter back to its original value
             else:
                 self.p1 = self.PlantCH2O.k_rl
                 self.p2 = self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt

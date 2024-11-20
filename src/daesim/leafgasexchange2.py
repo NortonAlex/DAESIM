@@ -358,7 +358,7 @@ class LeafGasExchangeModule2:
                 self.Jmax_opt = self.Jmax_opt_rVcmax * self.Vcmax_opt
             elif self.Jmax_opt_rVcmax_method == "log":
                 # Power law relationship (Walker et al., 2014; 2017)
-                self.Jmax_opt = np.e * self.Vcmax_opt**self.Jmax_opt_rVcmax
+                self.Jmax_opt = 1e-6*(np.e * (1e6*self.Vcmax_opt)**self.Jmax_opt_rVcmax)   # N.B. adjusted using 1e-6 and 1e6 factors as Vcmax_opt is in units mol CO2 m-2 s-1, not umol m-2 s-1 as in original equation
 
     def quadp(self, a, b, c):
         """

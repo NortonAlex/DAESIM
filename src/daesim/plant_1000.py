@@ -79,7 +79,7 @@ class PlantModuleCalculator:
     HTT_k: float = field(default=0.07)  ## Germination slope of linear increase in psi_b when temperature increases (MPa degrees Celsius-1)
     HTT_Theta_HT: float = field(default=60.0)  ## HTT requirement for germination (MPa degrees Celcius d)
 
-    remob_phase: str = field(default="grainfill")  ## Developmental phase when stem remobilization occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    remob_phase: list[str] = field(factory=lambda: ["grainfill"])  ## Developmental phase(s) when stem remobilization occurs (list of strings). N.B. phase(s) must be defined in in PlantDev.phases in the PlantDev() module
     Vmaxremob: float = field(default=0.5)  ## Maximum potential remobilization rate (analogous to phloem loading rate) for Michaelis-Menten function (g C m-2 d-1)
     Kmremob: float = field(default=0.4)  ## Michaelis-Menten kinetic parameter (unitless; same units as substrate in Michaelis-Menten equation which, in this case, is a unitless ratio)
 
@@ -87,7 +87,7 @@ class PlantModuleCalculator:
     downreg_phase: str = field(default="maturity")  ## Developmental phase when down-regulation of selected physiological parameters occurs. Usually occurs during maturity or senescence. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
 
     ## Grain production module parameters
-    grainfill_phase: str = field(default="grainfill")  ## Name of developmental/growth phase in which grain filling occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    grainfill_phase: list[str] = field(factory=lambda: ["grainfill"])  ## Name of developmental/growth phase(s) in which grain filling occurs (list of strings). N.B. phase(s) must be defined in in PlantDev.phases in the PlantDev() module
     
     ## Grain production module parameters for wheat (triticum)
     W_seedTKW0: float = field(default=35.0)  ## Wheat: Thousand kernel weight of grain (g thousand grains-1), acceptable range 28-48
@@ -597,8 +597,8 @@ class PlantModuleCalculator:
         float or array_like
             The rate of stem remobilization based on the stem-to-leaf carbon ratio if the plant is in the remobilization phase, otherwise returns 0.
         """
-
-        if self.PlantDev.is_in_phase(current_gdd, self.remob_phase):
+        remob = any(self.PlantDev.is_in_phase(current_gdd, phase) for phase in self.remob_phase)
+        if remob:
             if W_seed/W_seed_pot <= 1:
                 # if the seed dry weight is below the maximum seed dry weight
                 # Calculate the actual stem:leaf ratio
@@ -780,7 +780,7 @@ class PlantModuleCalculator:
         continues at the maximum potential rate.
 
         """
-        grainfill = self.PlantDev.is_in_phase(current_gdd, self.grainfill_phase)
+        grainfill = any(self.PlantDev.is_in_phase(current_gdd, phase) for phase in self.grainfill_phase)
         if grainfill:
             # if plant is in the grain filling phase
             if W_seed/W_seed_pot <= 1:

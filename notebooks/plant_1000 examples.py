@@ -320,9 +320,9 @@ PlantX = PlantModuleCalculator(
     d_r_max=2.0,
     Vmaxremob=3.0,
     Kmremob=0.5,
-    remob_phase="grainfill",
+    remob_phase=["grainfill","maturity"],
     specified_phase="spike",
-    grainfill_phase="grainfill",
+    grainfill_phase=["grainfill","maturity"],
     downreg_phase="maturity",
 )
 

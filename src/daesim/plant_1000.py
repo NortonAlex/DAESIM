@@ -297,6 +297,12 @@ class PlantModuleCalculator:
                 'k_srl': k_srl,
             }
 
+        # Return down-regulated physiological parameters to original values
+        # TODO: This is not good coding practice, need to find a better way to handle this
+        self.PlantCH2O.k_rl = self.p1  # after downreg_phase we reset the parameter back to its original value
+        self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.p2  # after downreg_phase we reset the parameter back to its original value
+        self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.p3  # after downreg_phase we reset the parameter back to its original value
+
         return (dCleafdt, dCstemdt, dCrootdt, dCseeddt, dGDDdt, dVDdt, dHTTdt, dCStatedt, dCseedbeddt, diagnostics)   # N.B. diagnostics must always be the last item in the returned output
 
     def calculate_NPP_RmRgpropto(self,GPP,R_m):

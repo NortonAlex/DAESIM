@@ -505,7 +505,8 @@ class PlantModel:
         -------
         LAI: leaf area index (m2 m-2)
         """
-        LAI = MinQuadraticSmooth(W_L*self.SLA,self.maxLAI)
+        # LAI = MinQuadraticSmooth(W_L*self.SLA,self.maxLAI,eta=0.999)
+        LAI = np.minimum(W_L*self.SLA,self.maxLAI)
         return LAI
 
     def calculate_canopygasexchange(self, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd):

@@ -248,8 +248,16 @@ class PlantModuleCalculator:
             # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations, assume allocation coefficients are fixed
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
+            dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0
         else:
-            u_L, u_R, _, _, _, _ = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
+            u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = self.PlantAlloc.calculate(W_L,W_R,soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
+
+        # If there is no net benefit for allocating to leaves or roots, allocate instead to stem reserves
+        if (u_L <= 0) and (u_R <= 0):
+            u_LR_unused = 1 - u_Stem - u_Seed   # this is a useful diagnostic
+            u_Stem += u_LR_unused
+        else:
+            u_LR_unused = 0
 
         # ODE for plant carbon pools
         # N.B. the NPP allocation fluxes are constrained to be greater than 0 to ensure there is no allocation when the plant has a negative carbon balance (e.g. if Rm > GPP)
@@ -295,6 +303,11 @@ class PlantModuleCalculator:
                 'K_s': K_s,
                 'K_sr': K_sr,
                 'k_srl': k_srl,
+                'dGPPRmdWleaf':dGPPRmdWleaf,
+                'dGPPRmdWroot': dGPPRmdWroot,
+                'dSdWleaf': dSdWleaf,
+                'dSdWroot': dSdWroot,
+                'u_LR_unused': u_LR_unused,
             }
 
         # Return down-regulated physiological parameters to original values

@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.4
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -52,14 +52,64 @@ from daesim.plant_1000 import PlantModuleCalculator
 # %% [markdown]
 # #### - Import forcing data
 
+# %% [markdown]
+# #### *CSIRO Harden Experiment*
+
 # %%
-# file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2021.csv"
-file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Harden_2001.csv"
+# Step 1: Download data from the two files
+
+## Local site station data
+df_site = pd.read_csv("/Users/alexandernorton/ANU/Projects/Kirkegaard_John_18_Mar_2024/data/HardenLongTermExperiment/HardenClimate.csv", skiprows=list(range(21))+[22], encoding='ISO-8859-1')
+
+# Convert "year" and "day" into datetime
+df_site["Date"] = pd.to_datetime(df_site['year'].astype(str) + df_site['day'].astype(str).str.zfill(3), format='%Y%j')
+
+df_site["_doy"] = df_site["year"].values + df_site["day"].values/365
+
+
+## Gridded data
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Harden_2000-2019.csv"
+
+df_gridded = pd.read_csv(file)
+
+df_gridded = df_gridded.rename(columns={"date":"Date"})
+
+df_gridded['Date'] = pd.to_datetime(df_gridded['Date'])
+
+# Add ordinal day of year (DOY) and Year variables
+df_gridded["DOY"] = df_gridded["Date"].dt.dayofyear
+df_gridded["Year"] = df_gridded["Date"].dt.year
+
+
+# Step 2: Define the overlapping time window
+start_date = max(df_site['Date'].min(), df_gridded['Date'].min())
+end_date = min(df_site['Date'].max(), df_gridded['Date'].max())
+
+# Step 3: Filter both DataFrames by the time window
+df_site_tsubset = df_site[(df_site['Date'] >= start_date) & (df_site['Date'] <= end_date)]
+df_gridded_tsubset = df_gridded[(df_gridded['Date'] >= start_date) & (df_gridded['Date'] <= end_date)]
+
+
+# Step 4: Merge the DataFrames on the 'Date' column
+merged_df = pd.merge(df_site_tsubset[['Date', 'radn', 'maxt', 'mint', 'rain', 'vp']], df_gridded_tsubset[['Date', 'Year', 'DOY', 'Soil moisture', 'Uavg']], on='Date')
+
+# Rename columns
+df_forcing_all = merged_df.rename(columns={"radn":"SRAD", "maxt":"Maximum temperature", "mint":"Minimum temperature", "rain":"Precipitation", "vp": "VPeff"})
+
+# Select one year of data only
+# df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2008-01-01") & (df_forcing_all["Date"] <= "2008-12-31")]
+df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2012-01-01") & (df_forcing_all["Date"] <= "2012-12-31")]
+# df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2019-01-01") & (df_forcing_all["Date"] <= "2019-12-31")]
+
+# %% [markdown]
+# #### *Milgadara Field Site*
+
+# %%
+# file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2018.csv"
+# file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2019.csv"
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2021.csv"
 
 df_forcing = pd.read_csv(file)
-
-# %%
-df_forcing
 
 # %% [markdown]
 # #### - Generation temporally-interpolated and scaled soil moisture forcing
@@ -103,12 +153,9 @@ plt.tight_layout()
 
 ## Harden CSIRO site location-34.52194, 148.30472
 SiteX = ClimateModule(CLatDeg=-34.52194,CLonDeg=148.30472,timezone=10)
-start_doy = 1.0
-start_year = 2001
+start_doy = df_forcing["DOY"].values[0]
+start_year = df_forcing["Year"].values[0]
 nrundays = df_forcing.index.size
-
-# %% [markdown]
-# #### - Time discretization
 
 # %%
 ## Time discretisation
@@ -145,6 +192,13 @@ _soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
 _soilTheta_z0 = _soilTheta-0.04
 _soilTheta_z1 = _soilTheta+0.04
 _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
+
+## Option 3: Adjust soil moisture in each layer, 4 layers
+_soilTheta_z0 = _soilTheta-0.08
+_soilTheta_z1 = _soilTheta-0.04
+_soilTheta_z2 = _soilTheta+0.02
+_soilTheta_z3 = _soilTheta+0.06
+_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _soilTheta_z3))
 
 # %% [markdown]
 # ### Convert discrete to continuous forcing data 
@@ -250,11 +304,11 @@ from daesim.utils import ODEModelSolver
 # sowing_date=122
 # harvest_date=332
 
-time_axis = np.arange(135, 335, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
-sowing_date = 135
-harvest_date = 330
+# sowing_date, harvest_date = 135, 322    ## Harden 2008
+sowing_date, harvest_date = 129, 339    ## Harden 2012
+# sowing_date, harvest_date = 94, 326    #
 
-
+time_axis = np.arange(sowing_date, harvest_date+2, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
 
 # %%
 ## PlantDev
@@ -286,8 +340,8 @@ PlantDevX = PlantGrowthPhases(
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.20, 0.6, 0.20, 0.0, 0.0],
         [0.25, 0.5, 0.25, 0.0, 0.0],
-        [0.1, 0.1, 0.1, 0.7, 0.0],
-        [0.1, 0.1, 0.1, 0.7, 0.0]
+        [0.1, 0.02, 0.1, 0.78, 0.0],
+        [0.1, 0.02, 0.1, 0.78, 0.0]
     ],
     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
                       [0.01, 0.002, 0.008, 0.0, 0.0],
@@ -297,15 +351,17 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
+
+# %%
 ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date,propHarvestLeaf=0.75)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
-LeafX = LeafGasExchangeModule2(Site=SiteX)
+LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=4.0,VPDmin=0.1)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
-SoilLayersX = SoilLayers(nlevmlsoil=2,z_max=2.0)
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=1000,SLA=0.040)
+SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.05,discretise_method="scaled_exp")
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -313,6 +369,7 @@ PlantX = PlantModuleCalculator(
     PlantDev=PlantDevX,
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
+    alpha_Rg=0.3,
     GDD_method="linear1",
     GDD_Tbase=0.0,
     GDD_Tupp=25.0,
@@ -446,6 +503,8 @@ diagnostics['tr_Seed'] = _tr_Seed
 #  - Actual grain number
 
 # %%
+
+# %%
 total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
 total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
 
@@ -453,8 +512,29 @@ it_peakbiomass = np.argmax(total_carbon_t)
 it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t)
 
 it_sowing = np.where(time_axis == PlantX.Management.sowingDay)[0][0]
-it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
-it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]   # index for the end of the maturity phase
+# it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
+# it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]   # index for the end of the maturity phase
+
+# # Diagnose time indexes when developmental phase transitions occur
+
+# # Convert the array to a numeric type, handling mixed int and float types
+# idevphase = diagnostics["idevphase_numeric"]
+# valid_mask = ~np.isnan(idevphase)
+
+# # Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
+# it_phase_transitions = np.where(
+#     ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
+#     valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
+#     (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
+# )[0] + 1
+
+# # Filter out transitions that occur after the harvest day
+# it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= PlantX.Management.harvestDay]
+
+if PlantX.Management.harvestDay is not None:
+    it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
+else:
+    it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
 
 # Diagnose time indexes when developmental phase transitions occur
 
@@ -469,8 +549,16 @@ it_phase_transitions = np.where(
     (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
 )[0] + 1
 
-# Filter out transitions that occur after the harvest day
-it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= PlantX.Management.harvestDay]
+# Time index for the end of the maturity phase
+if PlantX.PlantDev.phases.index('maturity') in idevphase:
+    it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]    # Index for end of maturity phase
+elif PlantX.Management.harvestDay is not None: 
+    it_mature = it_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
+else:
+    it_mature = -1    # if there is no harvest day specified, we just take the last day of the simulation. 
+
+# Filter out transitions that occur after the maturity or harvest day
+it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
 
 # %%
 # Developmental phase indexes
@@ -521,7 +609,9 @@ print()
 print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.PlantCH2O.f_C)
 print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C)
 ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
-print("Grain yield at maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print("Grain yield at start of maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+it_p = np.where(diagnostics['idevphase'] == PlantX.PlantDev.phases.index('maturity'))[0][-1]
+print("Grain yield at end of maturity =", res["y"][PlantX.PlantDev.iseed,it_p]/PlantX.PlantCH2O.f_C)
 print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
 
@@ -529,9 +619,13 @@ print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX
 # ### Create figures
 
 # %%
-site_year = "2001"
+# site_year = "2018"
+# site_name = "Milgadara - Wheat"
+# site_filename = "Milgadara_2018_Wheat"
+
+site_year = "2012"
 site_name = "Harden - Wheat"
-site_filename = "Harden_2001_Wheat"
+site_filename = "Harden_2012_Wheat"
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -580,8 +674,6 @@ plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_climate.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
-
-# %%
 
 # %%
 fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
@@ -634,7 +726,7 @@ axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
 axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
 axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
 # axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
-axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^2$)")
+axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
 
@@ -656,7 +748,7 @@ harvest_index_peak_noroot = res["y"][3,itime_HI]/peak_accumulated_carbon_noseedr
 yield_from_seed_Cpool = res["y"][3,itime_HI]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].set_ylim([0,600])
+axes[4].set_ylim([0,500])
 
 print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
@@ -671,6 +763,8 @@ plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_dynamics.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
+
+# %%
 
 # %%
 
@@ -706,6 +800,8 @@ axes[0].set_title("%s - %s" % (site_year,site_name))
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_GPPRaCUE.png" % site_filename,dpi=300,bbox_inches='tight')
 
+
+# %%
 
 # %%
 
@@ -767,7 +863,7 @@ axes[0].plot(time_axis, res["y"][1,:]/PlantX.PlantCH2O.f_C, label="Stem")
 axes[0].set_ylabel("Stem dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")       
 SDW_a = res["y"][7,-1]/PlantX.PlantCH2O.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
-axes[0].set_ylim([0,500])
+axes[0].set_ylim([0,600])
 
 axes[1].plot(diagnostics['t'], diagnostics['S_d_pot'], c='0.25', label="Potential seed density")
 axes[1].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0, label="Actual seed density")
@@ -778,7 +874,7 @@ axes[1].legend()
 axes[2].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
-axes[2].set_ylim([0,500])
+axes[2].set_ylim([0,600])
 
 ## Add annotations for developmental phases
 for ax in axes:
@@ -895,74 +991,58 @@ plt.tight_layout()
 
 
 # %%
-# Creating a DataFrame
-df_u_W = pd.DataFrame({
-    'Time': diagnostics['t'],
-    'u_Leaf': diagnostics['u_Leaf'],
-    'u_Root': diagnostics['u_Root'],
-    'u_Stem': diagnostics['u_Stem'],
-    'u_Seed': diagnostics['u_Seed'],
-})
+fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
 
-# Window size for running mean
-window_size = 7  # For example, a 7-day running mean
+axes[0].plot(diagnostics["t"], diagnostics["LAI"])
+axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
+axes[0].tick_params(axis='x', labelrotation=45)
+axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+# axes[0].set_ylim([0,1])
 
-# Calculate running means using pandas
-df_u_W['RunningMean_u_Leaf'] = df_u_W['u_Leaf'].rolling(window=window_size).mean()
-df_u_W['RunningMean_u_Root'] = df_u_W['u_Root'].rolling(window=window_size).mean()
-df_u_W['RunningMean_u_Stem'] = df_u_W['u_Stem'].rolling(window=window_size).mean()
-df_u_W['RunningMean_u_Seed'] = df_u_W['u_Seed'].rolling(window=window_size).mean()
+axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWleaf"])
+axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWroot"])
+axes[1].set_ylabel("Marginal gain\n"+r"($\rm g \; C \; g \; C^{-1}$)")
+axes[1].tick_params(axis='x', labelrotation=45)
+axes[1].annotate("Marginal gain", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+# axes[1].set_ylim([0,20])
+
+axes[2].plot(diagnostics["t"], diagnostics["dSdWleaf"])
+axes[2].plot(diagnostics["t"], diagnostics["dSdWleaf"])
+axes[2].set_ylabel("Marginal cost\n"+r"($\rm g \; C \; g \; C^{-1}$)")
+axes[2].set_xlabel("Time (days)")
+axes[2].annotate("Marginal cost", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+
+axes[3].plot(diagnostics["t"], diagnostics["u_Leaf"])
+axes[3].plot(diagnostics["t"], diagnostics["u_Root"])
+axes[3].plot(diagnostics["t"], diagnostics["u_Stem"])
+axes[3].plot(diagnostics["t"], diagnostics["u_Seed"])
+# axes[3].plot(diagnostics["t"], diagnostics["u_Leaf"]+diagnostics["u_Root"]+diagnostics["u_Stem"]+diagnostics["u_Seed"], c='k')
+axes[3].set_ylabel("Carbon allocation\ncoefficient (-)")
+axes[3].tick_params(axis='x', labelrotation=45)
+axes[3].set_ylim([0,1.01])
+axes[3].legend(handlelength=0.75)
+
+alp = 0.6
+axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
+axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
+axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
+axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
+# axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
+axes[4].set_xlabel("Time (day of year)")
+axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
+axes[4].set_ylim([0,600])
+
+axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+
+axes[0].set_title("%s - %s" % (site_year,site_name))
+# axes[0].set_title("Harden: %s" % site_year)
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_allocopt.png" % (site_filename),dpi=300,bbox_inches='tight')
 
 
-fig, axes = plt.subplots(2,1,figsize=(8,4),sharex=True)
-
-ax = axes[0]
-ax.plot(df_u_W['Time'], df_u_W['u_Leaf'], label='Leaf')
-ax.plot(df_u_W['Time'], df_u_W['u_Root'], label='Root')
-ax.plot(df_u_W['Time'], df_u_W['u_Stem'], label='Stem')
-ax.plot(df_u_W['Time'], df_u_W['u_Seed'], label='Seed')
-ax.set_ylim([0,1.01])
-ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
-ax.set_xlabel("Time (day of year)")
-ax.set_ylabel("Carbon allocation\ncoefficient")
-ax.legend(handlelength=0.75)
-
-ax = axes[1]
-_tr_Leaf
-ax.plot(diagnostics['t'], diagnostics['tr_Leaf'], label='Leaf')
-ax.plot(diagnostics['t'], diagnostics['tr_Root'], label='Root')
-ax.plot(diagnostics['t'], diagnostics['tr_Stem'], label='Stem')
-ax.plot(diagnostics['t'], diagnostics['tr_Seed'], label='Seed')
-# ax.set_ylim([0,1.01])
-ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
-ax.set_xlabel("Time (day of year)")
-ax.set_ylabel("Turnover rate\n"+r"($\rm days^{-1}$)")
-# ax.legend(handlelength=0.75)
-
-yminlim, ymaxlim = 0, 0.105
-ax.set_ylim([yminlim, ymaxlim])
-ax.set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
-
-## Add annotations for developmental phases
-for ax in axes:
-    ylimmin, ylimmax = ax.get_ylim()
-    for itime in it_phase_transitions:
-        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-        text_x = res["t"][itime] + 1.5
-        text_y = 0.5 * ylimmax
-        if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
-            phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
-            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-                    fontsize=8, alpha=0.7, rotation=90)
-        elif np.isnan(diagnostics['idevphase_numeric'][itime]):
-            phase = "mature"
-            ax.text(text_x, text_y, phase, horizontalalignment='left', verticalalignment='center',
-                    fontsize=8, alpha=0.7, rotation=90)
-    ax.set_ylim([ylimmin, ylimmax])
-
-# plt.grid(True)
-# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_alloctr.png" % (site_filename),dpi=300,bbox_inches='tight')
-plt.show
+# %%
 
 # %%
 

@@ -101,7 +101,7 @@ class LeafGasExchangeModule2:
         # G0 must be converted to CO2 (but not G1, see below)
         g0 = self.g0/self.GCtoGW
 
-        VPD = self.Site.compute_VPD(T,RH)*1e-3
+        VPD = self.Site.compute_VPD(T,RH)*1e-3  # TODO: Fix this, as the correct way to calculate this when assuming daily time-step is with the compute_VPD_daily function, given Tmin and Tmax
         VPDuse = np.maximum(VPD, self.VPDmin)    ## Set VPD values below lower limit to VPDmin to ensure gs doesn't go wacky
 
         GsDIVA = (1 + fgsw*self.g1/(VPDuse**0.5))/Cs

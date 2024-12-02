@@ -337,7 +337,7 @@ def growing_degree_days_DTT_linear1(Tmin,Tmax,Tb,Tu):
         return 0
     elif (Tavg > Tb) and (Tavg < Tu):
         return Tavg - Tb
-    elif Tavg > Tu:
+    elif Tavg >= Tu:
         return Tu - Tb
 
 def growing_degree_days_DTT_linear2(Tmin,Tmax,Tb,Tu):
@@ -379,7 +379,7 @@ def growing_degree_days_DTT_linear2(Tmin,Tmax,Tb,Tu):
         return 0
     elif (Tavg > Tb) and (Tavg < Tu):
         return Tavg - Tb
-    elif Tavg > Tu:
+    elif Tavg >= Tu:
         return Tu - Tb
 
 def growing_degree_days_DTT_linear3(Tmin,Tmax,Tb,Tu):

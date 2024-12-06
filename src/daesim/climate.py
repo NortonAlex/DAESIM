@@ -845,3 +845,38 @@ class ClimateModule:
         """
         D_Tp = D_ref * (pref/p) * (T/Tref)**alpha
         return D_Tp
+
+    def compute_skin_temp(self, airTempC, solRadswskyg):
+        """
+        Empirically-derived equation based on the Yanco eddy covariance flux tower site, part of the Australia's 
+        TERN OzFlux network. 
+
+        Parameters
+        ----------
+        airTempC : float or array_like
+            Air temperature (deg C)
+
+        solRadswskyg : float or array_like
+            Atmospheric global solar radiation (W/m2)
+
+        Returns
+        -------
+        Tskin : float or array_like
+            Surface skin temperature (deg C)
+
+        Notes
+        -----
+        The Yanco OzFlux eddy covariance tower is located in an agricultural site near Morundah, NSW. We can use 
+        the measurements from this station to determine the difference between air temperature and surface (skin) 
+        temperature. To do this, we can invert the Stefan-Boltzmann law, assuming a surface emissivity value of 
+        0.965 (typical range for agricultural settings with a mix of vegetation and bare soil is 0.95-0.98), using 
+        the measured upwelling longwave radiation as the input. Figure 1 shows that there are is up to 10 deg C 
+        temperature difference between the surface and the air above, with strong season variation showing a peak 
+        in summer and minimum in winter. We can assume a very simple relationship between this temperature 
+        difference and the downwelling shortwave radiation (Figure 2) which explains 45% of the variability in the 
+        skin–air temperature difference using a linear regression. Downwelling shortwave radiation is available in 
+        the standard DAESIM2 forcing data, so we can use this to assume a surface skin temperature in the model.
+        """
+        Tskin_air_diff = 0.0117 * solRadswskyg - 0.0566
+        Tskin = airTempC + Tskin_air_diff
+        return Tskin

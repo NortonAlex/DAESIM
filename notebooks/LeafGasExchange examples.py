@@ -509,4 +509,264 @@ axes[1].set_title("Leaf water potential response curve")#: Stomatal conductance"
 plt.tight_layout()
 plt.show()
 
+# %% [markdown]
+# ### Simulate a relative humidity response curve
+
+# %%
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = 25.0*np.ones(n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = np.linspace(40.0,100,n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+fig, axes = plt.subplots(1,2,figsize=(8,3))
+
+axes[0].plot(RH,A*1e6,label=r"$\rm A_n$",c="0.5")
+# axes[0].plot(RH,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0].plot(RH,Ac*1e6,label="Ac",linestyle=":")
+axes[0].plot(RH,Aj*1e6,label="Ae",linestyle=":")
+axes[0].legend()
+axes[0].set_ylim([-5,45])
+axes[0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0].set_xlabel(r"$\rm RH$"+"\n"+r"(%)");
+axes[0].grid(True)
+
+axes[1].plot(RH,gs,c="0.5")
+axes[1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1].set_xlabel(r"$\rm RH$"+"\n"+r"(%)");
+axes[1].set_ylim([0,0.7])
+axes[1].grid(True)
+
+axes[0].set_title("Relative humidity-response curve")#: Photosynthetic rate")
+axes[1].set_title("Relative humidity-response curve")#: Stomatal conductance")
+
+plt.tight_layout()
+plt.show()
+
+
+# %% [markdown]
+# ### Comparing responses for air temperature, leaf temperature, g1, VPDmin, RH and VPD
+
+# %%
+def esat(TdegC, Pa):
+        """
+        Calculate the saturation vapor pressure (esat) given temperature and pressure.
+
+        Parameters:
+        TdegC (float): Temperature in degrees Celsius.
+        Pa (float): Atmospheric pressure in kilopascals.
+
+        Returns:
+        float: Saturation vapor pressure in Pascals.
+
+        References:
+        Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+        """
+        # Constants
+        a = 611.21  # Pascals
+        b = 17.502
+        c = 240.97  # °C
+        f = 1.0007 + 3.46e-8 * Pa * 1000  # Correction factor
+        esatval = f * a * np.exp(b * TdegC / (c + TdegC))
+        return esatval
+
+def RHtoVPD(RH, TdegC, Pa=101):
+    """
+    Convert relative humidity (RH) to vapor pressure deficit (VPD).
+
+    Parameters:
+    RH (float): Relative humidity in percentage (0-100).
+    TdegC (float): Temperature in degrees Celsius.
+    Pa (float): Atmospheric pressure in kilopascals (default = 101).
+
+    Returns:
+    float: Vapor pressure deficit in kilopascals.
+
+    References:
+    Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+    """
+    esatval = esat(TdegC, Pa)
+    e = (RH / 100) * esatval
+    VPD = (esatval - e) / 1000  # Convert Pa to kPa
+    return VPD
+
+
+def VPDleafToAir(VPD, Tleaf, Tair, Pa=101):
+    """
+    Convert vapor pressure deficit (VPD) from a leaf temperature to an air-temperature basis.
+
+    Parameters:
+    VPD (float): Vapor pressure deficit at the leaf temperature (kPa).
+    Tleaf (float): Leaf temperature in degrees Celsius.
+    Tair (float): Air temperature in degrees Celsius.
+    Pa (float): Atmospheric pressure in kilopascals (default = 101).
+
+    Returns:
+    float: Vapor pressure deficit at the air temperature (kPa).
+
+    References:
+    Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+    """
+    e = esat(Tleaf, Pa) - VPD * 1000
+    vpd = esat(Tair, Pa) - e
+    return vpd / 1000  # Convert Pa to kPa
+
+
+def VPDairToLeaf(VPD, Tair, Tleaf, Pa=101):
+    """
+    Convert vapor pressure deficit (VPD) from an air temperature to a leaf-temperature basis.
+
+    Parameters:
+    VPD (float): Vapor pressure deficit at the air temperature (kPa).
+    Tair (float): Air temperature in degrees Celsius.
+    Tleaf (float): Leaf temperature in degrees Celsius.
+    Pa (float): Atmospheric pressure in kilopascals (default = 101).
+
+    Returns:
+    float: Vapor pressure deficit at the leaf temperature (kPa).
+
+    References:
+    Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+    """    
+    e = esat(Tair, Pa) - VPD * 1000
+    vpd = esat(Tleaf, Pa) - e
+    return vpd / 1000  # Convert Pa to kPa
+
+
+def RHleafToAir(RH, Tleaf, Tair, Pa=101):
+    """
+    Convert relative humidity (RH) from a leaf temperature to an air-temperature basis.
+
+    Parameters:
+    RH (float): Relative humidity at the leaf temperature (percentage, 0-100).
+    Tleaf (float): Leaf temperature in degrees Celsius.
+    Tair (float): Air temperature in degrees Celsius.
+    Pa (float): Atmospheric pressure in kilopascals (default = 101).
+
+    Returns:
+    float: Relative humidity at the air temperature (percentage, 0-100).
+
+    References:
+    Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+    """    
+    e = (RH / 100) * esat(Tleaf, Pa)  # Vapor pressure at leaf temperature
+    rh = e / esat(Tair, Pa)  # Relative humidity at air temperature
+    return rh * 100  # Convert to percentage
+
+
+def RHairToLeaf(RH, Tair, Tleaf, Pa=101):
+    """
+    Convert relative humidity (RH) from an air temperature to a leaf-temperature basis.
+
+    Parameters:
+    RH (float): Relative humidity at the air temperature (percentage, 0-100).
+    Tair (float): Air temperature in degrees Celsius.
+    Tleaf (float): Leaf temperature in degrees Celsius.
+    Pa (float): Atmospheric pressure in kilopascals (default = 101).
+
+    Returns:
+    float: Relative humidity at the leaf temperature (percentage, 0-100).
+
+    References:
+    Duursma, R.A., 2015. Plantecophys - An R Package for Analysing and Modelling Leaf Gas Exchange Data. PLoS ONE 10, e0143346. doi:10.1371/journal.pone.0143346.
+    """
+    e = (RH / 100) * esat(Tair, Pa)  # Vapor pressure at air temperature
+    rh = e / esat(Tleaf, Pa)  # Relative humidity at leaf temperature
+    return rh * 100  # Convert to percentage
+
+
+# %%
+Leaf.g1 = 3.0
+Leaf.VPDmin = 0.10
+
+n = 50
+
+p = 101325*np.ones(n) # air pressure, Pa
+Q = 800e-6*np.ones(n)  # umol PAR m-2 s-1
+T = 10.0*np.ones(n)  # degrees Celcius
+Cs = 400*(p/1e5)*1e-6*np.ones(n) # carbon dioxide partial pressure, bar
+O = 209000*(p/1e5)*1e-6*np.ones(n) # oxygen partial pressure, bar
+RH = np.linspace(40.0,100,n)   # relative humidity, %
+fgsw = 1.0*np.ones(n)  # stomatal conductance scaling factor based on leaf water potential, unitless
+
+A, gs, Ci, Ac, Aj, Ap, Rd = Leaf.calculate(Q,T,Cs,O,RH,fgsw)
+
+VPD = Leaf.Site.compute_VPD(T,RH)
+VPD_plantecophys = RHtoVPD(RH,T)
+Tleaf = T+3.0
+VPD_air2leaf = VPDairToLeaf(VPD_plantecophys,T,Tleaf)
+
+RH_air2leaf = RHairToLeaf(RH,T,Tleaf)
+_A, _gs, _Ci, _Ac, _Aj, _Ap, _Rd = Leaf.calculate(Q,T,Cs,O,RH_air2leaf,fgsw)
+
+fig, axes = plt.subplots(2,3,figsize=(12,6))
+
+
+axes[0,0].plot(RH,A*1e6,label=r"$\rm A_n$",c="0.5")
+axes[0,0].plot(RH_air2leaf,_A*1e6,label=r"$\rm A_n$",c="k",linestyle="--")
+# axes[0,0].plot(RH,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[0,0].legend()
+# axes[0,0].set_ylim([0,10])
+axes[0,0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[0,0].set_xlabel(r"$\rm RH$"+"\n"+r"(%)");
+axes[0,0].grid(True)
+
+axes[0,1].plot(RH,gs,c="0.5")
+axes[0,1].plot(RH_air2leaf,_gs,c="k",linestyle="--")
+axes[0,1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[0,1].set_xlabel(r"$\rm RH$"+"\n"+r"(%)");
+axes[0,1].set_ylim([0,0.7])
+axes[0,1].grid(True)
+
+axes[0,2].plot(RH,VPD*1e-3,c="0.5",label=r"VPD($T_{air}$)")
+axes[0,2].plot(RH,VPD_air2leaf,c="k",linestyle="--",label=r"VPD($T_{leaf}$)")
+axes[0,2].set_ylabel(r"$\rm VPD$"+"\n"+r"($\rm kPa$)");
+axes[0,2].set_xlabel(r"$\rm RH$"+"\n"+r"(%)");
+# axes[0,2].set_ylim([0,0.7])
+axes[0,2].grid(True)
+axes[0,2].legend(handlelength=0.75)
+
+axes[0,0].set_title("Relative humidity-response curve")#: Photosynthetic rate")
+axes[0,1].set_title("Relative humidity-response curve")#: Stomatal conductance")
+axes[0,2].set_title("Relative humidity-response curve")
+
+
+axes[1,0].plot(VPD*1e-3,A*1e6,label=r"$\rm A_n$",c="0.5")
+axes[1,0].plot(VPD_air2leaf,_A*1e6,label=r"$\rm A_n$",c="k",linestyle="--")
+# axes[1,0].plot(RH,A*1e6+Rd*1e6,label="Anet+Rd",c="k")
+axes[1,0].legend()
+# axes[1,0].set_ylim([0,10])
+axes[1,0].set_ylabel(r"$\rm A_n$"+"\n"+r"($\rm \mu mol \; m^{-2} \; s^{-1}$)");
+axes[1,0].set_xlabel(r"$\rm VPD$"+"\n"+r"(kPa)");
+axes[1,0].grid(True)
+
+axes[1,1].plot(VPD*1e-3,gs,c="0.5")
+axes[1,1].plot(VPD_air2leaf,_gs,c="k",linestyle="--")
+axes[1,1].set_ylabel(r"$\rm g_{sw}$"+"\n"+r"($\rm mol \; m^{-2} \; s^{-1}$)");
+axes[1,1].set_xlabel(r"$\rm VPD$"+"\n"+r"(kPa)");
+axes[1,1].set_ylim([0,0.7])
+axes[1,1].grid(True)
+
+axes[1,2].plot(VPD*1e-3,RH,c="0.5",label=r"RH($T_{air}$)")
+axes[1,2].plot(VPD_air2leaf,RH_air2leaf,c="k",linestyle="--",label=r"RH($T_{leaf}$)")
+axes[1,2].set_ylabel(r"$\rm RH$"+"\n"+r"(%)");
+axes[1,2].set_xlabel(r"$\rm VPD$"+"\n"+r"(kPa)");
+# axes[1,2].set_ylim([0,0.7])
+axes[1,2].grid(True)
+axes[1,2].legend(handlelength=0.75)
+
+axes[1,0].set_title("VPD-response curve")#: Photosynthetic rate")
+axes[1,1].set_title("VPD-response curve")#: Stomatal conductance")
+axes[1,2].set_title("VPD-response curve")
+
+plt.suptitle("Air temperature = %1.1f deg C, Leaf temperature = %1.1f deg C" % (T[0],Tleaf[0]))
+plt.tight_layout()
+plt.show()
+
 # %%

@@ -220,9 +220,16 @@ class PlantModel:
 
         # Find the root
         # Initial interval [a, b] for the bisection method
-        a = -20.0
+        a = -10.0
         b = 0.0
-        Psi_l = bisect(fpartial,a,b,xtol=1e-3)
+        try:
+            Psi_l = bisect(fpartial,a,b,xtol=1e-3)
+        except ValueError as e:
+            # In this case, we set Psi_l to the P_99 (the leaf water potential at 99% loss of stomatal function), which is analytically 
+            # derived from the Tuzet model (self.tuzet_fsv). 
+            f_sv_target = 0.01  # 0.01 equate to 99% reduction
+            Psi_l = self.Psi_f - (1 / self.sf) * np.log((1 + np.exp(self.sf * self.Psi_f)) / f_sv_target - 1)
+            print(f"ValueError encountered in solving plant water balance: {e}. Setting leaf water potential (Psi_l) to a value with 99% stomatal hydraulic limitation = {Psi_l} MPa.")
         
         return Psi_l
 

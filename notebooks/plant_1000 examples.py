@@ -128,8 +128,8 @@ df_forcing["Year"] = df_forcing["Date"].dt.year
 df_forcing["Soil moisture interp"] = df_forcing["Soil moisture"].interpolate('quadratic')
 
 ## Assume that the forcing data (units: mm) can be equated to relative changes in volumetric soil moisture between two arbitrary minimum and maximum values
-f_soilTheta_min = 0.24
-f_soilTheta_max = 0.34
+f_soilTheta_min = 0.25
+f_soilTheta_max = 0.40
 
 f_soilTheta_min_mm = df_forcing["Soil moisture interp"].min()
 f_soilTheta_max_mm = df_forcing["Soil moisture interp"].max()
@@ -367,7 +367,7 @@ PlantDevX = PlantGrowthPhases(
         [0.2, 0.1, 0.7, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.3, 0.4, 0.3, 0.0, 0.0],
-        [0.3, 0.4, 0.3, 0.0, 0.0],
+        [0.3, 0.a4, 0.3, 0.0, 0.0],
         [0.1, 0.02, 0.1, 0.78, 0.0],
         [0.1, 0.02, 0.1, 0.78, 0.0]
     ],

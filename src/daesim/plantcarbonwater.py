@@ -79,7 +79,6 @@ class PlantModel:
             raise ValueError(f"States W_L or W_R cannot be negative")
         elif np.isnan(W_L) or np.isnan(W_R):
             raise ValueError(f"States W_L or W_R cannot be NaN")
-            import pdb; pdb.set_trace()
         
         LAI = self.calculate_LAI(W_L)
 
@@ -132,20 +131,17 @@ class PlantModel:
         ## Calculate actual leaf water potential scaling factor on photosynthesis/dry-matter production
         f_Psi_l = self.tuzet_fsv(Psi_l)
 
-        ## Calculate actual gpp and stomatal conductance
-        GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
+        ## Calculate actual canopy gas exchange given leaf water potential scaling factor
+        GPP, E, Rd, E_l = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUz, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
 
         ## Calculate root water potential
-        Psi_r = self.root_water_potential(Psi_s,E,k_srl)
-
-        ## Calculate canopy total transpiration
-        E_c = LAI * E
+        Psi_r = self.root_water_potential(Psi_s,E_l,k_srl)
 
         ## Calculate maintenance respiration of leaf and root pools
         Rm_l = Rd   # Total leaf maintenance respiration is assumed to equal total leaf mitochondrial respiration
         Rm_r = self.calculate_Rm_k(W_R*self.f_C,airTempC,self.m_r_r_opt)
 
-        return (GPP, Rm_l, Rm_r, E_c, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
+        return (GPP, Rm_l, Rm_r, E, f_Psi_l, Psi_l, Psi_r, Psi_s, K_s, K_sr, k_srl)
 
 
     def leaf_water_potential_solve(self, Psi_s, k_tot, airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, LAI, SAI, CI, hc, sza, swskyb, swskyd):
@@ -202,14 +198,14 @@ class PlantModel:
         
         ## First function
         def f1(Psi_l): #,Psi_s,k_tot):
-            E = k_tot*(Psi_s - Psi_l)
-            return E
+            E_l = k_tot*(Psi_s - Psi_l)
+            return E_l
 
         ## Second function
         def f2(Psi_l):
             f_Psi_l = self.tuzet_fsv(Psi_l)
-            GPP, E, Rd = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
-            return E
+            _, _, _, E_l = self.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airU, f_Psi_l, LAI, SAI, CI, hc, sza, swskyb, swskyd)
+            return E_l
 
         # Define the function for which we want to find the root
         def f(Psi_l, f1, f2):
@@ -428,7 +424,7 @@ class PlantModel:
         airP: air pressure (Pa)
         airRH: relative humidity of canopy air space (%)
         airU: wind speed in canopy air space (m s-1)
-    
+
         Returns
         -------
         E: transpiration rate (mol H2O m-2 s-1)
@@ -546,19 +542,29 @@ class PlantModel:
         GPP : Canopy total gross primary productivity (umol m-2 s-1; on a ground area basis)
         E : Canopy total transpiration rate (mol m-2 s-1; on a ground area basis)
         Rd : Canopy total leaf mitochondrial respiration (umol m-2 s-1; on a ground area basis)
+        E_l : Canopy transpiration rate (mol m-2 s-1; on a leaf area basis i.e. average rate per LAI)
 
         """
+        # Leaf area index per canopy layer
+        dlai = self.CanopyGasExchange.Canopy.cast_parameter_over_layers_betacdf(LAI, self.CanopyGasExchange.Canopy.beta_lai_a, self.CanopyGasExchange.Canopy.beta_lai_b)   # Canopy layer leaf area index (m2/m2)
 
-        An_ml, gs_ml, Rd_ml = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,hc,sza,swskyb,swskyd)
+        An_ml, gs_ml, Rd_ml, An_mle_l, gs_mle_l, Rd_mle_l, fracsun = self.CanopyGasExchange.calculate(leafTempC,airCO2,airO2,airRH,f_Psi_l,LAI,SAI,CI,hc,sza,swskyb,swskyd)
 
-        GPP = np.sum(An_ml + Rd_ml)*1e6
+        # Fluxes expressed on a ground-area basis
+        GPP = np.sum(An_ml + Rd_ml)*1e6    # expressed on a ground-area basis
+        Rd = np.sum(Rd_ml)*1e6    # expressed on a ground-area basis
 
-        Rd = np.sum(Rd_ml)*1e6
+        # Calculate transpiration
+        # N.B. transpiration is calculated per canopy element (i.e. per layer and per sunlit/shaded leaves) because, in future, these different elements may have a distinct 
+        # energy balance and hence temperature, which must be accounted for at that scale in the non-linear equations for transpiration
+        E_mle_l = np.zeros((self.CanopyGasExchange.Canopy.nlevmlcan, self.CanopyGasExchange.Canopy.nleaf))   ## transpiration rate fluxes per canopy element (leaf-area specific)
+        E_mle_l[:,0] = self.leaf_transpiration(gs_mle_l[:,0], leafTempC, airTempC, airP, airRH, airU)   ## canopy element-wise transpiration rate (leaf-area specific)
+        E_mle_l[:,1] = self.leaf_transpiration(gs_mle_l[:,1], leafTempC, airTempC, airP, airRH, airU)   ## canopy element-wise transpiration rate (leaf-area specific)
+        E_ml = dlai*fracsun*E_mle_l[:,self.CanopyGasExchange.Canopy.isun] + dlai*(1-fracsun)*E_mle_l[:,self.CanopyGasExchange.Canopy.isha]  ## canopy layer transpiration rate (ground-area specific)
+        E = np.sum(E_ml)    ## canopy total transpiration rate (ground-area specific)
+        E_l = E/LAI    ## canopy total transpiration rate (leaf-area specific)
 
-        E_ml = self.leaf_transpiration(gs_ml,leafTempC,airTempC,airP,airRH,airU)
-        E = np.sum(E_ml)
-
-        return GPP, E, Rd
+        return GPP, E, Rd, E_l
         
     def calculate_Rm_k(self,C_k,TempC,m_r_25):
         """

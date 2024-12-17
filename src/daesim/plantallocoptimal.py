@@ -63,12 +63,12 @@ class PlantOptimalAllocation:
         
         
         ## Calculate change in GPP per unit change in biomass pool
-        # dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
-        # dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
+        dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
+        dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
         
         ## Calculate marginal change in GPP-Rm per unit change in biomass pool
         dGPPRmdWleaf = ((GPP_L - (Rml_L + Rmr_L))-(GPP_0 - (Rml_0 + Rmr_0)))/(W_L*self.dWL_factor - W_L)
-        dGPPRmdWroot = ((GPP_R - (Rml_L + Rmr_R))-(GPP_0 - (Rml_0 + Rmr_0)))/(W_R*self.dWR_factor - W_R)
+        dGPPRmdWroot = ((GPP_R - (Rml_R + Rmr_R))-(GPP_0 - (Rml_0 + Rmr_0)))/(W_R*self.dWR_factor - W_R)
         
         ## Calculate marginal change in cost per unit change in biomass pool - proportional to pool instantaneous turnover rate (inverse of mean lifespan)
         dSdWleaf = self.tr_L
@@ -90,4 +90,4 @@ class PlantOptimalAllocation:
         u_L = (1 - (self.u_Stem+self.u_Seed))*u_L_prime
         u_R = (1 - (self.u_Stem+self.u_Seed))*u_R_prime
 
-        return u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot
+        return u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot

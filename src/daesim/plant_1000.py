@@ -249,9 +249,9 @@ class PlantModuleCalculator:
             # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations, assume allocation coefficients are fixed
             u_L = alloc_coeffs[self.PlantDev.ileaf]
             u_R = alloc_coeffs[self.PlantDev.iroot]
-            dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0
+            dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0, 0, 0
         else:
-            u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot = self.PlantAlloc.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
+            u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot = self.PlantAlloc.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
 
         # If there is no net benefit for allocating to leaves or roots, allocate instead to stem reserves
         if (u_L <= 0) and (u_R <= 0):
@@ -304,8 +304,10 @@ class PlantModuleCalculator:
                 'K_s': K_s,
                 'K_sr': K_sr,
                 'k_srl': k_srl,
-                'dGPPRmdWleaf':dGPPRmdWleaf,
+                'dGPPRmdWleaf': dGPPRmdWleaf,
                 'dGPPRmdWroot': dGPPRmdWroot,
+                'dGPPdWleaf': dGPPdWleaf,
+                'dGPPdWroot': dGPPdWroot,
                 'dSdWleaf': dSdWleaf,
                 'dSdWroot': dSdWroot,
                 'u_LR_unused': u_LR_unused,

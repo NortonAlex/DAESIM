@@ -367,7 +367,7 @@ PlantDevX = PlantGrowthPhases(
         [0.2, 0.1, 0.7, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.3, 0.4, 0.3, 0.0, 0.0],
-        [0.3, 0.a4, 0.3, 0.0, 0.0],
+        [0.3, 0.4, 0.3, 0.0, 0.0],
         [0.1, 0.02, 0.1, 0.78, 0.0],
         [0.1, 0.02, 0.1, 0.78, 0.0]
     ],
@@ -384,7 +384,7 @@ PlantDevX = PlantGrowthPhases(
 ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date,propHarvestLeaf=0.75)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
-LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=4.0,VPDmin=0.1)
+LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=2.5,VPDmin=0.1)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
@@ -645,13 +645,14 @@ print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX
 # ### Create figures
 
 # %%
-site_year = str(time_year[time_axis[0]])
-site_name = "Milgadara - Wheat"
-site_filename = "Milgadara_%s_Wheat" % site_year
-
 # site_year = str(time_year[time_axis[0]])
-# site_name = "Harden - Wheat"
-# site_filename = "Harden_%s_Wheat" % site_year
+# site_name = "Milgadara - Wheat"
+# site_filename = "Milgadara_%s_Wheat" % site_year
+
+site_year = str(time_year[time_axis[0]])
+site_name = "Harden - Wheat"
+# site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
+site_filename = "Harden_%s_Wheat_control_1" % site_year
 
 # %%
 
@@ -726,7 +727,7 @@ axes[2].plot(diagnostics["t"], diagnostics["E_mmd"])
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[2].set_ylim([0,20])
+axes[2].set_ylim([0,6])
 
 # axes[4].plot(df_forcing.index.values[364:-1], 0.5*np.cumsum(GPP[364:]))
 axes[3].plot(res["t"], res["y"][4])
@@ -818,8 +819,8 @@ for it, t in enumerate(time_axis[:-1]):
     airUhc = PlantX.calculate_wind_speed_hc(airU,hc,LAI+PlantX.SAI)
     d_r = diagnostics["h_c"][it]
     #_GPP[it], _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(_W_L[it],_W_R[it],soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,PlantX.SAI,PlantX.CI,hc,d_r)
-    _GPP[it], E, Rd = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, diagnostics["fPsil"][it], LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
-    _GPP_nofPsil[it], E, Rd = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
+    _GPP[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, diagnostics["fPsil"][it], LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
+    _GPP_nofPsil[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
 
 
 
@@ -1127,7 +1128,7 @@ plt.tight_layout()
 
 
 # %%
-fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
+fig, axes = plt.subplots(6,1,figsize=(8,12),sharex=True)
 
 axes[0].plot(diagnostics["t"], diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
@@ -1137,38 +1138,47 @@ axes[0].set_ylim([0,6])
 
 axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWleaf"])
 axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWroot"])
+# axes[1].plot(diagnostics["t"], diagnostics["dGPPdWleaf"],c="C0",linestyle="--")
+# axes[1].plot(diagnostics["t"], diagnostics["dGPPdWroot"],c="C1",linestyle="--")
 axes[1].set_ylabel("Marginal gain\n"+r"($\rm g \; C \; g \; C^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
-axes[1].annotate("Marginal gain", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[1].set_ylim([-0.4,0.4])
+axes[1].annotate("Marginal gain: GPP - Rm", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[1].set_ylim([-0.06,0.10])
 
-axes[2].plot(diagnostics["t"], diagnostics["dSdWleaf"])
-axes[2].plot(diagnostics["t"], diagnostics["dSdWleaf"])
-axes[2].set_ylabel("Marginal cost\n"+r"($\rm g \; C \; g \; C^{-1}$)")
-axes[2].set_xlabel("Time (days)")
-axes[2].annotate("Marginal cost", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[2].plot(diagnostics["t"], diagnostics["dGPPdWleaf"])
+axes[2].plot(diagnostics["t"], diagnostics["dGPPdWroot"])
+axes[2].set_ylabel("Marginal gain\n"+r"($\rm g \; C \; g \; C^{-1}$)")
+axes[2].tick_params(axis='x', labelrotation=45)
+axes[2].annotate("Marginal gain: GPP", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[2].set_ylim([-0.06,0.10])
 
-axes[3].plot(diagnostics["t"], diagnostics["u_Leaf"], label="Leaf")
-axes[3].plot(diagnostics["t"], diagnostics["u_Root"], label="Root")
-axes[3].plot(diagnostics["t"], diagnostics["u_Stem"], label="Stem")
-axes[3].plot(diagnostics["t"], diagnostics["u_Seed"], label="Seed")
-# axes[3].plot(diagnostics["t"], diagnostics["u_Leaf"]+diagnostics["u_Root"]+diagnostics["u_Stem"]+diagnostics["u_Seed"], c='k')
-axes[3].set_ylabel("Carbon allocation\ncoefficient (-)")
-axes[3].tick_params(axis='x', labelrotation=45)
-axes[3].set_ylim([0,1.01])
-axes[3].legend(handlelength=0.75)
+axes[3].plot(diagnostics["t"], diagnostics["dSdWleaf"])
+axes[3].plot(diagnostics["t"], diagnostics["dSdWleaf"])
+axes[3].set_ylabel("Marginal cost\n"+r"($\rm g \; C \; g \; C^{-1}$)")
+axes[3].set_xlabel("Time (days)")
+axes[3].annotate("Marginal cost", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+
+axes[4].plot(diagnostics["t"], diagnostics["u_Leaf"], label="Leaf")
+axes[4].plot(diagnostics["t"], diagnostics["u_Root"], label="Root")
+axes[4].plot(diagnostics["t"], diagnostics["u_Stem"], label="Stem")
+axes[4].plot(diagnostics["t"], diagnostics["u_Seed"], label="Seed")
+# axes[4].plot(diagnostics["t"], diagnostics["u_Leaf"]+diagnostics["u_Root"]+diagnostics["u_Stem"]+diagnostics["u_Seed"], c='k')
+axes[4].set_ylabel("Carbon allocation\ncoefficient (-)")
+axes[4].tick_params(axis='x', labelrotation=45)
+axes[4].set_ylim([0,1.01])
+axes[4].legend(handlelength=0.75)
 
 alp = 0.6
-axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
-axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
-axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
-axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
-# axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
-axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
-axes[4].set_xlabel("Time (day of year)")
-axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
-axes[4].set_ylim([0,600])
+axes[5].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[5].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
+axes[5].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
+axes[5].plot(res["t"], res["y"][2],label="Root", alpha=alp)
+axes[5].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
+# axes[5].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[5].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
+axes[5].set_xlabel("Time (day of year)")
+axes[5].legend(loc=3,fontsize=9,handlelength=0.8)
+axes[5].set_ylim([0,600])
 
 axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
 

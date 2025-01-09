@@ -44,6 +44,7 @@ class ClimateModule:
     T_K0: float = 273.15 ## conversion factor for degrees Celsius to Kelvin
 
     ## Constants
+    g: float = 9.80665 ## acceleration due to gravity (m s-2)
     L: float = 2450 ## latent heat of vaporization (J g-1) (technically this is temperature-dependent)
     R_w_mol: float = 8.31446 ## specific gas constant for water vapor (J mol-1 K-1)
     R_w_mass: float = 0.4615 ## specific gas constant for water vapor (J g-1 K-1) (=>R_w_mol * M_H2O = 8.31446/18.01)
@@ -53,6 +54,11 @@ class ClimateModule:
     StefanBoltzmannConstant: float = 5.6704e-8  ## Stefan-Boltzmann constant (W m-2 K-4)
     S0_Wm2: float = 1370  ## Solar constant (W m-2), incoming solar radiation at the top of Earth's atmosphere
     S0_MJm2min: float = 0.0822  ## Solar constant (MJ m-2 min-1), incoming solar radiation at the top of Earth's atmosphere
+
+    airPressSeaLevel: float = 101325 # Sea-level standard atmospheric pressure (Pa)
+    TempSeaLevel: float = 288.15 ## Standard sea-level temperature (K)
+    tropos_lapse_rate: float = 0.0065 ## Temperature lapse rate in lower troposphere (K m-1)
+    M: float = 0.0289644 ## Molar mass of Earth's air (kg/mol).
 
     D_H2O_T20: float = 2.42e-5  ## diffusion coefficient for water vapor at 20 degrees Celsius (m2 s-1)
     D_CO2_T20: float = 1.51e-5  ## diffusion coefficient for carbon dioxide at 20 degrees Celsius (m2 s-1)
@@ -880,3 +886,25 @@ class ClimateModule:
         Tskin_air_diff = 0.0117 * solRadswskyg - 0.0566
         Tskin = airTempC + Tskin_air_diff
         return Tskin
+
+    def air_pressure_at_elevation(self):
+        """
+        Calculate air pressure at a given elevation using the simplified relationship for the troposphere.
+
+        Parameters
+        ----------
+        h (float): Elevation above sea level (in meters).
+        P0 (float): Sea-level standard atmospheric pressure (Pa). Default is 101325 Pa.
+        T0 (float): Standard sea-level temperature (K). Default is 288.15 K.
+        lapse_rate (float): Temperature lapse rate (K/m). Default is 0.0065 K/m.
+        g (float): Acceleration due to gravity (m/s^2). Default is 9.80665 m/s^2.
+        M (float): Molar mass of Earth's air (kg/mol). Default is 0.0289644 kg/mol.
+        R (float): Universal gas constant (J/(mol·K)). Default is 8.3144598 J/(mol·K).
+
+        Returns
+        -------
+        float: Air pressure at the specified elevation (in Pa).
+        """
+        # Calculate air pressure at elevation
+        pressure = self.airPressSeaLevel * (1 - (self.tropos_lapse_rate * self.Elevation) / self.TempSeaLevel) ** (self.g * self.M / (self.R_w_mol * self.tropos_lapse_rate))
+        return pressure

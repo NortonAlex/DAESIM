@@ -27,6 +27,12 @@ class PlantModuleCalculator:
 
 
     ## Module parameter attributes
+    
+    ## Seed germination and emergence parameters
+    germination_phase: str = field(default="germination")  ## Name of developmental/growth phase in which germination to first emergence occurs. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    k_sowdepth: float = field(default=1.0)        ## Sowing depth factor that determines how sowing depth impacts the germination and emergence developmental rate (-)
+    sowingDepthMax: float = field(default=0.10)   ## Maximum potential sowing depth, below which germination and emergence are not possible (m)
+
     GDD_method: str = field(
         default="nonlinear"
         ) ## method used to calculate daily thermal time and hence growing degree days. Options are: "nonlinear", "linear1", "linear2", "linear3"
@@ -98,7 +104,7 @@ class PlantModuleCalculator:
         # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes
         VD = self.PlantDev.get_phase_vd()    # Get vernalization state for current developmental phase
-        self.VD50 = 0.5 * self.PlantDev.vd_requirements[idevphase]    # Update vernalization days requirement for current developmental phase
+        self.VD50 = (0.5*self.PlantDev.vd_requirements[idevphase] if idevphase is not None else 0)    # Update vernalization days requirement for current developmental phase
         deltaVD = self.calculate_vernalizationtime(airTempCMin,airTempCMax,sunrise,sunset)
         dVDdt = deltaVD
 

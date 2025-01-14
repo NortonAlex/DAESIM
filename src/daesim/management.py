@@ -14,8 +14,10 @@ class ManagementModule:
 
     # Class parameters
     cropType: str = field(default="Wheat")  ## crop type
-    sowingDay: float = field(default=None)  ## day that sowing occurs, in units of ordinal day of year (DOY). If there is no sowing, set sowingDay=None
-    harvestDay: float = field(default=None)  ## day that harvest occurs, in units of ordinal day of year (DOY). If there is no harvest, set plantingDay=None
+    sowingDays: float = field(default=None)  ## day that sowing occurs, in units of ordinal day of year (DOY), as a list. If there is no sowing, set sowingDay=None
+    harvestDays: float = field(default=None)  ## day that harvest occurs, in units of ordinal day of year (DOY), as a list. If there is no harvest, set harvestDay=None
+    sowingYears: float = field(default=None)  ## year that sowing occurs, as a list whose values must correspond to those set in sowingDays. If there is no sowing, set sowingYears=None
+    harvestYears: float = field(default=None)  ## year that harvest occurs, as a list whose Values must correspond to those set in harvestDays. If there is no harvest, set harvestYears=None
     sowingRate: float = field(default=80)    ## seed sowing rate at start of season (kg ha-1)
     sowingDepth: float = field(default=0.03)  ## seed sowing depth (m)
     propHarvestSeed: float = field(default=1.0)  ## proportion of seed (grain) carbon pool removed at harvest

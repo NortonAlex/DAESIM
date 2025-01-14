@@ -143,13 +143,13 @@ class PlantModuleCalculator:
         leafTempC = self.Site.compute_skin_temp(airTempC, solRadswskyb+solRadswskyd)
 
         # Sowing event and rate
-        F_C_sowing = self.calculate_sowingrate_conditional(_doy)
+        F_C_sowing = self.calculate_sowingrate_conditional(_doy,_year)
         F_C_seed2leaf, F_C_seed2stem, F_C_seed2root = self.calculate_emergence_fluxes(Bio_time, Cseedbed)  # Fluxes from seedbed (i.e. sowed seeds) to plant pools
 
         # Harvest event and rates
-        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,self.Management.harvestDay,self.Management.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
-        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,self.Management.harvestDay,self.Management.propHarvestStem,self.Management.PhHarvestTurnoverTime)
-        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,self.Management.harvestDay,self.Management.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
+        BioHarvestLeaf = self.calculate_BioHarvest(Cleaf,_doy,_year,self.Management.propHarvestLeaf,self.Management.PhHarvestTurnoverTime)
+        BioHarvestStem = self.calculate_BioHarvest(Cstem,_doy,_year,self.Management.propHarvestStem,self.Management.PhHarvestTurnoverTime)
+        BioHarvestSeed = self.calculate_BioHarvest(Cseed,_doy,_year,self.Management.propHarvestSeed,self.Management.PhHarvestTurnoverTime)
 
         # Germination: hydrothermal time state
         dHTTdt = self.calculate_dailyhydrothermaltime(airTempC, soilTheta[0])  ## assume only the uppermost soil layer controls germination
@@ -409,15 +409,27 @@ class PlantModuleCalculator:
             fV = 1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD)
         return fV
 
-    def calculate_sowingtime_conditional(self,_doy):
-        if self.Management.sowingDay is None:
+    def calculate_sowingtime_conditional(self,_doy,_year):
+        sowingDays = self.Management.sowingDays
+        sowingYears = self.Management.sowingYears
+        if sowingDays is None or sowingYears is None:
             return 0
-        elif (self.Management.sowingDay <= _doy < self.Management.sowingDay+1):
-            return 1
-        else:
-            return 0
+        
+        # Convert to lists if they are single integers
+        if isinstance(sowingDays, int):
+            sowingDays = [sowingDays]
+        if isinstance(sowingYears, int):
+            sowingYears = [sowingYears]
+        
+        # Check each sowing event
+        for day, year in zip(sowingDays, sowingYears):
+            if day <= _doy < day + 1 and year == _year:
+                return 1
+        
+        # If no match is found
+        return 0
 
-    def calculate_sowingrate_conditional(self,_doy):
+    def calculate_sowingrate_conditional(self,_doy,_year):
         """
         Calculates the sowing rate based on the day of year (DOY) and management parameters. 
         The sowing rate is converted from the standard units of kg ha-1 to g C m-2 and adjusted 
@@ -443,7 +455,7 @@ class PlantModuleCalculator:
             sowingrate = sowingTime * (sowingRate * f_C * 1000 / 10000)
         adjusts the sowing rate, where the constant factors convert from kg ha-1 to g C m-2.
         """
-        sowingTime = self.calculate_sowingtime_conditional(_doy)
+        sowingTime = self.calculate_sowingtime_conditional(_doy,_year)
         sowingrate = sowingTime * (self.Management.sowingRate * self.PlantCH2O.f_C * 1000 / 10000)    # includes conversion of sowing rate units from kg ha-1 to g C m-2
         return sowingrate
 
@@ -530,19 +542,31 @@ class PlantModuleCalculator:
 
         return F_C_seed2leaf, F_C_seed2stem, F_C_seed2root
 
-    def calculate_BioHarvest(self,Biomass,_doy,harvestDay,propHarvest,HarvestTurnoverTime):
+    def calculate_BioHarvest(self,Biomass,_doy,_year,propHarvest,HarvestTurnoverTime):
         _vfunc = np.vectorize(self.calculate_harvesttime_conditional,otypes=[float])
-        HarvestTime = _vfunc(_doy,harvestDay)
+        HarvestTime = _vfunc(_doy,_year)
         BioHarvest = HarvestTime*np.maximum(propHarvest*Biomass/HarvestTurnoverTime,0)
         return BioHarvest
 
-    def calculate_harvesttime_conditional(self,_doy,harvestDay):
-        if harvestDay is None:
+    def calculate_harvesttime_conditional(self,_doy,_year):
+        harvestDays = self.Management.harvestDays
+        harvestYears = self.Management.harvestYears
+        if harvestDays is None or harvestYears is None:
             return 0
-        elif (harvestDay <= _doy < harvestDay+3):  ## assume harvest happens over a single day
-            return 1
-        else:
-            return 0
+        
+        # Convert to lists if they are single integers
+        if isinstance(harvestDays, int):
+            harvestDays = [harvestDays]
+        if isinstance(harvestYears, int):
+            harvestYears = [harvestYears]
+        
+        # Check each sowing event
+        for day, year in zip(harvestDays, harvestYears):
+            if day <= _doy < day + 1 and year == _year:
+                return 1
+        
+        # If no match is found
+        return 0
 
     def calculate_canopy_height(self, relative_gdd_index):
         """

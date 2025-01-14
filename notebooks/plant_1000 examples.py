@@ -119,6 +119,40 @@ df_forcing["DOY"] = df_forcing["Date"].dt.dayofyear
 df_forcing["Year"] = df_forcing["Date"].dt.year
 
 
+# %%
+## First forcing data file
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2018.csv"
+
+df_forcing_1 = pd.read_csv(file)
+
+df_forcing_1["Date"] = pd.to_datetime(df_forcing_1["Date"])
+
+# Add ordinal day of year (DOY) and Year variables
+df_forcing_1["DOY"] = df_forcing_1["Date"].dt.dayofyear
+df_forcing_1["Year"] = df_forcing_1["Date"].dt.year
+
+## Second forcing data file
+file = "/Users/alexandernorton/ANU/Projects/DAESIM/daesim/data/DAESim_forcing_Milgadara_2019.csv"
+
+df_forcing_2 = pd.read_csv(file)
+
+df_forcing_2["Date"] = pd.to_datetime(df_forcing_2["Date"])
+
+# Add ordinal day of year (DOY) and Year variables
+df_forcing_2["DOY"] = df_forcing_2["Date"].dt.dayofyear
+df_forcing_2["Year"] = df_forcing_2["Date"].dt.year
+
+
+# %%
+# Concatenate the two dataframes
+df_forcing  = pd.concat([df_forcing_1, df_forcing_2])
+
+# Ensure the 'Date' column is in datetime format
+df_forcing['Date'] = pd.to_datetime(df_forcing ['Date'])
+
+# Sort the dataframe by the 'Date' column
+df_forcing = df_forcing .sort_values(by='Date').reset_index(drop=True)
+
 # %% [markdown]
 # #### - Generation temporally-interpolated and scaled soil moisture forcing
 #
@@ -155,21 +189,27 @@ plt.tight_layout()
 # %%
 ## Milgadara site location-34.38904277303204, 148.46949938279096
 # SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
-# start_doy = 1.0
-# start_year = 2021
-# nrundays = df_forcing.index.size
+# start_doy_f = df_forcing["DOY"].values[0]
+# start_year_f = df_forcing["Year"].values[0]
+# nrundays_f = df_forcing.index.size
 
 ## Harden CSIRO site location-34.52194, 148.30472
+## NOTES:
+## sowing_doy, harvest_doy = 135, 322    ## Harden 2008
+## sowing_doy, harvest_doy = 129, 339    ## Harden 2012
 SiteX = ClimateModule(CLatDeg=-34.52194,CLonDeg=148.30472,timezone=10)
-start_doy = df_forcing["DOY"].values[0]
-start_year = df_forcing["Year"].values[0]
-nrundays = df_forcing.index.size
+start_doy_f = df_forcing["DOY"].values[0]
+start_year_f = df_forcing["Year"].values[0]
+nrundays_f = df_forcing.index.size
 
 # %%
 ## Time discretisation
-time_nday, time_doy, time_year = SiteX.time_discretisation(start_doy, start_year, nrundays=nrundays)
+time_nday_f, time_doy_f, time_year_f = SiteX.time_discretisation(start_doy_f, start_year_f, nrundays=nrundays_f)
 ## Adjust daily time-step to represent midday on each day
-time_doy = [time_doy[i]+0.5 for i in range(len(time_doy))]
+time_doy_f = [time_doy_f[i]+0.5 for i in range(len(time_doy_f))]
+
+## Time discretization for forcing data
+time_index_f = pd.to_datetime(df_forcing["Date"].values)
 
 # %% [markdown]
 # ### Create discrete forcing data
@@ -183,13 +223,13 @@ _Rsb_Wm2 = (1-diffuse_fraction) * df_forcing["SRAD"].values * 1e6 / (60*60*24)
 _Rsd_Wm2 = diffuse_fraction * df_forcing["SRAD"].values * 1e6 / (60*60*24)
 
 ## Create synthetic data for other forcing variables
-_p = 101325*np.ones(nrundays)
+_p = 101325*np.ones(nrundays_f)
 _es = SiteX.compute_sat_vapor_pressure_daily(df_forcing["Minimum temperature"].values,df_forcing["Maximum temperature"].values)
 _RH = SiteX.compute_relative_humidity(df_forcing["VPeff"].values/10,_es/1000)
 _RH[_RH > 100] = 100
 _CO2 = 400*(_p/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
 _O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
-_soilTheta =  0.35*np.ones(nrundays)   ## volumetric soil moisture content (m3 m-3)
+_soilTheta =  0.35*np.ones(nrundays_f)   ## volumetric soil moisture content (m3 m-3)
 _soilTheta = f_soilTheta_norm
 
 ## Create a multi-layer soil moisture forcing dataset
@@ -212,22 +252,24 @@ _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _so
 # ### Convert discrete to continuous forcing data 
 
 # %%
-Climate_doy_f = interp_forcing(time_nday, time_doy, kind="pconst", fill_value=(time_doy[0],time_doy[-1]))
-Climate_year_f = interp_forcing(time_nday, time_year, kind="pconst", fill_value=(time_year[0],time_year[-1]))
-Climate_airTempCMin_f = interp1d(time_nday, df_forcing["Minimum temperature"].values)
-Climate_airTempCMax_f = interp1d(time_nday, df_forcing["Maximum temperature"].values)
-Climate_airTempC_f = interp1d(time_nday, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
-Climate_solRadswskyb_f = interp1d(time_nday, _Rsb_Wm2)
-Climate_solRadswskyd_f = interp1d(time_nday, _Rsd_Wm2)
-Climate_airPressure_f = interp1d(time_nday, _p)
-Climate_airRH_f = interp1d(time_nday, _RH)
-Climate_airU_f = interp1d(time_nday, df_forcing["Uavg"].values)
-Climate_airCO2_f = interp1d(time_nday, _CO2)
-Climate_airO2_f = interp1d(time_nday, _O2)
-Climate_soilTheta_f = interp1d(time_nday, _soilTheta)
-Climate_soilTheta_z_f = interp1d(time_nday, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
-Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
+Climate_doy_f = interp_forcing(time_nday_f, time_doy_f, kind="pconst") #, fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday_f, time_year_f, kind="pconst") #, fill_value=(time_year[0],time_year[-1]))
+Climate_airTempCMin_f = interp1d(time_nday_f, df_forcing["Minimum temperature"].values)
+Climate_airTempCMax_f = interp1d(time_nday_f, df_forcing["Maximum temperature"].values)
+Climate_airTempC_f = interp1d(time_nday_f, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
+Climate_solRadswskyb_f = interp1d(time_nday_f, _Rsb_Wm2)
+Climate_solRadswskyd_f = interp1d(time_nday_f, _Rsd_Wm2)
+Climate_airPressure_f = interp1d(time_nday_f, _p)
+Climate_airRH_f = interp1d(time_nday_f, _RH)
+Climate_airU_f = interp1d(time_nday_f, df_forcing["Uavg"].values)
+Climate_airCO2_f = interp1d(time_nday_f, _CO2)
+Climate_airO2_f = interp1d(time_nday_f, _O2)
+Climate_soilTheta_f = interp1d(time_nday_f, _soilTheta)
+Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
+Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
+
+# %%
 
 # %% [markdown]
 # ### Test the rate of change calculate method
@@ -304,19 +346,147 @@ Climate_nday_f = interp1d(time_nday, time_nday)   ## nday represents the ordinal
 # %%
 from daesim.utils import ODEModelSolver
 
+
 # %% [markdown]
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
+# %% [markdown]
+# #### Time Discretization and Time Axis for Model Simulation:
+
 # %%
-# time_axis = np.arange(122, 332, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
-# sowing_date=122
-# harvest_date=332
+# Event Detection Across Time Steps for Multiple Events
+def find_event_steps(event_dates, time_index):
+    """Find the closest time steps in time_index for a list of event dates."""
+    event_steps = []
+    for date in event_dates:
+        try:
+            step = time_index.get_loc(date)
+        except KeyError:
+            step = (time_index >= date).argmax()
+        event_steps.append(step)
+    return event_steps
 
-# sowing_date, harvest_date = 135, 322    ## Harden 2008
-# sowing_date, harvest_date = 129, 339    ## Harden 2012
-sowing_date, harvest_date = 125, 328
+# %%
+# ## Time discretization and indexing for model simulation period
+# start_year_s, start_month_s, start_day_s = time_index_f[0].year, time_index_f[0].month, time_index_f[0].day
+# end_year_s, end_month_s, end_day_s = time_index_f[-1].year, time_index_f[-1].month, time_index_f[-1].day
+# time_resolution = 'D'  # Options: 'D' for daily, 'h' for hourly. Must match the forcing data time step
 
-time_axis = np.arange(sowing_date, harvest_date+2, 1)   ## Note: time_axis represents the simulation day (_nday) and must be the same x-axis upon which the forcing data was interpolated on
+# # 1. Unified Time Indexing with Dynamic Time-Step Resolution
+# # Create a unified time axis that maps to both the forcing data and simulation time steps. Use pandas.DatetimeIndex to handle flexible time steps (daily, hourly, etc.).
+# # Example
+# start_date = pd.Timestamp(year=start_year_s, month=start_month_s, day=start_day_s)
+# end_date = pd.Timestamp(year=end_year_s, month=end_month_s, day=end_day_s)
+# # Introduce a time_resolution parameter that adjusts the time step size.
+# # N.B. time_index represents the mid-point of every time-step
+# half_tstep = pd.to_timedelta(pd.to_timedelta(1,time_resolution).total_seconds() / 2, unit='s')
+# time_index = pd.date_range(start=start_date+half_tstep, end=end_date, freq=time_resolution)
+
+# # Array of Year Values
+# year_array = time_index.year.values
+# # Array of Ordinal Day-of-Year + Fractional Day
+# # Fractional day = (hour + minute/60 + second/3600) / 24
+# doy_fractional_array = (
+#     time_index.dayofyear + 
+#     (time_index.hour + time_index.minute / 60 + time_index.second / 3600) / 24
+# )
+
+
+# # 2. Dynamic Sowing and Harvest Dates (Multiple Events)
+# # Define lists of sowing and harvest dates
+# sowing_dates = [
+#     pd.Timestamp(year=2018, month=7, day=20),  # First season
+#     pd.Timestamp(year=2019, month=7, day=15)   # Second season
+# ]
+
+# harvest_dates = [
+#     pd.Timestamp(year=2018, month=12, day=10),  # First season
+#     pd.Timestamp(year=2019, month=12, day=5)    # Second season
+# ]
+
+# ## Check that the first sowing date and last harvest date are within the available forcing data period
+# # Apply validation to sowing and harvest dates
+# SiteX.validate_event_dates(sowing_dates, time_index, event_name="Sowing")
+# SiteX.validate_event_dates(harvest_dates, time_index, event_name="Harvest")
+
+# # Find steps for all sowing and harvest dates
+# sowing_steps = find_event_steps(sowing_dates, time_index)
+# harvest_steps = find_event_steps(harvest_dates, time_index)
+
+# # # Print the event steps for verification
+# print("Sowing dates:",sowing_dates,", from the time index =",time_index[sowing_steps],", t step =",sowing_steps)
+# print("Harvest dates:",harvest_dates,", from the time index =", time_index[harvest_steps],", t step =",harvest_steps)
+
+# %% [markdown]
+# #### - Based on sowing and harvest dates
+
+# %%
+time_index_f
+
+# %%
+# Define lists of sowing and harvest dates
+sowing_dates = [
+    pd.Timestamp(year=2012, month=5, day=20),  # First season
+    # pd.Timestamp(year=2018, month=7, day=20),  # First season
+    # pd.Timestamp(year=2019, month=7, day=15)   # Second season
+]
+
+harvest_dates = [
+    pd.Timestamp(year=2012, month=12, day=10),  # First season
+    # pd.Timestamp(year=2018, month=12, day=10),  # First season
+    # pd.Timestamp(year=2019, month=12, day=5)    # Second season
+]
+
+## Check that the first sowing date and last harvest date are within the available forcing data period
+# Apply validation to sowing and harvest dates
+SiteX.validate_event_dates(sowing_dates, time_index_f, event_name="Sowing")
+SiteX.validate_event_dates(harvest_dates, time_index_f, event_name="Harvest")
+
+# Find steps for all sowing and harvest dates in the forcing data
+sowing_steps_f = find_event_steps(sowing_dates, time_index_f)
+harvest_steps_f = find_event_steps(harvest_dates, time_index_f)
+
+# 3. Generate time axis for ODE Solver, which is set to start at the first sowing event and end just after the last harvest event
+time_axis = time_nday_f[sowing_steps_f[0]:harvest_steps_f[-1]+2]
+# Corresponding date time index
+time_index = time_index_f[sowing_steps_f[0]:harvest_steps_f[-1]+2]
+
+## Determine the ODE solver reset days
+sowing_steps_itax = find_event_steps(sowing_dates, time_index)
+harvest_steps_itax = find_event_steps(harvest_dates, time_index)
+reset_days_itax = find_event_steps(sowing_dates+harvest_dates, time_index)
+reset_days_itax.sort()
+reset_days_tax = list(time_axis[reset_days_itax])
+
+## Determine the sowing and harvest days and years for the DAESIM2 Management module
+sowingDays = np.floor(Climate_doy_f(time_axis[sowing_steps_itax]))
+sowingYears = np.floor(Climate_year_f(time_axis[sowing_steps_itax]))
+harvestDays = np.floor(Climate_doy_f(time_axis[harvest_steps_itax]))
+harvestYears = np.floor(Climate_year_f(time_axis[harvest_steps_itax]))
+
+# %%
+fig, axes = plt.subplots(2,1,figsize=(8,5))
+
+axes[0].plot(time_index_f, Climate_solRadswskyb_f(time_nday_f), alpha=0.5, label="Forcing data period")
+axes[0].plot(time_index_f[time_axis-1], Climate_solRadswskyb_f(time_axis), alpha=0.5, label="Simulation period")
+axes[0].vlines(time_index_f[sowing_steps_f], ymin=0, ymax=300, color='k', linestyle="-.", label="Sowing events")
+axes[0].vlines(time_index_f[harvest_steps_f], ymin=0, ymax=300, color='k', linestyle=":", label="Harvest events")
+axes[0].legend()
+axes[0].set_xlim([time_index_f[0], time_index_f[-1]])
+axes[0].set_xlabel("Dates")
+axes[0].set_title("Global Radiation Forcing Data")
+
+axes[1].plot(time_axis, Climate_solRadswskyb_f(time_axis), alpha=0.5)
+axes[1].plot(time_axis, Climate_solRadswskyb_f(time_axis), alpha=0.5, label="Simulation period")
+axes[1].vlines(time_axis[sowing_steps_itax], ymin=0, ymax=300, color='k', linestyle="-.", label="Sowing events")
+axes[1].vlines(time_axis[harvest_steps_itax], ymin=0, ymax=300, color='k', linestyle=":", label="Harvest events")
+axes[1].set_xlim([time_nday_f[0], time_nday_f[-1]])
+axes[1].set_xlabel("Time Steps for Model ODE Solver")
+
+plt.tight_layout()
+
+# %% [markdown]
+# #### Initialise Model Classes and their Attributes:
 
 # %%
 ## PlantDev
@@ -361,8 +531,9 @@ time_axis = np.arange(sowing_date, harvest_date+2, 1)   ## Note: time_axis repre
 
 PlantDevX = PlantGrowthPhases(
     phases=["germination", "vegetative", "spike", "anthesis", "grainfill", "maturity"],
-    gdd_requirements=[50,600,200,110,300,100],
-    vd_requirements=[0, 40, 0, 0, 0, 0],
+    gdd_requirements=[50,1400,200,110,300,100],
+    #vd_requirements=[0, 40, 0, 0, 0, 0],
+    vd_requirements=[0, 0, 0, 0, 0, 0],
     allocation_coeffs = [
         [0.2, 0.1, 0.7, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
@@ -379,17 +550,16 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
-
-# %%
-ManagementX = ManagementModule(cropType="Wheat",sowingDay=sowing_date,harvestDay=harvest_date,propHarvestLeaf=0.75)
+ManagementX = ManagementModule(cropType="Wheat",sowingDays=sowingDays,harvestDays=harvestDays,sowingYears=sowingYears,harvestYears=harvestYears,propHarvestLeaf=0.75)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
 LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=2.5,VPDmin=0.1)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
-SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.05,discretise_method="scaled_exp")
+SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.10,discretise_method="scaled_exp")
 PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
+# PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02,sf=1.0,soilThetaMax=0.4,Psi_f=-5,Psi_e=-0.00138,b_soil=4.74,K_sat=29.7) #SLA=0.040)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
@@ -403,6 +573,7 @@ PlantX = PlantModuleCalculator(
     GDD_Tupp=25.0,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
     d_r_max=2.0,
+    # d_r_max=0.60,
     Vmaxremob=3.0,
     Kmremob=0.5,
     remob_phase=["grainfill","maturity"],
@@ -430,7 +601,7 @@ forcing_inputs = [Climate_solRadswskyb_f,
                   Climate_doy_f,
                   Climate_year_f]
 
-reset_days = [PlantX.Management.sowingDay, PlantX.Management.harvestDay]
+reset_days = reset_days_tax
 
 # %%
 Model.reset_diagnostics()
@@ -531,41 +702,43 @@ diagnostics['tr_Seed'] = _tr_Seed
 #  - Actual grain number
 
 # %%
-total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
-total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
+ngrowing_seasons = (len(PlantX.Management.sowingDays) if (isinstance(PlantX.Management.sowingDays, int) == False) else 1)
 
-it_peakbiomass = np.argmax(total_carbon_t)
-it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t)
+if ngrowing_seasons > 1:
+    print("Multiple sowing and harvest events occur. Only returning results for first growing season.")
+    ## ignore any time steps before first sowing event and after last harvest event
+    it_sowing = sowing_steps_itax[0]
+    
+    if PlantX.Management.harvestDays is not None:
+        it_harvest = harvest_steps_itax[0]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
+    else:
+        it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
 
-it_sowing = np.where(time_axis == PlantX.Management.sowingDay)[0][0]
-# it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
-# it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]   # index for the end of the maturity phase
-
-# # Diagnose time indexes when developmental phase transitions occur
-
-# # Convert the array to a numeric type, handling mixed int and float types
-# idevphase = diagnostics["idevphase_numeric"]
-# valid_mask = ~np.isnan(idevphase)
-
-# # Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
-# it_phase_transitions = np.where(
-#     ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
-#     valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
-#     (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
-# )[0] + 1
-
-# # Filter out transitions that occur after the harvest day
-# it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= PlantX.Management.harvestDay]
-
-if PlantX.Management.harvestDay is not None:
-    it_harvest = np.where(time_axis == PlantX.Management.harvestDay)[0][0]
+    total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
+    total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
+    
+    it_peakbiomass = np.argmax(total_carbon_t[:it_harvest+1])
+    it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[:it_harvest+1])
 else:
-    it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
+    print("Just one sowing event and one harvest event occurs. Returning results for first (and only) growing season.")
+    ## ignore any time steps before first sowing event and after last harvest event
+    it_sowing = sowing_steps_itax[0]
+    
+    if PlantX.Management.harvestDays is not None:
+        it_harvest = harvest_steps_itax[0]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
+    else:
+        it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
+
+    total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
+    total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
+    
+    it_peakbiomass = np.argmax(total_carbon_t[it_sowing:it_harvest+1]) + it_sowing
+    it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[it_sowing:it_harvest+1]) + it_sowing
 
 # Diagnose time indexes when developmental phase transitions occur
 
 # Convert the array to a numeric type, handling mixed int and float types
-idevphase = diagnostics["idevphase_numeric"]
+idevphase = diagnostics["idevphase_numeric"][it_sowing:it_harvest+1]
 valid_mask = ~np.isnan(idevphase)
 
 # Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
@@ -578,13 +751,16 @@ it_phase_transitions = np.where(
 # Time index for the end of the maturity phase
 if PlantX.PlantDev.phases.index('maturity') in idevphase:
     it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]    # Index for end of maturity phase
-elif PlantX.Management.harvestDay is not None: 
+elif PlantX.Management.harvestDays is not None: 
     it_mature = it_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
 else:
     it_mature = -1    # if there is no harvest day specified, we just take the last day of the simulation. 
 
+
 # Filter out transitions that occur after the maturity or harvest day
-it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
+#it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
+print("Phase transition time axis indexes, it_phase_transitions, for first growing season:",it_phase_transitions) 
+
 
 # %%
 # Developmental phase indexes
@@ -634,25 +810,69 @@ print("--- Grain Production ---")
 print()
 print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.PlantCH2O.f_C)
 print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C)
-ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
+if PlantX.PlantDev.phases.index('maturity') in diagnostics['idevphase'][it_phase_transitions]:
+    ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
+    it_p = np.where(diagnostics['idevphase'] == PlantX.PlantDev.phases.index('maturity'))[0][-1]
+else:
+    print("***Warning: The first growing season did not reach the maturity phase. Values below are just for last point before harvest.")
+    ip = -1
+    it_p = -1
 print("Grain yield at start of maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
-it_p = np.where(diagnostics['idevphase'] == PlantX.PlantDev.phases.index('maturity'))[0][-1]
 print("Grain yield at end of maturity =", res["y"][PlantX.PlantDev.iseed,it_p]/PlantX.PlantCH2O.f_C)
 print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
+
+# %%
+## ignore any time steps before first sowing event and after last harvest event
+it_sowing = sowing_steps_itax[0]
+
+if PlantX.Management.harvestDays is not None:
+    it_harvest = harvest_steps_itax[-1]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
+else:
+    it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
+
+# Diagnose time indexes when developmental phase transitions occur
+
+# Convert the array to a numeric type, handling mixed int and float types
+idevphase = diagnostics["idevphase_numeric"] #[it_sowing:it_harvest+1]
+valid_mask = ~np.isnan(idevphase)
+
+# Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
+it_phase_transitions_all = np.where(
+    ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
+    valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
+    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
+)[0] + 1
+
+# Time index for the end of the maturity phase
+if PlantX.PlantDev.phases.index('maturity') in idevphase:
+    it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]    # Index for end of maturity phase
+elif PlantX.Management.harvestDays is not None: 
+    it_mature = it_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
+else:
+    it_mature = -1    # if there is no harvest day specified, we just take the last day of the simulation. 
+
+
+# Filter out transitions that occur after the maturity or harvest day
+#it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
+print("Phase transition time axis indexes, it_phase_transitions, over simulation period:",it_phase_transitions_all) 
 
 # %% [markdown]
 # ### Create figures
 
 # %%
-# site_year = str(time_year[time_axis[0]])
+# site_year = str(time_year_f[time_axis[0]])
 # site_name = "Milgadara - Wheat"
-# site_filename = "Milgadara_%s_Wheat" % site_year
+# site_filename = "Milgadara_%s_Wheat_test" % site_year
 
-site_year = str(time_year[time_axis[0]])
+site_year = str(time_year_f[time_axis[0]])
 site_name = "Harden - Wheat"
 # site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
-site_filename = "Harden_%s_Wheat_control_1" % site_year
+site_filename = "Harden_%s_Wheat_control_1s" % site_year
+
+# site_year = str(time_year_f[time_axis[0]])
+# site_name = "Rutherglen 1971 - Wheat"
+# site_filename = "Rutherglen1971_%s_Wheat_control_1" % site_year
 
 # %%
 
@@ -690,7 +910,7 @@ for iz in range(PlantX.PlantCH2O.SoilLayers.nlevmlsoil):
 axes[3].set_ylabel("Soil moisture\n"+r"(%)")
 # axes[3].tick_params(axis='x', labelrotation=45)
 axes[3].annotate("Soil moisture", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[3].set_ylim([20,50])
+# axes[3].set_ylim([20,50])
 axes[3].set_xlabel("Time (day of year)")
 
 ax2 = axes[3].twinx()
@@ -699,7 +919,7 @@ ax2.bar(time_axis, df_forcing["Precipitation"].values[i0:i1], color="0.4")
 ax2.set_ylabel("Daily Precipitation\n(mm)")
 axes[3].annotate("Precipitation", (0.98,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='right', fontsize=12)
 
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 # axes[0].set_xlim([0,time_axis[-1]])
 
 plt.tight_layout()
@@ -736,7 +956,7 @@ axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
 ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
-for itime in it_phase_transitions:
+for itime in it_phase_transitions_all:
     ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = res["t"][itime] + 1.5
     text_y = 0.5 * ylimmax
@@ -761,22 +981,22 @@ axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
 
-# Check if harvestDay is in time_axis
-if PlantX.Management.harvestDay in time_axis:
-    # if it is, then return the time index
-    itime_HI = list(time_axis).index(PlantX.Management.harvestDay)
-else:
-    # if it is not, then return the last index for the time_axis
-    itime_HI = len(time_axis) - 1
+# # Check if harvestDay is in time_axis
+# if PlantX.Management.harvestDays in time_axis:
+#     # if it is, then return the time index
+#     itime_HI = list(time_axis).index(PlantX.Management.harvestDay)
+# else:
+#     # if it is not, then return the last index for the time_axis
+#     itime_HI = len(time_axis) - 1
 
-accumulated_carbon = res["y"][0,itime_HI]+res["y"][1,itime_HI]+res["y"][2,itime_HI]+res["y"][3,itime_HI]
+accumulated_carbon = res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest]
 eos_accumulated_carbon = accumulated_carbon    # end-of-season total carbon (at the end of the simulation period)
 peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
 peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
-harvest_index = res["y"][3,itime_HI]/(res["y"][0,itime_HI]+res["y"][1,itime_HI]+res["y"][2,itime_HI]+res["y"][3,itime_HI])
-harvest_index_peak = res["y"][3,itime_HI]/peak_accumulated_carbon_noseed
-harvest_index_peak_noroot = res["y"][3,itime_HI]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3,itime_HI]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
+harvest_index = res["y"][3,it_harvest]/(res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest])
+harvest_index_peak = res["y"][3,it_harvest]/peak_accumulated_carbon_noseed
+harvest_index_peak_noroot = res["y"][3,it_harvest]/peak_accumulated_carbon_noseedroot
+yield_from_seed_Cpool = res["y"][3,it_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].set_ylim([0,600])
@@ -786,7 +1006,7 @@ print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
 # axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -871,21 +1091,21 @@ axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
 
 # Check if harvestDay is in time_axis
-if PlantX.Management.harvestDay in time_axis:
-    # if it is, then return the time index
-    itime_HI = list(time_axis).index(PlantX.Management.harvestDay)
-else:
-    # if it is not, then return the last index for the time_axis
-    itime_HI = len(time_axis) - 1
+# if PlantX.Management.harvestDay in time_axis:
+#     # if it is, then return the time index
+#     itime_HI = list(time_axis).index(PlantX.Management.harvestDay)
+# else:
+#     # if it is not, then return the last index for the time_axis
+#     itime_HI = len(time_axis) - 1
 
-accumulated_carbon = res["y"][0,itime_HI]+res["y"][1,itime_HI]+res["y"][2,itime_HI]+res["y"][3,itime_HI]
+accumulated_carbon = res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest]
 eos_accumulated_carbon = accumulated_carbon    # end-of-season total carbon (at the end of the simulation period)
 peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
 peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
-harvest_index = res["y"][3,itime_HI]/(res["y"][0,itime_HI]+res["y"][1,itime_HI]+res["y"][2,itime_HI]+res["y"][3,itime_HI])
-harvest_index_peak = res["y"][3,itime_HI]/peak_accumulated_carbon_noseed
-harvest_index_peak_noroot = res["y"][3,itime_HI]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3,itime_HI]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
+harvest_index = res["y"][3,it_harvest]/(res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest])
+harvest_index_peak = res["y"][3,it_harvest]/peak_accumulated_carbon_noseed
+harvest_index_peak_noroot = res["y"][3,it_harvest]/peak_accumulated_carbon_noseedroot
+yield_from_seed_Cpool = res["y"][3,it_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].set_ylim([0,600])
@@ -895,7 +1115,7 @@ print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
 # axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -929,8 +1149,8 @@ axes[2].set_ylabel(r"CUE")
 axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[2].set_ylim([0,1.0])
 
-axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],292])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -984,8 +1204,8 @@ for ax in axes:
     ax.set_ylim([ylimmin, ylimmax])
 
 
-axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],292])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -1030,7 +1250,7 @@ for ax in axes:
                     fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 axes[0].set_xlabel("Time (day of year)")
 axes[1].set_xlabel("Time (day of year)")
 axes[2].set_xlabel("Time (day of year)")
@@ -1180,7 +1400,7 @@ axes[5].set_xlabel("Time (day of year)")
 axes[5].legend(loc=3,fontsize=9,handlelength=0.8)
 axes[5].set_ylim([0,600])
 
-axes[0].set_xlim([PlantX.Management.sowingDay,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)

@@ -121,6 +121,30 @@ class ClimateModule:
 
         return (time_nday, time_doy, time_year)
 
+    def validate_event_dates(self, event_dates, forcing_index, event_name):
+        """
+        Validates that all event dates are within the range of the forcing data time index.
+        
+        Parameters
+        ----------
+        event_dates (list of pd.Timestamp): List of sowing or harvest dates.
+        forcing_index (pd.DatetimeIndex): Forcing data time index.
+        event_name (str): 'Sowing' or 'Harvest' for error messages.
+        
+        Raises
+        ------
+        ValueError: If any event date is outside the forcing data range.
+        """
+        min_forcing_date = forcing_index.min()
+        max_forcing_date = forcing_index.max()
+        
+        for date in event_dates:
+            if not (min_forcing_date <= date <= max_forcing_date):
+                raise ValueError(
+                    f"{event_name} date {date} is outside the forcing data range "
+                    f"({min_forcing_date} to {max_forcing_date})."
+                )
+
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """
         Computes the daily mean air temperature from the daily minimum and daily maximum temperatures.

@@ -122,7 +122,7 @@ class ODEModelSolver:
         - forcing_inputs: List[Callable[[float], float]], list of Callable forcing data to provide forcing values at any time step
         - solver: str, the solver method to use ("ivp" or "euler").
         - zero_crossing_indices: List[int], indices of state variables to monitor for zero-crossing events.
-        - reset_days: List[int], list of days-of-year at which specified state should be reset to zero.
+        - reset_days: List[int], list of time_axis values at which specified state should be reset to zero.
         - rtol: float, relative tolerance for the solver (only for "ivp").
         - atol: float, absolute tolerance for the solver (only for "ivp").
 
@@ -189,10 +189,10 @@ class ODEModelSolver:
         events = []
         for reset_day in reset_days:
             def event(t, y, reset_day=reset_day):
-                _doy = int(t % 365)  # Assuming t is in days and you want day-of-year. TODO: Need to double check definitions of t, _doy and _doy forcing.
+                _t = int(t)   # Assuming t and reset_days represent values in the time_axis
                 if self._event_triggered[reset_day]:
                     return 1    # Ensure event does not trigger again for this day
-                return _doy - reset_day
+                return _t - reset_day
 
             event.terminal = True
             event.direction = 0
@@ -210,7 +210,7 @@ class ODEModelSolver:
         - func_to_solve: Callable[[float, np.ndarray], np.ndarray], the differential equation function.
         - time_axis: List[float], sequence of time points at which to solve the equations.
         - zero_crossing_indices: List[int], indices of state variables to monitor for zero-crossing events.
-        - reset_days: List[int], list of days-of-year at which specified state should be reset to zero.
+        - reset_days: List[int], list of time_axis values at which specified state should be reset to zero.
         - rtol: float, relative tolerance for the solver.
         - atol: float, absolute tolerance for the solver.
 
@@ -245,9 +245,9 @@ class ODEModelSolver:
             if not event_times:
                 break
             t_restart = max(event_times)
-            _doy_event = int(t_restart % 365)
-            if _doy_event in self._event_triggered:
-                self._event_triggered[_doy_event] = True
+            _t_event = int(t_restart)
+            if _t_event in self._event_triggered:
+                self._event_triggered[_t_event] = True
             t_eval = time_axis[time_axis >= t_restart]
             t_span = (t_restart, t_eval[-1])
             start_state_restart = res_raw.sol(t_restart)
@@ -292,7 +292,7 @@ class ODEModelSolver:
         - func_to_solve: Callable[[float, np.ndarray], np.ndarray], the differential equation function.
         - time_axis: List[float], sequence of time points at which to solve the equations.
         - zero_crossing_indices: List[int], indices of state variables to monitor for zero-crossing events.
-        - reset_days: List[int], list of days-of-year at which specified state should be reset to zero.
+        - reset_days: List[int], list of time_axis values at which specified state should be reset to zero.
 
         Returns:
         - dict, the result of the integration.
@@ -311,15 +311,14 @@ class ODEModelSolver:
             # Check for zero-crossing events 
             if zero_crossing_indices and reset_days:
                 for idx in zero_crossing_indices:
-                    _doy = int(t % 365)
-                    if _doy in reset_days:
-                        if not self._event_triggered[_doy]:
+                    if int(t) in reset_days:
+                        if not self._event_triggered[int(t)]:
                             t_events.append(t)
                             y_events.append(y[i].copy())
                         y[i][idx] = 0  # Reset the specified state variable to zero
         # Set the event triggered flag after processing all indices
-        if _doy in reset_days:
-            self._event_triggered[_doy] = True
+        if int(t) in reset_days:
+            self._event_triggered[int(t)] = True
 
         result = {
             "t": time_axis,

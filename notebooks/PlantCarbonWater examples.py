@@ -41,13 +41,13 @@ from daesim.soillayers import SoilLayers
 site = ClimateModule()
 leaf = LeafGasExchangeModule2(g0=0.0)
 canopy = CanopyLayers(nlevmlcan=6)
-soillayers = SoilLayers(nlevmlsoil=10,z_max=2.0)
+soillayers = SoilLayers(nlevmlsoil=10,z_max=2.0,Psi_e=-0.1)
 canopyrad = CanopyRadiation(Canopy=canopy)
 canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyrad)
 boundarylayer = BoundaryLayerModule(Site=site,k_wl=0.006)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5)
+plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,ksr_coeff=100,sf=1.5)
 
 # %% [markdown]
 # ### Example of soil-root profile and rooting depth functions
@@ -98,7 +98,7 @@ _d_r_dynamic1 = np.zeros(n)
 _d_r_dynamic2 = np.zeros(n)
 _d_r_dynamic3 = np.zeros(n)
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
  
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, 0.5)
@@ -124,10 +124,10 @@ _d_r_dynamic3 = np.zeros(n)
 
 d_rpot = 2.0
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.005)
-plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.010)
-plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.020)
-plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,Psi_e=-0.1,sf=1.5,SRD=0.040)
+plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.005)
+plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
+plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.020)
+plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.040)
 
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, d_rpot)
@@ -254,8 +254,6 @@ print("Psi_r =",Psir_0)
 print("Psi_s =",Psis_0)
 
 
-
-# %%
 
 # %% [markdown]
 # ## Model Sensitivity Tests
@@ -440,7 +438,7 @@ fig, axes = plt.subplots(1,8,figsize=(20,2.5))
 
 _W_R = np.array([20,50,100,200])
 _W_L = _W_R*1.
-_soilTheta = np.linspace(0.20,plant.soilThetaMax,n)
+_soilTheta = np.linspace(0.20,plant.SoilLayers.soilThetaMax,n)
 
 for ix, xWL in enumerate(_W_L):
     W_L = xWL
@@ -529,7 +527,7 @@ fig, axes = plt.subplots(1,8,figsize=(20,2.5))
 
 _W_R = np.array([20,50,100,200])
 _W_L = _W_R*1.
-_soilTheta0 = np.linspace(0.20,plant.soilThetaMax,n)
+_soilTheta0 = np.linspace(0.20,plant.SoilLayers.soilThetaMax,n)
 
 for ix, xWL in enumerate(_W_L):
     W_L = xWL
@@ -548,7 +546,7 @@ for ix, xWL in enumerate(_W_L):
     GPP_0_nofPsil_ = np.zeros(n)
     
     for ix,xsoilTheta in enumerate(_soilTheta0):
-        soilTheta = np.linspace(xsoilTheta, plant.soilThetaMax, plant.SoilLayers.nlevmlsoil)
+        soilTheta = np.linspace(xsoilTheta, plant.SoilLayers.soilThetaMax, plant.SoilLayers.nlevmlsoil)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -708,7 +706,7 @@ _W_R = 80 * np.ones(4)
 _W_L = _W_R*1.
 _ksr_coeff = np.array([100,1000,5000,15000])
 
-_soilTheta = np.linspace(0.20,plant.soilThetaMax,n)
+_soilTheta = np.linspace(0.20,plant.SoilLayers.soilThetaMax,n)
 
 for ix, xWL in enumerate(_W_L):
     W_L = xWL
@@ -730,7 +728,7 @@ for ix, xWL in enumerate(_W_L):
     
     for ix,xsoilTheta in enumerate(_soilTheta):
         # soilTheta = xsoilTheta
-        soilTheta = np.linspace(xsoilTheta, plant.soilThetaMax, plant.SoilLayers.nlevmlsoil)
+        soilTheta = np.linspace(xsoilTheta, plant.SoilLayers.soilThetaMax, plant.SoilLayers.nlevmlsoil)
         GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
         GPP_0_[ix] = GPP_0
         Rml_0_[ix] = Rml_0
@@ -801,7 +799,7 @@ _W_R = 80 * np.ones(4)
 _W_L = _W_R*1.
 _Psi_f = np.array([-3.0, -2.0, -1.0, -0.5])
 
-_soilTheta = np.linspace(0.20,plant.soilThetaMax,n)
+_soilTheta = np.linspace(0.20,plant.SoilLayers.soilThetaMax,n)
 
 for ix, xWL in enumerate(_W_L):
     W_L = xWL
@@ -891,7 +889,7 @@ _W_R = 80 * np.ones(4)
 _W_L = _W_R*1.
 _sf = np.array([1,2,4,8])
 
-_soilTheta = np.linspace(0.20,plant.soilThetaMax,n)
+_soilTheta = np.linspace(0.20,plant.SoilLayers.soilThetaMax,n)
 
 for ix, xWL in enumerate(_W_L):
     W_L = xWL
@@ -971,6 +969,102 @@ axes[5].set_ylim([-4,0])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_sf.png",dpi=300,bbox_inches='tight')
 
+
+# %%
+n = 100
+
+fig, axes = plt.subplots(1,8,figsize=(20,2.5))
+
+_W_R = 80 
+_W_L = _W_R*2.
+_soilThetaMax = np.array([0.2,0.3,0.4,0.5])
+
+plant.sf = 1.0
+plant.Psi_f = -5.0
+plant.ksr_coeff = 500
+
+for ix, xparam in enumerate(_soilThetaMax):
+    W_L = _W_L
+    W_R = _W_R
+    plant.SoilLayers.soilThetaMax = xparam
+    _soilTheta = np.linspace(0.02,plant.SoilLayers.soilThetaMax,n)
+    soilTheta_zbot = plant.SoilLayers.soilThetaMax   ## Bottom soil layer soil moisture is at saturation
+    _soilTheta_z0 = np.linspace(0.02,soilTheta_zbot,n)  ## Surface soil moisture is modified
+    GPP_0_ = np.zeros(n)
+    Rml_0_ = np.zeros(n)
+    Rmr_0_ = np.zeros(n)
+    E_0_ = np.zeros(n)
+    fPsil_0_ = np.zeros(n)
+    Psil_0_ = np.zeros(n)
+    Psir_0_ = np.zeros(n)
+    Psis_0_ = np.zeros(n)
+    K_s_0_ = np.zeros(n)
+    K_sr_0_ = np.zeros(n)
+    k_srl_0_ = np.zeros(n)
+    GPP_0_nofPsil_ = np.zeros(n)
+    
+    for ix,xsoilTheta in enumerate(_soilTheta_z0):
+        # soilTheta = xsoilTheta
+        soilTheta_1d = np.linspace(xsoilTheta, soilTheta_zbot, plant.SoilLayers.nlevmlsoil)
+        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = plant.calculate(W_L,W_R,soilTheta_1d,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
+        GPP_0_[ix] = GPP_0
+        Rml_0_[ix] = Rml_0
+        Rmr_0_[ix] = Rmr_0
+        E_0_[ix] = E_0
+        fPsil_0_[ix] = fPsil_0
+        Psil_0_[ix] = Psil_0
+        Psir_0_[ix] = Psir_0
+        Psis_0_[ix] = Psis_0
+        K_s_0_[ix] = K_s_0
+        K_sr_0_[ix] = K_sr_0
+        k_srl_0_[ix] = k_srl_0
+
+    
+    axes[0].plot(_soilTheta,GPP_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[1].plot(_soilTheta,E_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[2].plot(_soilTheta,fPsil_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[3].plot(_soilTheta,Psil_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[4].plot(_soilTheta,Psir_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[5].plot(_soilTheta,Psis_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[6].plot(_soilTheta,K_s_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+    axes[7].plot(_soilTheta,k_srl_0_,label=r"$\rm \theta_{max}=%1.1f$" % plant.SoilLayers.soilThetaMax)
+
+axes[0].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[0].set_ylabel(r"GPP ($\rm g C \; m^{-2} \; d^{-1}$)")
+axes[0].legend(handlelength=0.7,fontsize=9)
+
+axes[1].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[1].set_ylabel(r"E ($\rm mol \; H_2O \; m^{-2} \; s^{-1}$)")
+
+axes[2].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[2].set_ylabel(r"$\rm f_{\Psi_l}$ (-)")
+axes[2].set_ylim([0,1])
+
+axes[3].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[3].set_ylabel(r"$\Psi_L$ (MPa)")
+
+axes[4].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[4].set_ylabel(r"$\Psi_R$ (MPa)")
+
+axes[5].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[5].set_ylabel(r"$\Psi_S$ (MPa)")
+
+axes[6].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[6].set_ylabel(r"$K_s$")
+
+axes[7].set_xlabel("Soil Moisture\n"+r"($\rm m^3 \; m^{-3}$)")
+axes[7].set_ylabel(r"$k_{srl}$")
+
+# axes[0].set_ylim([0,15])
+# axes[1].set_ylim([0,0.00085])
+axes[3].set_ylim([-4,0])
+axes[4].set_ylim([-4,0])
+axes[5].set_ylim([-4,0])
+
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESim_psensitivity_test_soilmoisture_plantsoilhydraulics_by_soilThetaMax.png",dpi=300,bbox_inches='tight')
+
+# %%
 
 # %% [markdown]
 # ### - Rooting depth effect in the multi-layer soil model
@@ -1219,7 +1313,7 @@ for ix,xW_L in enumerate(_W_L):
     GPP_0_[ix], Rml_0_[ix], Rmr_0_[ix], E_0_[ix], f_Psil_0_[ix], Psil_0_[ix], Psir_0_[ix], Psis_0_[ix], K_s_0_[ix], K_sr_0_[ix], k_srl_0_[ix] = plant.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_rpot)
     u_L[ix], u_R[ix], dGPPRmdWleaf[ix], dGPPRmdWroot[ix], dGPPdWleaf[ix], dGPPdWroot[ix], dSdWleaf[ix], dSdWroot[ix] = plantalloc.calculate(xW_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_rpot)
 
-    GPP_soilThetaMax_[ix], Rml_soilThetaMax_[ix], Rmr_soilThetaMax_[ix], E_soilThetaMax_[ix], f_Psil_soilThetaMax_[ix], Psil_soilThetaMax_[ix], Psir_soilThetaMax_[ix], Psis_soilThetaMax_[ix], K_s_soilThetaMax_[ix], K_sr_soilThetaMax_[ix], k_srl_soilThetaMax_[ix] = plant.calculate(xW_L,W_R,plant.soilThetaMax*np.ones(plant.SoilLayers.nlevmlsoil),leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_rpot)
+    GPP_soilThetaMax_[ix], Rml_soilThetaMax_[ix], Rmr_soilThetaMax_[ix], E_soilThetaMax_[ix], f_Psil_soilThetaMax_[ix], Psil_soilThetaMax_[ix], Psir_soilThetaMax_[ix], Psis_soilThetaMax_[ix], K_s_soilThetaMax_[ix], K_sr_soilThetaMax_[ix], k_srl_soilThetaMax_[ix] = plant.calculate(xW_L,W_R,plant.SoilLayers.soilThetaMax*np.ones(plant.SoilLayers.nlevmlsoil),leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_rpot)
 
 
 fig, axes = plt.subplots(1,5,figsize=(18,3))
@@ -1344,7 +1438,7 @@ plt.tight_layout()
 ## Tuzet model - leaf water potential and gs scaling factor
 
 n = 100
-_Psilx = np.linspace(-5, plantalloc.Plant.soil_water_potential(plantalloc.Plant.soilThetaMax), n)
+_Psilx = np.linspace(-5, plantalloc.Plant.soil_water_potential(plantalloc.Plant.SoilLayers.soilThetaMax), n)
 plt.plot(_Psilx, plantalloc.Plant.tuzet_fsv(_Psilx),c='0.5',label='Full range')
 plt.plot(Psil_0_, plantalloc.Plant.tuzet_fsv(Psil_0_),c='r',label='Simulated range')
 plt.legend()
@@ -1353,7 +1447,7 @@ print("Max fPsil =",plantalloc.Plant.tuzet_fsv(np.max(Psil_0_)))
 
 
 n = 100
-_Psilx = np.linspace(-5, plantalloc.Plant.soil_water_potential(plantalloc.Plant.soilThetaMax), n)
+_Psilx = np.linspace(-5, plantalloc.Plant.soil_water_potential(plantalloc.Plant.SoilLayers.soilThetaMax), n)
 plantalloc.Plant.Psi_f = -3.0
 plantalloc.Plant.sf = 2.5
 plt.plot(_Psilx, plantalloc.Plant.tuzet_fsv(_Psilx),c='0.5',label='Full range',linestyle='--')
@@ -1510,7 +1604,7 @@ plt.tight_layout()
 # %%
 ## Soil moisture
 n = 50
-_soilTheta = np.linspace(0.25,plant.soilThetaMax,n)
+_soilTheta = np.linspace(0.25,plant.SoilLayers.soilThetaMax,n)
 
 ## Define model inputs
 W_L = 80

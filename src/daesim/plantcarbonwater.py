@@ -224,7 +224,7 @@ class PlantModel:
         
         return Psi_l
 
-    def soil_water_potential_conditional(self,soilTheta):
+    def soil_water_potential_conditional(self,soilTheta,soilThetaMax,Psi_e,b_soil):
         """
         Parameters
         ----------
@@ -243,10 +243,15 @@ class PlantModel:
         Campbell (1974) A simple method for determining unsaturated conductivity from moisture retention data, Soil Science 117(6), p 311-314
         Duursma et al. (2008) doi:10.1093/treephys/28.2.265
         """
-        if soilTheta < self.SoilLayers.soilThetaMax:
-            Psi_s = self.SoilLayers.Psi_e*(soilTheta/self.SoilLayers.soilThetaMax)**(-self.SoilLayers.b_soil)
+        # if soilTheta < self.SoilLayers.soilThetaMax:
+        #     Psi_s = self.SoilLayers.Psi_e*(soilTheta/self.SoilLayers.soilThetaMax)**(-self.SoilLayers.b_soil)
+        # else:
+        #     Psi_s = self.SoilLayers.Psi_e
+        # return Psi_s
+        if soilTheta < soilThetaMax:
+            Psi_s = Psi_e*(soilTheta/soilThetaMax)**(-b_soil)
         else:
-            Psi_s = self.SoilLayers.Psi_e
+            Psi_s = Psi_e
         return Psi_s
     
     def soil_water_potential(self,soilTheta):
@@ -269,7 +274,7 @@ class PlantModel:
         Duursma et al. (2008) doi:10.1093/treephys/28.2.265
         """
         _vfunc = np.vectorize(self.soil_water_potential_conditional,otypes=[float])
-        Psi_s = _vfunc(soilTheta)
+        Psi_s = _vfunc(soilTheta,self.SoilLayers.soilThetaMax_z,self.SoilLayers.Psi_e_z,self.SoilLayers.b_soil_z)
         return Psi_s
 
     def soil_hydraulic_conductivity(self,Psi_s):

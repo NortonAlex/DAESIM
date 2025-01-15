@@ -3,7 +3,26 @@ Soil layers class: Includes parameters and functions to define and discretise th
 """
 
 import numpy as np
-from attrs import define, field
+from attrs import define, field, setters
+from typing import Union
+import warnings
+
+def convert_and_warn(instance, attribute, value):
+    """
+    Combines conversion and warning when a property is updated.
+
+    Used to handle automatic assignment of soil properties across soil layers. 
+    """
+    # Apply the default conversion first
+    converted_value = setters.convert(instance, attribute, value)
+
+    # Issue a warning
+    warnings.warn(
+        f"'{attribute.name}' was updated. Please ensure `cast_soil_properties()` is re-run to update layer-specific attributes.",
+        UserWarning
+    )
+
+    return converted_value
 
 @define
 class SoilLayers:
@@ -29,12 +48,25 @@ class SoilLayers:
     # Add a class attribute to store horizon-based soil layers
     z_horizon: list = field(default=None)  ## List of user-defined layer thicknesses (m) for horizon method
 
-    # Soil hydraulic properties
-    soilThetaMax: float = field(default=0.5) ## Volumetric soil water content at saturation (m3 water m-3 soil)
-    b_soil: float = field(default=5.0)       ## Empirical soil-specific parameter relating volumetric water content to hydraulic conductivity (-)
-    Psi_e: float = field(default=-0.05)      ## Air-entry value of (hydrostatic) soil water potential; this is the soil water potential at the transition of saturated to unsaturated soil (MPa)
-    K_sat: float = field(default=12)         ## Saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1)
+    # Soil hydraulic properties with on_setattr hooks
+    # N.B. If set as a float, they will be cast uniformly across the soil layers. If set as a list or array, each element will be assigned to each soil layer. 
+    soilThetaMax: Union[float, list, np.ndarray] = field(default=0.5, on_setattr=convert_and_warn)  ## Volumetric soil water content at saturation (m3 water m-3 soil)
+    Psi_e: Union[float, list, np.ndarray] = field(default=-0.05, on_setattr=convert_and_warn)       ## Empirical soil-specific parameter relating volumetric water content to hydraulic conductivity (-)
+    b_soil: Union[float, list, np.ndarray] = field(default=5.0, on_setattr=convert_and_warn)        ## Air-entry value of (hydrostatic) soil water potential; this is the soil water potential at the transition of saturated to unsaturated soil (MPa)
+    K_sat: Union[float, list, np.ndarray] = field(default=12, on_setattr=convert_and_warn)          ## Saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1)
+
+    # Layer-specific versions (initialised automatically)
+    soilThetaMax_z: np.ndarray = field(init=False)  ## Vertically-resolved volumetric soil water content at saturation (m3 water m-3 soil). N.B. automatically set based on soilThetaMax attribute type.
+    Psi_e_z: np.ndarray = field(init=False)         ## Vertically-resolved empirical soil-specific parameter relating volumetric water content to hydraulic conductivity (-). N.B. automatically set based on soilThetaMax attribute type.
+    b_soil_z: np.ndarray = field(init=False)        ## Vertically-resolved air-entry value of (hydrostatic) soil water potential; this is the soil water potential at the transition of saturated to unsaturated soil (MPa). N.B. automatically set based on soilThetaMax attribute type.
+    K_sat_z: np.ndarray = field(init=False)         ## Vertically-resolved saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1). N.B. automatically set based on soilThetaMax attribute type.
+
     
+    def __attrs_post_init__(self):
+        # this is run upon initialisation of the class
+        self.cast_soil_properties()
+        self.set_index()
+
     def index_soil(self):
         if self.nlevmlsoil is None:
             raise AttributeError("nlevmlsoil has not been properly initialized in SoilLayers class. Please set it by running set_nlayers method before calling index_soil.")
@@ -95,4 +127,34 @@ class SoilLayers:
         d_soil = list(np.cumsum(z_soil))      # depth from soil surface to bottom of each soil layer (m)
 
         return z_soil, d_soil
+
+    def cast_soil_properties(self):
+        """
+        Automatically cast soil hydraulic properties across soil layers based on
+        whether properties are defined as scalars (uniform) or lists/arrays (manual).
+        
+        Raises
+        ------
+        ValueError
+            If a list/array is provided but its length does not match nlevmlsoil.
+
+        Returns
+        -------
+        
+        """    
+        def expand_property(prop, name):
+            if isinstance(prop, (float, int)):
+                return np.full(self.nlevmlsoil, prop)
+            elif isinstance(prop, (list, np.ndarray)):
+                if len(prop) != self.nlevmlsoil:
+                    raise ValueError(f"Length of '{name}' must match nlevmlsoil.")
+                return np.array(prop)
+            else:
+                raise TypeError(f"'{name}' must be a float, int, list, or numpy array.")
+
+        self.soilThetaMax_z = expand_property(self.soilThetaMax, 'soilThetaMax')
+        self.Psi_e_z = expand_property(self.Psi_e, 'Psi_e')
+        self.b_soil_z = expand_property(self.b_soil, 'b_soil')
+        self.K_sat_z = expand_property(self.K_sat, 'K_sat')
+        #print("Soil properties have been cast across layers.")
 

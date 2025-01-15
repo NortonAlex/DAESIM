@@ -34,11 +34,6 @@ class PlantModel:
     maxLAI: float = field(default=3)  ## Maximum potential leaf area index (m2 m-2)
     d_leaf: float = field(default=0.015)     ## Leaf dimension parameter (m), defined as the mean length of the leaf in the downwind direction, used to determine leaf boundary layer resistance
     
-    soilThetaMax: float = field(default=0.5) ## Volumetric soil water content at saturation (m3 water m-3 soil)
-    b_soil: float = field(default=5.0)       ## Empirical soil-specific parameter relating volumetric water content to hydraulic conductivity (-)
-    Psi_e: float = field(default=-0.05)      ## Air-entry value of (hydrostatic) soil water potential; this is the soil water potential at the transition of saturated to unsaturated soil (MPa)
-    K_sat: float = field(default=12)         ## Saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1)
-    
     ksr_coeff: float = field(default=500)    ## scale factor for soil-to-root conductivity/conductance (TODO: Check units and definition); conversion factor for soil hydraulic conductivity and root biomass density to a soil-to-root conductivity/conductance. In some models this is represented by a single root occupying a cylinder of soil. In principle, it considers the distance water travels from the bulk soil to the root surface, root geometry (e.g. radius) and conducting propoerties of the root. Typical values range from approx 100-18000
     root_distr_d50: float = field(default=0.15)  ## Soil depth at which 50% of total root amount is accumulated (m) i.e. 50% of roots occur above this depth
     root_distr_c: float = field(default=-1.2)     ## A dimensionless shape-parameter to describe root distribution in soil profile (-)
@@ -248,10 +243,10 @@ class PlantModel:
         Campbell (1974) A simple method for determining unsaturated conductivity from moisture retention data, Soil Science 117(6), p 311-314
         Duursma et al. (2008) doi:10.1093/treephys/28.2.265
         """
-        if soilTheta < self.soilThetaMax:
-            Psi_s = self.Psi_e*(soilTheta/self.soilThetaMax)**(-self.b_soil)
+        if soilTheta < self.SoilLayers.soilThetaMax:
+            Psi_s = self.SoilLayers.Psi_e*(soilTheta/self.SoilLayers.soilThetaMax)**(-self.SoilLayers.b_soil)
         else:
-            Psi_s = self.Psi_e
+            Psi_s = self.SoilLayers.Psi_e
         return Psi_s
     
     def soil_water_potential(self,soilTheta):
@@ -303,7 +298,7 @@ class PlantModel:
         Cosby, B.J., G.M. Hornberger, R.B. Clapp and T.R. Ginn. 1984. A statistical exploration of the relationships of soil-moisture characteristics to the physical properties of soils. Water Resour. Res. 20:682–690
         
         """
-        K_s = self.K_sat*(self.Psi_e/Psi_s)**(2+3/self.b_soil)
+        K_s = self.SoilLayers.K_sat*(self.SoilLayers.Psi_e/Psi_s)**(2+3/self.SoilLayers.b_soil)
         return K_s
 
     def soil_root_hydraulic_conductivity_conditional(self,W_R,K_s,f_r,d_soil):

@@ -28,6 +28,12 @@ class SoilLayers:
     z_top: float = field(default=None)  ## Depth of top (uppermost) soil layer (m), only used in specific methods of discretising the soil layers
     # Add a class attribute to store horizon-based soil layers
     z_horizon: list = field(default=None)  ## List of user-defined layer thicknesses (m) for horizon method
+
+    # Soil hydraulic properties
+    soilThetaMax: float = field(default=0.5) ## Volumetric soil water content at saturation (m3 water m-3 soil)
+    b_soil: float = field(default=5.0)       ## Empirical soil-specific parameter relating volumetric water content to hydraulic conductivity (-)
+    Psi_e: float = field(default=-0.05)      ## Air-entry value of (hydrostatic) soil water potential; this is the soil water potential at the transition of saturated to unsaturated soil (MPa)
+    K_sat: float = field(default=12)         ## Saturated value of soil hydraulic conductivity, K_s (mol m-1 s-1 MPa-1)
     
     def index_soil(self):
         if self.nlevmlsoil is None:

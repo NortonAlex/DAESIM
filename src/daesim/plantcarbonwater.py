@@ -303,7 +303,7 @@ class PlantModel:
         Cosby, B.J., G.M. Hornberger, R.B. Clapp and T.R. Ginn. 1984. A statistical exploration of the relationships of soil-moisture characteristics to the physical properties of soils. Water Resour. Res. 20:682–690
         
         """
-        K_s = self.SoilLayers.K_sat*(self.SoilLayers.Psi_e/Psi_s)**(2+3/self.SoilLayers.b_soil)
+        K_s = self.SoilLayers.K_sat_z*(self.SoilLayers.Psi_e_z/Psi_s)**(2+3/self.SoilLayers.b_soil_z)
         return K_s
 
     def soil_root_hydraulic_conductivity_conditional(self,W_R,K_s,f_r,d_soil):

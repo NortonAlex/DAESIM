@@ -145,6 +145,23 @@ class ClimateModule:
                     f"({min_forcing_date} to {max_forcing_date})."
                 )
 
+    def find_event_steps(self, event_dates, time_index):
+        """
+        Find the closest time steps in time_index (DatetimeIndex array) for a list of event dates.
+
+        Returns
+        -------
+        Indexes of event dates for the given time index array
+        """
+        event_steps = []
+        for date in event_dates:
+            try:
+                step = time_index.get_loc(date)
+            except KeyError:
+                step = (time_index >= date).argmax()
+            event_steps.append(step)
+        return event_steps
+
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """
         Computes the daily mean air temperature from the daily minimum and daily maximum temperatures.

@@ -41,8 +41,6 @@ from daesim.plantallocoptimal import PlantOptimalAllocation
 # %%
 from daesim.plant_1000 import PlantModuleCalculator
 
-# %%
-
 # %% [markdown]
 # # Site Level Simulation
 
@@ -103,6 +101,124 @@ df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2012-01-01") & (df_f
 # df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2019-01-01") & (df_forcing_all["Date"] <= "2019-12-31")]
 
 # %% [markdown]
+# #### - *Generate temporally-interpolated and scaled soil moisture forcing*
+#
+# The model requires soil moisture to be in units of volumetric soil water content (m3 m-3 or %). Soil moisture from the forcing data above is in units of mm. So we make a (pretty crude) assumption on how to convert mm to volumetrics soil water content. 
+
+# %%
+df_forcing["Soil moisture interp"] = df_forcing["Soil moisture"].interpolate('quadratic')
+
+## Assume that the forcing data (units: mm) can be equated to relative changes in volumetric soil moisture between two arbitrary minimum and maximum values
+f_soilTheta_min = 0.25
+f_soilTheta_max = 0.40
+
+f_soilTheta_min_mm = df_forcing["Soil moisture interp"].min()
+f_soilTheta_max_mm = df_forcing["Soil moisture interp"].max()
+
+f_soilTheta_norm_mm = (df_forcing["Soil moisture interp"].values - f_soilTheta_min_mm)/(f_soilTheta_max_mm - f_soilTheta_min_mm)
+f_soilTheta_norm = f_soilTheta_min + f_soilTheta_norm_mm * (f_soilTheta_max - f_soilTheta_min)
+
+
+fig, axes = plt.subplots(1,2,figsize=(9,3))
+
+axes[0].scatter(df_forcing.index.values, df_forcing["Soil moisture"].values)
+axes[0].plot(df_forcing.index.values, df_forcing["Soil moisture interp"].values)
+axes[0].set_ylabel("Soil moisture (mm)")
+
+axes[1].plot(df_forcing.index.values, f_soilTheta_norm)
+axes[1].set_ylabel("Volumetric soil moisture")
+
+plt.tight_layout()
+
+# %% [markdown]
+# #### - *Initialise site module*
+
+# %%
+## Harden CSIRO site location-34.52194, 148.30472
+## NOTES:
+## sowing_doy, harvest_doy = 135, 322    ## Harden 2008
+## sowing_doy, harvest_doy = 129, 339    ## Harden 2012
+SiteX = ClimateModule(CLatDeg=-34.52194,CLonDeg=148.30472,timezone=10)
+start_doy_f = df_forcing["DOY"].values[0]
+start_year_f = df_forcing["Year"].values[0]
+nrundays_f = df_forcing.index.size
+
+# %%
+## Time discretisation
+time_nday_f, time_doy_f, time_year_f = SiteX.time_discretisation(start_doy_f, start_year_f, nrundays=nrundays_f)
+## Adjust daily time-step to represent midday on each day
+time_doy_f = [time_doy_f[i]+0.5 for i in range(len(time_doy_f))]
+
+## Time discretization for forcing data
+time_index_f = pd.to_datetime(df_forcing["Date"].values)
+
+# %%
+# Define lists of sowing and harvest dates
+sowing_dates = [
+    pd.Timestamp(year=2012, month=5, day=20),  # First season
+]
+
+harvest_dates = [
+    pd.Timestamp(year=2012, month=12, day=10),  # First season
+]
+
+
+# %%
+## Make some assumption about the fraction of diffuse radiation
+diffuse_fraction = 0.2
+
+## Shortwave radiation at surface (convert MJ m-2 d-1 to W m-2)
+_Rsb_Wm2 = (1-diffuse_fraction) * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+_Rsd_Wm2 = diffuse_fraction * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+
+## Create synthetic data for other forcing variables
+_p = 101325*np.ones(nrundays_f)
+_es = SiteX.compute_sat_vapor_pressure_daily(df_forcing["Minimum temperature"].values,df_forcing["Maximum temperature"].values)
+_RH = SiteX.compute_relative_humidity(df_forcing["VPeff"].values/10,_es/1000)
+_RH[_RH > 100] = 100
+_CO2 = 400*(_p/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
+_O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
+_soilTheta =  0.35*np.ones(nrundays_f)   ## volumetric soil moisture content (m3 m-3)
+_soilTheta = f_soilTheta_norm
+
+## Create a multi-layer soil moisture forcing dataset
+## Option 1: Same soil moisture across all layers
+nlevmlsoil = 2
+_soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
+## Option 2: Adjust soil moisture in each layer
+_soilTheta_z0 = _soilTheta-0.04
+_soilTheta_z1 = _soilTheta+0.04
+_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
+
+## Option 3: Adjust soil moisture in each layer, 4 layers
+_soilTheta_z0 = _soilTheta-0.08
+_soilTheta_z1 = _soilTheta-0.04
+_soilTheta_z2 = _soilTheta+0.02
+_soilTheta_z3 = _soilTheta+0.06
+_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _soilTheta_z3))
+
+# %% [markdown]
+# #### - *Convert discrete to continuous forcing data*
+
+# %%
+Climate_doy_f = interp_forcing(time_nday_f, time_doy_f, kind="pconst") #, fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday_f, time_year_f, kind="pconst") #, fill_value=(time_year[0],time_year[-1]))
+Climate_airTempCMin_f = interp1d(time_nday_f, df_forcing["Minimum temperature"].values)
+Climate_airTempCMax_f = interp1d(time_nday_f, df_forcing["Maximum temperature"].values)
+Climate_airTempC_f = interp1d(time_nday_f, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
+Climate_solRadswskyb_f = interp1d(time_nday_f, _Rsb_Wm2)
+Climate_solRadswskyd_f = interp1d(time_nday_f, _Rsd_Wm2)
+Climate_airPressure_f = interp1d(time_nday_f, _p)
+Climate_airRH_f = interp1d(time_nday_f, _RH)
+Climate_airU_f = interp1d(time_nday_f, df_forcing["Uavg"].values)
+Climate_airCO2_f = interp1d(time_nday_f, _CO2)
+Climate_airO2_f = interp1d(time_nday_f, _O2)
+Climate_soilTheta_f = interp1d(time_nday_f, _soilTheta)
+Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
+Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
+
+
+# %% [markdown]
 # #### *Milgadara Field Site*
 
 # %%
@@ -154,7 +270,7 @@ df_forcing['Date'] = pd.to_datetime(df_forcing ['Date'])
 df_forcing = df_forcing .sort_values(by='Date').reset_index(drop=True)
 
 # %% [markdown]
-# #### - Generation temporally-interpolated and scaled soil moisture forcing
+# #### - *Generate temporally-interpolated and scaled soil moisture forcing*
 #
 # The model requires soil moisture to be in units of volumetric soil water content (m3 m-3 or %). Soil moisture from the forcing data above is in units of mm. So we make a (pretty crude) assumption on how to convert mm to volumetrics soil water content. 
 
@@ -184,20 +300,11 @@ axes[1].set_ylabel("Volumetric soil moisture")
 plt.tight_layout()
 
 # %% [markdown]
-# #### - Initialise site module
+# #### - *Initialise site module*
 
 # %%
 ## Milgadara site location-34.38904277303204, 148.46949938279096
-# SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
-# start_doy_f = df_forcing["DOY"].values[0]
-# start_year_f = df_forcing["Year"].values[0]
-# nrundays_f = df_forcing.index.size
-
-## Harden CSIRO site location-34.52194, 148.30472
-## NOTES:
-## sowing_doy, harvest_doy = 135, 322    ## Harden 2008
-## sowing_doy, harvest_doy = 129, 339    ## Harden 2012
-SiteX = ClimateModule(CLatDeg=-34.52194,CLonDeg=148.30472,timezone=10)
+SiteX = ClimateModule(CLatDeg=-34.389,CLonDeg=148.469,timezone=10)
 start_doy_f = df_forcing["DOY"].values[0]
 start_year_f = df_forcing["Year"].values[0]
 nrundays_f = df_forcing.index.size
@@ -211,8 +318,18 @@ time_doy_f = [time_doy_f[i]+0.5 for i in range(len(time_doy_f))]
 ## Time discretization for forcing data
 time_index_f = pd.to_datetime(df_forcing["Date"].values)
 
-# %% [markdown]
-# ### Create discrete forcing data
+# %%
+# Define lists of sowing and harvest dates
+sowing_dates = [
+    pd.Timestamp(year=2018, month=7, day=20),  # First season
+    pd.Timestamp(year=2019, month=7, day=15)   # Second season
+]
+
+harvest_dates = [
+    pd.Timestamp(year=2018, month=12, day=10),  # First season
+    pd.Timestamp(year=2019, month=12, day=5)    # Second season
+]
+
 
 # %%
 ## Make some assumption about the fraction of diffuse radiation
@@ -249,7 +366,7 @@ _soilTheta_z3 = _soilTheta+0.06
 _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _soilTheta_z3))
 
 # %% [markdown]
-# ### Convert discrete to continuous forcing data 
+# #### - *Convert discrete to continuous forcing data*
 
 # %%
 Climate_doy_f = interp_forcing(time_nday_f, time_doy_f, kind="pconst") #, fill_value=(time_doy[0],time_doy[-1]))
@@ -269,7 +386,68 @@ Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpola
 Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 
+# %% [markdown]
+# #### *CSIRO Rutherglen Experiment 1971*
+
 # %%
+df_forcing = pd.read_csv("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/data/DAESim_forcing_Rutherglen_1971.csv")
+
+# %% [markdown]
+# #### - *Initialise site module, time discretization of forcing, sowing dates and harvest dates*
+
+# %%
+## CSIRO Rutherglen site
+SiteX = ClimateModule(CLatDeg=-36.05,CLonDeg=146.5,timezone=10)
+start_doy_f = df_forcing["DOY"].values[0]
+start_year_f = df_forcing["Year"].values[0]
+nrundays_f = df_forcing.index.size
+
+# %%
+## Time discretisation
+time_nday_f, time_doy_f, time_year_f = SiteX.time_discretisation(start_doy_f, start_year_f, nrundays=nrundays_f)
+## Adjust daily time-step to represent midday on each day
+time_doy_f = [time_doy_f[i]+0.5 for i in range(len(time_doy_f))]
+
+## Time discretization for forcing data
+time_index_f = pd.to_datetime(df_forcing["Date"].values)
+
+# %%
+# Define lists of sowing and harvest dates
+sowing_dates = [
+    pd.Timestamp(year=1971, month=5, day=11)
+]
+
+harvest_dates = [
+    pd.Timestamp(year=1971, month=12, day=23)
+]
+
+
+# %% [markdown]
+# #### - *Convert discrete to continuous forcing data*
+
+# %%
+_soilTheta_z = np.column_stack((
+    df_forcing["Soil moisture 5 cm"].values,
+    df_forcing["Soil moisture 8 cm"].values,
+    df_forcing["Soil moisture 14 cm"].values,
+    df_forcing["Soil moisture 22 cm"].values,
+    df_forcing["Soil moisture 34 cm"].values,
+    df_forcing["Soil moisture 52 cm"].values,))
+
+Climate_doy_f = interp_forcing(time_nday_f, time_doy_f, kind="pconst") #, fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday_f, time_year_f, kind="pconst") #, fill_value=(time_year[0],time_year[-1]))
+Climate_airTempCMin_f = interp1d(time_nday_f, df_forcing["Minimum temperature"].values)
+Climate_airTempCMax_f = interp1d(time_nday_f, df_forcing["Maximum temperature"].values)
+Climate_airTempC_f = interp1d(time_nday_f, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
+Climate_solRadswskyb_f = interp1d(time_nday_f, 10*(df_forcing["Global Radiation"].values-df_forcing["Diffuse Radiation"].values))
+Climate_solRadswskyd_f = interp1d(time_nday_f, 10*df_forcing["Diffuse Radiation"].values)
+Climate_airPressure_f = interp1d(time_nday_f, 100*df_forcing["Pressure"].values)
+Climate_airRH_f = interp1d(time_nday_f, df_forcing["Relative Humidity"].values)
+Climate_airU_f = interp1d(time_nday_f, df_forcing["Uavg"].values)
+Climate_airCO2_f = interp1d(time_nday_f, df_forcing["Atmospheric CO2 Concentration (bar)"].values)
+Climate_airO2_f = interp1d(time_nday_f, df_forcing["Atmospheric O2 Concentration (bar)"].values)
+Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
+Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 # %% [markdown]
 # ### Test the rate of change calculate method
@@ -424,19 +602,6 @@ def find_event_steps(event_dates, time_index):
 time_index_f
 
 # %%
-# Define lists of sowing and harvest dates
-sowing_dates = [
-    pd.Timestamp(year=2012, month=5, day=20),  # First season
-    # pd.Timestamp(year=2018, month=7, day=20),  # First season
-    # pd.Timestamp(year=2019, month=7, day=15)   # Second season
-]
-
-harvest_dates = [
-    pd.Timestamp(year=2012, month=12, day=10),  # First season
-    # pd.Timestamp(year=2018, month=12, day=10),  # First season
-    # pd.Timestamp(year=2019, month=12, day=5)    # Second season
-]
-
 ## Check that the first sowing date and last harvest date are within the available forcing data period
 # Apply validation to sowing and harvest dates
 SiteX.validate_event_dates(sowing_dates, time_index_f, event_name="Sowing")
@@ -531,9 +696,10 @@ plt.tight_layout()
 
 PlantDevX = PlantGrowthPhases(
     phases=["germination", "vegetative", "spike", "anthesis", "grainfill", "maturity"],
-    gdd_requirements=[50,1400,200,110,300,100],
+    # gdd_requirements=[50,750,200,110,300,100],
+    gdd_requirements=[50,800,280,150,300,300],
     #vd_requirements=[0, 40, 0, 0, 0, 0],
-    vd_requirements=[0, 0, 0, 0, 0, 0],
+    vd_requirements=[0, 30, 0, 0, 0, 0],
     allocation_coeffs = [
         [0.2, 0.1, 0.7, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
@@ -558,7 +724,14 @@ CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
 SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.10,discretise_method="scaled_exp")
+# SoilLayersX = SoilLayers(nlevmlsoil=6,z_max=0.66,z_top=0.10,discretise_method="horizon",
+#                          z_horizon=[0.06, 0.06, 0.06, 0.10, 0.10, 0.28],
+#                         Psi_e=[-1.38E-03, -1.38E-03, -1.38E-03, -1.32E-03, -2.58E-03, -0.960E-03],
+#                         b_soil = [4.74, 4.74, 4.74, 6.77, 8.17, 10.73],
+#                          K_sat = [29.7, 29.7, 29.7, 25.2, 13.9, 40.9],
+#                          soilThetaMax = [0.12, 0.12, 0.12, 0.20, 0.3, 0.4])
 PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
+# PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6.5,ksr_coeff=1500,SLA=0.02,sf=1.0,Psi_f=-5.0)
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02,sf=1.0,soilThetaMax=0.4,Psi_f=-5,Psi_e=-0.00138,b_soil=4.74,K_sat=29.7) #SLA=0.040)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
@@ -567,13 +740,15 @@ PlantX = PlantModuleCalculator(
     PlantDev=PlantDevX,
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
-    alpha_Rg=0.3,
+    alpha_Rg=0.2,
+    # alpha_Rg=0.3,
     GDD_method="linear1",
     GDD_Tbase=0.0,
     GDD_Tupp=25.0,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
     d_r_max=2.0,
     # d_r_max=0.60,
+    CI=0.75,
     Vmaxremob=3.0,
     Kmremob=0.5,
     remob_phase=["grainfill","maturity"],
@@ -868,45 +1043,45 @@ print("Phase transition time axis indexes, it_phase_transitions, over simulation
 site_year = str(time_year_f[time_axis[0]])
 site_name = "Harden - Wheat"
 # site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
-site_filename = "Harden_%s_Wheat_control_1s" % site_year
+site_filename = "Harden_%s_Wheat_control_1x" % site_year
 
 # site_year = str(time_year_f[time_axis[0]])
 # site_name = "Rutherglen 1971 - Wheat"
-# site_filename = "Rutherglen1971_%s_Wheat_control_1" % site_year
+# site_filename = "Rutherglen1971_%s_Wheat_control_2" % site_year
 
 # %%
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
 
-axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis)+Climate_solRadswskyd_f(time_axis), c='0.4', label="Global")
-axes[0].plot(res["t"], Climate_solRadswskyb_f(time_axis), c='goldenrod', alpha=0.5, label="Direct")
-axes[0].plot(res["t"], Climate_solRadswskyd_f(time_axis), c='C0', alpha=0.5, label="Diffuse")
+axes[0].plot(Climate_doy_f(res["t"]), Climate_solRadswskyb_f(time_axis)+Climate_solRadswskyd_f(time_axis), c='0.4', label="Global")
+axes[0].plot(Climate_doy_f(res["t"]), Climate_solRadswskyb_f(time_axis), c='goldenrod', alpha=0.5, label="Direct")
+axes[0].plot(Climate_doy_f(res["t"]), Climate_solRadswskyd_f(time_axis), c='C0', alpha=0.5, label="Diffuse")
 axes[0].set_ylabel("Solar radiation\n"+r"($\rm W \; m^{-2}$)")
 axes[0].legend(loc=1,handlelength=0.75)
 # axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Solar radiation", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,400])
 
-axes[1].plot(res["t"], Climate_airTempCMin_f(time_axis), c="lightsteelblue", label="Min")
-axes[1].plot(res["t"], Climate_airTempCMax_f(time_axis), c="indianred", label="Max")
+axes[1].plot(Climate_doy_f(res["t"]), Climate_airTempCMin_f(time_axis), c="lightsteelblue", label="Min")
+axes[1].plot(Climate_doy_f(res["t"]), Climate_airTempCMax_f(time_axis), c="indianred", label="Max")
 leafTempC = PlantX.Site.compute_skin_temp(Climate_airTempC_f(time_axis), Climate_solRadswskyb_f(time_axis) + Climate_solRadswskyd_f(time_axis))
-axes[1].plot(res["t"], leafTempC, c="darkgreen", label="Leaf")
-axes[1].plot(res["t"], Climate_airTempC_f(time_axis), c="0.5", label="Air")
+axes[1].plot(Climate_doy_f(res["t"]), leafTempC, c="darkgreen", label="Leaf")
+axes[1].plot(Climate_doy_f(res["t"]), Climate_airTempC_f(time_axis), c="0.5", label="Air")
 axes[1].set_ylabel("Air Temperature\n"+r"($\rm ^{\circ}C$)")
 # axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].legend(loc=1,handlelength=0.75)
 axes[1].annotate("Air temperature", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].set_ylim([-5,45])
 
-axes[2].plot(res["t"], Climate_airRH_f(time_axis), c="0.4")
+axes[2].plot(Climate_doy_f(res["t"]), Climate_airRH_f(time_axis), c="0.4")
 axes[2].set_ylabel("Relative humidity\n"+r"(%)")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Relative humidity", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
 xcolors = np.linspace(0.9,0.1,PlantX.PlantCH2O.SoilLayers.nlevmlsoil).astype(str)
 for iz in range(PlantX.PlantCH2O.SoilLayers.nlevmlsoil):
-    axes[3].plot(res["t"], 100*Climate_soilTheta_z_f(time_axis)[:,iz], c=xcolors[iz])
+    axes[3].plot(Climate_doy_f(res["t"]), 100*Climate_soilTheta_z_f(time_axis)[:,iz], c=xcolors[iz])
 axes[3].set_ylabel("Soil moisture\n"+r"(%)")
 # axes[3].tick_params(axis='x', labelrotation=45)
 axes[3].annotate("Soil moisture", (0.02,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -914,28 +1089,29 @@ axes[3].annotate("Soil moisture", (0.02,0.93), xycoords='axes fraction', vertica
 axes[3].set_xlabel("Time (day of year)")
 
 ax2 = axes[3].twinx()
-i0, i1 = time_axis[0]-1, time_axis[-1]
-ax2.bar(time_axis, df_forcing["Precipitation"].values[i0:i1], color="0.4")
+# i0, i1 = time_axis[0]-1, time_axis[-1]
+ax2.bar(df_forcing["DOY"].values, df_forcing["Precipitation"].values, color="0.4")
 ax2.set_ylabel("Daily Precipitation\n(mm)")
 axes[3].annotate("Precipitation", (0.98,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='right', fontsize=12)
 
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
-# axes[0].set_xlim([0,time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_climate.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
 # %%
+
+# %%
 fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
 
-axes[0].plot(diagnostics["t"], diagnostics["LAI"])
+axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[0].set_ylim([0,6])
+axes[0].set_ylim([0,6.5])
 
-axes[1].plot(diagnostics["t"], diagnostics["GPP"])
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["GPP"])
 axes[1].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -943,22 +1119,22 @@ axes[1].set_ylim([0,30])
 
 # axes[2].plot(res["t"], _E*1e3)
 # axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mmol \; H_2O \; m^{-2} \; s^{-1}$)")
-axes[2].plot(diagnostics["t"], diagnostics["E_mmd"])
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["E_mmd"])
 axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mm \; d^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Transpiration Rate", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[2].set_ylim([0,6])
 
 # axes[4].plot(df_forcing.index.values[364:-1], 0.5*np.cumsum(GPP[364:]))
-axes[3].plot(res["t"], res["y"][4])
+axes[3].plot(Climate_doy_f(res["t"]), res["y"][4])
 axes[3].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C d)")
 axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
 ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
 for itime in it_phase_transitions_all:
-    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-    text_x = res["t"][itime] + 1.5
+    ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
     if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
         phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -970,13 +1146,17 @@ for itime in it_phase_transitions_all:
                 fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([ylimmin, ylimmax])
 
+# ax.vlines(x=[284, 301],ymin=ylimmin, ymax=ylimmax, linestyle="--")
+# ax.grid(True)
+# ax.set_ylim([700,1300])
+
 alp = 0.6
-axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
-axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
-axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
-axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
-# axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][0],label="Leaf", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][1],label="Stem", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][2],label="Root", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][3],label="Seed", alpha=alp)
+# axes[4].plot(Climate_doy_f(res["t"]), res["y"][8],label="Dead", c='0.5', alpha=alp)
 axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
@@ -999,14 +1179,14 @@ harvest_index_peak_noroot = res["y"][3,it_harvest]/peak_accumulated_carbon_nosee
 yield_from_seed_Cpool = res["y"][3,it_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].set_ylim([0,600])
+# axes[4].set_ylim([0,600])
 
 print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
 # axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -1037,55 +1217,57 @@ for it, t in enumerate(time_axis[:-1]):
     LAI = PlantX.PlantCH2O.calculate_LAI(_W_L[it])
     hc = diagnostics["h_c"][it]
     airUhc = PlantX.calculate_wind_speed_hc(airU,hc,LAI+PlantX.SAI)
-    d_r = diagnostics["h_c"][it]
+    d_rpot = diagnostics["d_r"][it]
+    d_r = PlantX.PlantCH2O.calculate_root_depth(_W_R[it], d_rpot)
     #_GPP[it], _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = PlantX.PlantCH2O.calculate(_W_L[it],_W_R[it],soilTheta,airTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,PlantX.SAI,PlantX.CI,hc,d_r)
-    _GPP[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, diagnostics["fPsil"][it], LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
-    _GPP_nofPsil[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, airTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
+    _GPP[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUhc, diagnostics["fPsil"][it], LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
+    _GPP_nofPsil[it], E, Rd, _ = PlantX.PlantCH2O.calculate_canopygasexchange(airTempC, leafTempC, airCO2, airO2, airRH, airP, airUhc, 1.0, LAI, PlantX.SAI, PlantX.CI, hc, theta, solRadswskyb, solRadswskyd)
 
 
 
 # %%
 fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
 
-axes[0].plot(diagnostics["t"], diagnostics["LAI"])
+axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,6])
 
-axes[1].plot(diagnostics["t"], diagnostics["GPP"])
-axes[1].plot(diagnostics["t"], _GPP[:-1], c='k', linestyle="--")
-axes[1].plot(diagnostics["t"], _GPP_nofPsil[:-1], c='r', linestyle="--")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["GPP"])
+axes[1].plot(Climate_doy_f(diagnostics["t"]), _GPP[:-1], c='r', linestyle="--", label="Soil water stress")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), _GPP_nofPsil[:-1], c='k', linestyle="--", label="No soil water stress")
 axes[1].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].set_ylim([0,30])
+axes[1].legend()
 
 # axes[2].plot(res["t"], _E*1e3)
 # axes[2].set_ylabel(r"$\rm E$"+"\n"+r"($\rm mmol \; H_2O \; m^{-2} \; s^{-1}$)")
-axes[2].plot(diagnostics["t"], diagnostics["Psil"], label="Bulk Leaf", alpha=0.7)
-axes[2].plot(diagnostics["t"], diagnostics["Psir"], label="Bulk Root", alpha=0.7)
-axes[2].plot(diagnostics["t"], diagnostics["Psis"], label="Bulk Soil", alpha=0.7)
-axes[2].hlines(y=PlantX.PlantCH2O.Psi_f,xmin=diagnostics["t"][0],xmax=diagnostics["t"][-1],color='0.5',linestyle='--')
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Psil"], label="Bulk Leaf", alpha=0.7)
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Psir"], label="Bulk Root", alpha=0.7)
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Psis"], label="Bulk Soil", alpha=0.7)
+axes[2].hlines(y=PlantX.PlantCH2O.Psi_f,xmin=Climate_doy_f(diagnostics["t"][0]),xmax=Climate_doy_f(diagnostics["t"][-1]),color='0.5',linestyle='--')
 axes[2].set_ylabel("Water potential"+"\n"+r"(MPa)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Plant Hydraulics", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[2].set_ylim([-3,0])
+axes[2].set_ylim([-10,0])
 axes[2].legend()
 
-axes[3].plot(diagnostics["t"], diagnostics["fPsil"])
+axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["fPsil"])
 axes[3].set_ylabel(r"$\rm f_{Psi_L}$"+"\n"+r"(-)")
 axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Leaf Water Potential Effect on Stomatal Conductance", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 # axes[3].set_ylim([])
 
 alp = 0.6
-axes[4].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[4].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
-axes[4].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
-axes[4].plot(res["t"], res["y"][2],label="Root", alpha=alp)
-axes[4].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
-# axes[4].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][0],label="Leaf", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][1],label="Stem", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][2],label="Root", alpha=alp)
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][3],label="Seed", alpha=alp)
+# axes[4].plot(Climate_doy_f(res["t"]), res["y"][8],label="Dead", c='0.5', alpha=alp)
 axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
 axes[4].set_xlabel("Time (day of year)")
 axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
@@ -1115,7 +1297,7 @@ print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed, root)) = %1.2f" % harvest_index_peak_noroot)
 
 # axes[0].set_xlim([PlantX.Management.sowingDay,292])
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -1126,31 +1308,32 @@ plt.tight_layout()
 # %%
 
 # %%
+
+# %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
 
-axes[0].plot(diagnostics["t"], diagnostics["GPP"])
+axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics["GPP"])
 axes[0].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
-axes[1].plot(diagnostics["t"], diagnostics["Rm"]+diagnostics["Rg"], label=r"$\rm R_a$", c="k")
-axes[1].plot(diagnostics["t"], diagnostics["Rg"], label=r"$\rm R_g$", c="C1")
-axes[1].plot(diagnostics["t"], diagnostics["Rm"], label=r"$\rm R_m$", c="C0")
-axes[1].plot(diagnostics["t"], diagnostics["Rml"], c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
-axes[1].plot(diagnostics["t"], diagnostics["Rmr"], c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Rm"]+diagnostics["Rg"], label=r"$\rm R_a$", c="k")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Rg"], label=r"$\rm R_g$", c="C1")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Rm"], label=r"$\rm R_m$", c="C0")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Rml"], c="C0", linestyle="--", label=r"$\rm R_{m,L}$")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["Rmr"], c="C0", linestyle=":", label=r"$\rm R_{m,R}$")
 axes[1].set_ylabel("Plant Respiration\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].legend(fontsize=10)
 
-axes[2].plot(diagnostics["t"], diagnostics["NPP"]/diagnostics["GPP"])
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["NPP"]/diagnostics["GPP"])
 axes[2].set_ylabel(r"CUE")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Carbon-Use Efficiency", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[2].set_ylim([0,1.0])
 
-axes[0].set_xlim([PlantX.Management.sowingDays[0],292])
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -1165,22 +1348,22 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(3,1,figsize=(8,6),sharex=True)
 
-axes[0].plot(diagnostics['t'], diagnostics['GPP'], c="k")
+axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics['GPP'], c="k")
 axes[0].set_ylabel("GPP\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Photosynthesis", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,30])
 
-axes[1].plot(diagnostics['t'], diagnostics['Rm'] + diagnostics['Rg'], label=r"$\rm R_a$", c='k')
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics['Rm'] + diagnostics['Rg'], label=r"$\rm R_a$", c='k')
 axes[1].set_ylabel(r"$\rm R_a$"+"\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Plant Respiration", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].legend(fontsize=10)
 axes[1].set_ylim([0,10])
 
-axes[2].plot(diagnostics['t'], diagnostics['trflux_total'], c="k")
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics['trflux_total'], c="k")
 # _Cflux_harvest_total = _Cflux_harvest_Leaf+_Cflux_harvest_Stem+_Cflux_harvest_Seed
-# axes[2].plot(res["t"], _Cflux_harvest_total)
+# axes[2].plot(Climate_doy_f(diagnostics["t"]), _Cflux_harvest_total)
 axes[2].set_ylabel("Turnover\n"+r"($\rm g C \; m^{-2} \; d^{-1}$)")
 # axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Plant Turnover (loss of 'green' biomass)", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
@@ -1190,8 +1373,8 @@ axes[2].set_ylim([0,50])
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
     for itime in it_phase_transitions:
-        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-        text_x = res["t"][itime] + 1.5
+        ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        text_x = Climate_doy_f(res["t"][itime]) + 1.5
         text_y = 0.5 * ylimmax
         if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
             phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -1204,8 +1387,7 @@ for ax in axes:
     ax.set_ylim([ylimmin, ylimmax])
 
 
-axes[0].set_xlim([PlantX.Management.sowingDays[0],292])
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)
@@ -1216,19 +1398,19 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(1,3,figsize=(15,3),sharex=True)
 
-axes[0].plot(time_axis, res["y"][1,:]/PlantX.PlantCH2O.f_C, label="Stem")
+axes[0].plot(Climate_doy_f(res["t"]), res["y"][1,:]/PlantX.PlantCH2O.f_C, label="Stem")
 axes[0].set_ylabel("Stem dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")       
 SDW_a = res["y"][7,-1]/PlantX.PlantCH2O.f_C
 axes[0].text(0.07, 0.92, r"$\rm SDW_a$=%1.0f g d.wt m$\rm^{-2}$" % SDW_a, horizontalalignment='left', verticalalignment='center', transform = axes[0].transAxes)
 # axes[0].set_ylim([0,600])
 
-axes[1].plot(diagnostics['t'], diagnostics['S_d_pot'], c='0.25', label="Potential seed density")
-axes[1].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0, label="Actual seed density")
+axes[1].plot(Climate_doy_f(diagnostics['t']), diagnostics['S_d_pot'], c='0.25', label="Potential seed density")
+axes[1].plot(Climate_doy_f(res["t"]), res["y"][3,:]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0, label="Actual seed density")
 axes[1].set_ylabel(r"$\rm S_d$"+"\n"+r"($\rm thsnd \; grains \; m^{-2}$)")
 axes[1].legend()
 # axes[1].set_ylim([0,22])
 
-axes[2].plot(time_axis, res["y"][3,:]/PlantX.PlantCH2O.f_C)
+axes[2].plot(Climate_doy_f(res["t"]), res["y"][3,:]/PlantX.PlantCH2O.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
 # axes[2].set_ylim([0,600])
@@ -1237,8 +1419,8 @@ axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xy
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
     for itime in it_phase_transitions:
-        ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-        text_x = res["t"][itime] + 1.5
+        ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+        text_x = Climate_doy_f(res["t"][itime]) + 1.5
         text_y = 0.5 * ylimmax
         if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
             phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -1250,7 +1432,7 @@ for ax in axes:
                     fontsize=8, alpha=0.7, rotation=90)
     ax.set_ylim([ylimmin, ylimmax])
 
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 axes[0].set_xlabel("Time (day of year)")
 axes[1].set_xlabel("Time (day of year)")
 axes[2].set_xlabel("Time (day of year)")
@@ -1261,15 +1443,15 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(2,3,figsize=(12,6),sharex=True)
 
-axes[0,0].plot(res["t"], res["y"][4])
+axes[0,0].plot(Climate_doy_f(res["t"]), res["y"][4])
 axes[0,0].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[0,0].set_xlabel("Time (days)")
 axes[0,0].set_title("Growing Degree Days")
 ax = axes[0,0]
 ylimmin, ylimmax = ax.get_ylim()
 for itime in it_phase_transitions:
-    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-    text_x = res["t"][itime] + 1.5
+    ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
     if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
         phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -1281,15 +1463,15 @@ for itime in it_phase_transitions:
                 fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
-axes[1,0].plot(diagnostics['t'], diagnostics['DTT'], c='C0', linestyle=":", label="DTT")
-axes[1,0].plot(diagnostics['t'], diagnostics['DTT'] * diagnostics['fV'], c='C0', linestyle="-", label=r"$\rm DTT \times f_V$")
-axes[1,0].plot(diagnostics['t'], diagnostics['DTT'] * diagnostics['fV'] * diagnostics['fGerm'], c='C0', linestyle=":", label=r"$\rm DTT \times f_V \times f_{germ}$")
+axes[1,0].plot(Climate_doy_f(diagnostics['t']), diagnostics['DTT'], c='C0', linestyle=":", label="DTT")
+axes[1,0].plot(Climate_doy_f(diagnostics['t']), diagnostics['DTT'] * diagnostics['fV'], c='C0', linestyle="-", label=r"$\rm DTT \times f_V$")
+axes[1,0].plot(Climate_doy_f(diagnostics['t']), diagnostics['DTT'] * diagnostics['fV'] * diagnostics['fGerm'], c='C0', linestyle=":", label=r"$\rm DTT \times f_V \times f_{germ}$")
 axes[1,0].set_ylabel("Daily Thermal Time\n"+r"($\rm ^{\circ}$C)")
 axes[1,0].set_xlabel("Time (days)")
 axes[1,0].set_title("Growing Degree Days")
 axes[1,0].legend()
 
-axes[0,1].plot(res["t"], res["y"][5])
+axes[0,1].plot(Climate_doy_f(res["t"]), res["y"][5])
 axes[0,1].set_ylabel("Vernalization Days\n"+r"(-)")
 axes[0,1].set_xlabel("Time (days)")
 axes[0,1].set_title("Vernalization Days")
@@ -1297,8 +1479,8 @@ axes[0,1].set_title("Vernalization Days")
 ax = axes[0,1]
 ylimmin, ylimmax = ax.get_ylim()
 for itime in it_phase_transitions:
-    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-    text_x = res["t"][itime] + 1.5
+    ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
     if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
         phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -1310,7 +1492,7 @@ for itime in it_phase_transitions:
                 fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
-axes[1,1].plot(diagnostics['t'], diagnostics['fV'])
+axes[1,1].plot(Climate_doy_f(diagnostics['t']), diagnostics['fV'])
 axes[1,1].set_ylabel("Vernalization Factor")
 axes[1,1].set_xlabel("Time (days)")
 axes[1,1].set_title("Vernalization Factor\n(Modifier on GDD)")
@@ -1318,8 +1500,8 @@ axes[1,1].set_title("Vernalization Factor\n(Modifier on GDD)")
 ax = axes[1,1]
 ylimmin, ylimmax = ax.get_ylim()
 for itime in it_phase_transitions:
-    ax.vlines(x=res["t"][itime], ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
-    text_x = res["t"][itime] + 1.5
+    ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
+    text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
     if ~np.isnan(diagnostics['idevphase_numeric'][itime]):
         phase = PlantX.PlantDev.phases[diagnostics['idevphase'][itime]]
@@ -1331,7 +1513,7 @@ for itime in it_phase_transitions:
                 fontsize=8, alpha=0.7, rotation=90)
 ax.set_ylim([0, ylimmax])
 
-axes[0,2].plot(res["t"], res["y"][6])
+axes[0,2].plot(Climate_doy_f(res["t"]), res["y"][6])
 axes[0,2].set_ylabel("Hydrothermal Time\n"+r"($\rm MPa \; ^{\circ}$C d)")
 axes[0,2].set_xlabel("Time (days)")
 axes[0,2].set_title("Hydrothermal Time")
@@ -1341,7 +1523,7 @@ axes[0,2].set_title("Hydrothermal Time")
 # axes[1,2].set_xlabel("Time (days)")
 # axes[1,2].set_title("Hydrothermal Time per Day")
 
-plt.xlim([time_axis[0],time_axis[-1]])
+plt.xlim([Climate_doy_f(time_axis[0]),Climate_doy_f(time_axis[-1])])
 plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plantdev.png" % (site_filename),dpi=300,bbox_inches='tight')
 
@@ -1350,57 +1532,57 @@ plt.tight_layout()
 # %%
 fig, axes = plt.subplots(6,1,figsize=(8,12),sharex=True)
 
-axes[0].plot(diagnostics["t"], diagnostics["LAI"])
+axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[0].set_ylim([0,6])
 
-axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWleaf"])
-axes[1].plot(diagnostics["t"], diagnostics["dGPPRmdWroot"])
-# axes[1].plot(diagnostics["t"], diagnostics["dGPPdWleaf"],c="C0",linestyle="--")
-# axes[1].plot(diagnostics["t"], diagnostics["dGPPdWroot"],c="C1",linestyle="--")
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPRmdWleaf"])
+axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPRmdWroot"])
+# axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPdWleaf"],c="C0",linestyle="--")
+# axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPdWroot"],c="C1",linestyle="--")
 axes[1].set_ylabel("Marginal gain\n"+r"($\rm g \; C \; g \; C^{-1}$)")
 axes[1].tick_params(axis='x', labelrotation=45)
 axes[1].annotate("Marginal gain: GPP - Rm", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[1].set_ylim([-0.06,0.10])
 
-axes[2].plot(diagnostics["t"], diagnostics["dGPPdWleaf"])
-axes[2].plot(diagnostics["t"], diagnostics["dGPPdWroot"])
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPdWleaf"])
+axes[2].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dGPPdWroot"])
 axes[2].set_ylabel("Marginal gain\n"+r"($\rm g \; C \; g \; C^{-1}$)")
 axes[2].tick_params(axis='x', labelrotation=45)
 axes[2].annotate("Marginal gain: GPP", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[2].set_ylim([-0.06,0.10])
 
-axes[3].plot(diagnostics["t"], diagnostics["dSdWleaf"])
-axes[3].plot(diagnostics["t"], diagnostics["dSdWleaf"])
+axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dSdWleaf"])
+axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dSdWleaf"])
 axes[3].set_ylabel("Marginal cost\n"+r"($\rm g \; C \; g \; C^{-1}$)")
 axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Marginal cost", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
-axes[4].plot(diagnostics["t"], diagnostics["u_Leaf"], label="Leaf")
-axes[4].plot(diagnostics["t"], diagnostics["u_Root"], label="Root")
-axes[4].plot(diagnostics["t"], diagnostics["u_Stem"], label="Stem")
-axes[4].plot(diagnostics["t"], diagnostics["u_Seed"], label="Seed")
-# axes[4].plot(diagnostics["t"], diagnostics["u_Leaf"]+diagnostics["u_Root"]+diagnostics["u_Stem"]+diagnostics["u_Seed"], c='k')
+axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Leaf"], label="Leaf")
+axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Root"], label="Root")
+axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Stem"], label="Stem")
+axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Seed"], label="Seed")
+# axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Leaf"]+diagnostics["u_Root"]+diagnostics["u_Stem"]+diagnostics["u_Seed"], c='k')
 axes[4].set_ylabel("Carbon allocation\ncoefficient (-)")
 axes[4].tick_params(axis='x', labelrotation=45)
 axes[4].set_ylim([0,1.01])
 axes[4].legend(handlelength=0.75)
 
 alp = 0.6
-axes[5].plot(res["t"], res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[5].plot(res["t"], res["y"][0],label="Leaf", alpha=alp)
-axes[5].plot(res["t"], res["y"][1],label="Stem", alpha=alp)
-axes[5].plot(res["t"], res["y"][2],label="Root", alpha=alp)
-axes[5].plot(res["t"], res["y"][3],label="Seed", alpha=alp)
-# axes[5].plot(res["t"], res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][0],label="Leaf", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][1],label="Stem", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][2],label="Root", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][3],label="Seed", alpha=alp)
+# axes[5].plot(Climate_doy_f(res["t"]), res["y"][8],label="Dead", c='0.5', alpha=alp)
 axes[5].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
 axes[5].set_xlabel("Time (day of year)")
 axes[5].legend(loc=3,fontsize=9,handlelength=0.8)
 axes[5].set_ylim([0,600])
 
-axes[0].set_xlim([PlantX.Management.sowingDays[0],time_axis[-1]])
+axes[0].set_xlim([PlantX.Management.sowingDays[0],Climate_doy_f(time_axis[-1])])
 
 axes[0].set_title("%s - %s" % (site_year,site_name))
 # axes[0].set_title("Harden: %s" % site_year)

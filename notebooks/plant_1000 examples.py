@@ -524,25 +524,11 @@ Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ord
 # %%
 from daesim.utils import ODEModelSolver
 
-
 # %% [markdown]
 # ### Initialise aggregated model with its classes, initial values for the states, and time axis
 
 # %% [markdown]
 # #### Time Discretization and Time Axis for Model Simulation:
-
-# %%
-# Event Detection Across Time Steps for Multiple Events
-def find_event_steps(event_dates, time_index):
-    """Find the closest time steps in time_index for a list of event dates."""
-    event_steps = []
-    for date in event_dates:
-        try:
-            step = time_index.get_loc(date)
-        except KeyError:
-            step = (time_index >= date).argmax()
-        event_steps.append(step)
-    return event_steps
 
 # %%
 # ## Time discretization and indexing for model simulation period
@@ -608,8 +594,8 @@ SiteX.validate_event_dates(sowing_dates, time_index_f, event_name="Sowing")
 SiteX.validate_event_dates(harvest_dates, time_index_f, event_name="Harvest")
 
 # Find steps for all sowing and harvest dates in the forcing data
-sowing_steps_f = find_event_steps(sowing_dates, time_index_f)
-harvest_steps_f = find_event_steps(harvest_dates, time_index_f)
+sowing_steps_f = SiteX.find_event_steps(sowing_dates, time_index_f)
+harvest_steps_f = SiteX.find_event_steps(harvest_dates, time_index_f)
 
 # 3. Generate time axis for ODE Solver, which is set to start at the first sowing event and end just after the last harvest event
 time_axis = time_nday_f[sowing_steps_f[0]:harvest_steps_f[-1]+2]
@@ -617,9 +603,9 @@ time_axis = time_nday_f[sowing_steps_f[0]:harvest_steps_f[-1]+2]
 time_index = time_index_f[sowing_steps_f[0]:harvest_steps_f[-1]+2]
 
 ## Determine the ODE solver reset days
-sowing_steps_itax = find_event_steps(sowing_dates, time_index)
-harvest_steps_itax = find_event_steps(harvest_dates, time_index)
-reset_days_itax = find_event_steps(sowing_dates+harvest_dates, time_index)
+sowing_steps_itax = SiteX.find_event_steps(sowing_dates, time_index)
+harvest_steps_itax = SiteX.find_event_steps(harvest_dates, time_index)
+reset_days_itax = SiteX.find_event_steps(sowing_dates+harvest_dates, time_index)
 reset_days_itax.sort()
 reset_days_tax = list(time_axis[reset_days_itax])
 
@@ -996,6 +982,8 @@ print("Grain yield at start of maturity =", res["y"][PlantX.PlantDev.iseed,it_ph
 print("Grain yield at end of maturity =", res["y"][PlantX.PlantDev.iseed,it_p]/PlantX.PlantCH2O.f_C)
 print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
 print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
+
+# %%
 
 # %%
 ## ignore any time steps before first sowing event and after last harvest event

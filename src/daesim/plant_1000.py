@@ -166,7 +166,7 @@ class PlantModuleCalculator:
         
         # Calculate root depth
         relative_gdd_d_r = self.PlantDev.calc_relative_gdd_to_phase(Bio_time,self.d_r_maxphase)
-        d_r = self.calculate_root_depth(relative_gdd_d_r)
+        d_rpot = self.calculate_root_depth(relative_gdd_d_r)
 
         # Down-regulate selected physiological parameters during senescence/maturity phase
         # TODO: This is not good coding practice, need to find a better way to handle this
@@ -207,12 +207,14 @@ class PlantModuleCalculator:
             # If leaf or root biomass is zero, do not perform plant ecophysiology (carbon and water) calculations
             LAI = 0
             _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            d_r = 0
         else:
             # Calculate wind speed at top-of-canopy
             LAI = self.PlantCH2O.calculate_LAI(W_L)
             airUhc = self.calculate_wind_speed_hc(airU,hc,LAI+self.SAI)
             # Calculate canopy carbon and water dynamics
-            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
+            _GPP, _Rml, _Rmr, E, fPsil, Psil, Psir, Psis, K_s, K_sr, k_srl = self.PlantCH2O.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_rpot)
+            d_r = self.PlantCH2O.calculate_root_depth(W_R, d_rpot)
         
         GPP = _GPP * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
         Rml = _Rml * 12.01 * (60*60*24) / 1e6  ## converts native PlantCH2O units (umol C m-2 s-1) to units needed in this module (g C m-2 d-1)
@@ -251,7 +253,7 @@ class PlantModuleCalculator:
             u_R = alloc_coeffs[self.PlantDev.iroot]
             dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot = 0, 0, 0, 0, 0, 0
         else:
-            u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot = self.PlantAlloc.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_r)
+            u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot = self.PlantAlloc.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,solRadswskyb,solRadswskyd,theta,self.SAI,self.CI,hc,d_rpot)
 
         # If there is no net benefit for allocating to leaves or roots, allocate instead to stem reserves
         if (u_L <= 0) and (u_R <= 0):
@@ -290,6 +292,7 @@ class PlantModuleCalculator:
                 'u_Root': u_R,
                 'u_Seed': u_Seed,
                 'h_c': hc,
+                'd_rpot': d_rpot,
                 'd_r': d_r,
                 'fV': fV,
                 'fGerm': fGerm,

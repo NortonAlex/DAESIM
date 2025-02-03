@@ -110,11 +110,20 @@ class PlantGrowthPhases:
         """
         return self.vd_t - self.vd_0
 
-    def calc_relative_gdd_to_phase(self, current_gdd, phase_name):
+    def calc_relative_gdd_to_phase(self, current_gdd, phase_name, to_phase_start=True):
         """
         Calculates the relative GDD index between 0 and 1, indicating the
-        relative development growth phase from germination to the start of
-        the specified phase.
+        relative development growth phase from germination to a specified phase 
+        (either to the start of the phase or end of the phase).
+
+        Parameters
+        ----------
+        current_gdd : float
+            Current developmental state
+        phase_name : str
+            Name of developmental phase to determine relative index to
+        to_phase_start : boolean
+            Index to the start of the phase (True) or end of the phase (False)
         """
         # Identify the index corresponding to the given phase
         try:
@@ -122,7 +131,10 @@ class PlantGrowthPhases:
         except ValueError:
             raise ValueError("%s phase not found in the growth phases. Please ensure the phase exists to determine developmental progression." % phase_name)
 
-        phase_gdd = sum(self.gdd_requirements[:phase_index])  # GDD required to reach given phase
+        if to_phase_start:
+            phase_gdd = sum(self.gdd_requirements[:phase_index])  # GDD required to reach start of given phase
+        else:
+            phase_gdd = sum(self.gdd_requirements[:phase_index+1])  # GDD required to reach end given phase
 
         if current_gdd <= 0:
             return 0

@@ -85,6 +85,7 @@ class PlantModuleCalculator:
 
     specified_phase: str = field(default="spike")  ## Developmental phase when accumulation of a defined carbon flux occurs. Usually used to support the grain production module. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
     downreg_phase: str = field(default="maturity")  ## Developmental phase when down-regulation of selected physiological parameters occurs. Usually occurs during maturity or senescence. N.B. phase must be defined in in PlantDev.phases in the PlantDev() module
+    downreg_proportion: float = field(default=0.99)  ## Fractional down-regulation of selected physiological parameters over defined downreg_phase e.g. 0.99 means a total of 99% down-regulation of parameters by the end of the downreg_phase
 
     ## Grain production module parameters
     grainfill_phase: list[str] = field(factory=lambda: ["grainfill"])  ## Name of developmental/growth phase(s) in which grain filling occurs (list of strings). N.B. phase(s) must be defined in in PlantDev.phases in the PlantDev() module
@@ -171,19 +172,28 @@ class PlantModuleCalculator:
         # Down-regulate selected physiological parameters during senescence/maturity phase
         # TODO: This is not good coding practice, need to find a better way to handle this
         if self.downreg_phase is not None:
-            if self.PlantDev.is_in_phase(Bio_time, self.downreg_phase):
-                scaling_factor = self.PlantDev.index_progress_through_phase(Bio_time, self.downreg_phase)
-                self.PlantCH2O.k_rl = self.scale_parameter(self.p1, 1, scaling_factor)  # assume 100% downregulation of k_rl
-                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.scale_parameter(self.p2, 1, scaling_factor)  # assume 100% downregulation of Vcmax_opt
-                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.scale_parameter(self.p3, 1, scaling_factor)  # assume 100% downregulation of g1
-            elif idevphase == None:
-                self.PlantCH2O.k_rl = self.p1  # after downreg_phase we reset the parameter back to its original value
-                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.p2  # after downreg_phase we reset the parameter back to its original value
-                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.p3  # after downreg_phase we reset the parameter back to its original value
-            else:
+            # Before any modification of module attributes (i.e. parameters), we must store their initial values
+            if self.p1 == None:
                 self.p1 = self.PlantCH2O.k_rl
                 self.p2 = self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt
                 self.p3 = self.PlantCH2O.CanopyGasExchange.Leaf.g1
+
+            # Down-regulation is developmental phase specific
+            if self.PlantDev.is_in_phase(Bio_time, self.downreg_phase):
+                # if development is within the downreg_phase then physiological down-regulation occurs
+                scaling_factor = self.PlantDev.index_progress_through_phase(Bio_time, self.downreg_phase)
+                self.PlantCH2O.k_rl = self.scale_parameter(self.p1, self.downreg_proportion, scaling_factor)
+                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.scale_parameter(self.p2, self.downreg_proportion, scaling_factor)
+                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.scale_parameter(self.p3, self.downreg_proportion, scaling_factor)
+            elif self.PlantDev.calc_relative_gdd_to_phase(Bio_time, self.downreg_phase, to_phase_start=False) == 1:
+                # development is past the downreg_phase, so maintain the down-regulated physiological parameter values
+                self.PlantCH2O.k_rl = self.scale_parameter(self.p1, self.downreg_proportion, 1.0)
+                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.scale_parameter(self.p2, self.downreg_proportion, 1.0)
+                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.scale_parameter(self.p3, self.downreg_proportion, 1.0)
+            elif (self.PlantDev.calc_relative_gdd_to_phase(Bio_time, self.downreg_phase) > 0) and (self.PlantDev.calc_relative_gdd_to_phase(Bio_time, self.downreg_phase) < 1):
+                self.PlantCH2O.k_rl = self.p1  # after downreg_phase and return to growing season we reset the parameter back to its original value
+                self.PlantCH2O.CanopyGasExchange.Leaf.Vcmax_opt = self.p2  # after downreg_phase and return to growing season we reset the parameter back to its original value
+                self.PlantCH2O.CanopyGasExchange.Leaf.g1 = self.p3  # after downreg_phase and return to growing season we reset the parameter back to its original value
         
         # Vernalization state
         self.PlantDev.update_vd_state(VRN_time,Bio_time)    # Update vernalization state information to track developmental phase changes

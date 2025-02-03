@@ -218,6 +218,9 @@ Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpola
 Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 
+# %%
+Climate_nday_f
+
 # %% [markdown]
 # #### *Milgadara Field Site*
 
@@ -680,6 +683,28 @@ plt.tight_layout()
 #                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 
+# PlantDevX = PlantGrowthPhases(
+#     phases=["germination", "vegetative", "spike", "anthesis", "grainfill", "maturity"],
+#     # gdd_requirements=[50,750,200,110,300,100],
+#     gdd_requirements=[50,800,280,150,300,300],
+#     #vd_requirements=[0, 40, 0, 0, 0, 0],
+#     vd_requirements=[0, 30, 0, 0, 0, 0],
+#     allocation_coeffs = [
+#         [0.2, 0.1, 0.7, 0.0, 0.0],
+#         [0.5, 0.1, 0.4, 0.0, 0.0],
+#         [0.3, 0.4, 0.3, 0.0, 0.0],
+#         [0.3, 0.4, 0.3, 0.0, 0.0],
+#         [0.1, 0.02, 0.1, 0.78, 0.0],
+#         [0.1, 0.02, 0.1, 0.78, 0.0]
+#     ],
+#     turnover_rates = [[0.001,  0.001, 0.001, 0.0, 0.0],
+#                       [0.01, 0.002, 0.008, 0.0, 0.0],
+#                       [0.01, 0.002, 0.008, 0.0, 0.0],
+#                       [0.01, 0.002, 0.008, 0.0, 0.0],
+#                       [0.033, 0.016, 0.033, 0.0002, 0.0],
+#                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
+
+
 PlantDevX = PlantGrowthPhases(
     phases=["germination", "vegetative", "spike", "anthesis", "grainfill", "maturity"],
     # gdd_requirements=[50,750,200,110,300,100],
@@ -687,7 +712,7 @@ PlantDevX = PlantGrowthPhases(
     #vd_requirements=[0, 40, 0, 0, 0, 0],
     vd_requirements=[0, 30, 0, 0, 0, 0],
     allocation_coeffs = [
-        [0.2, 0.1, 0.7, 0.0, 0.0],
+        [0.4, 0.1, 0.5, 0.0, 0.0],
         [0.5, 0.1, 0.4, 0.0, 0.0],
         [0.3, 0.4, 0.3, 0.0, 0.0],
         [0.3, 0.4, 0.3, 0.0, 0.0],
@@ -709,15 +734,15 @@ LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,J
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
-SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.10,discretise_method="scaled_exp")
-# SoilLayersX = SoilLayers(nlevmlsoil=6,z_max=0.66,z_top=0.10,discretise_method="horizon",
-#                          z_horizon=[0.06, 0.06, 0.06, 0.10, 0.10, 0.28],
-#                         Psi_e=[-1.38E-03, -1.38E-03, -1.38E-03, -1.32E-03, -2.58E-03, -0.960E-03],
-#                         b_soil = [4.74, 4.74, 4.74, 6.77, 8.17, 10.73],
-#                          K_sat = [29.7, 29.7, 29.7, 25.2, 13.9, 40.9],
-#                          soilThetaMax = [0.12, 0.12, 0.12, 0.20, 0.3, 0.4])
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
-# PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6.5,ksr_coeff=1500,SLA=0.02,sf=1.0,Psi_f=-5.0)
+# SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.10,discretise_method="scaled_exp")
+SoilLayersX = SoilLayers(nlevmlsoil=6,z_max=0.66,z_top=0.10,discretise_method="horizon",
+                         z_horizon=[0.06, 0.06, 0.06, 0.10, 0.10, 0.28],
+                        Psi_e=[-1.38E-03, -1.38E-03, -1.38E-03, -1.32E-03, -2.58E-03, -0.960E-03],
+                        b_soil = [4.74, 4.74, 4.74, 6.77, 8.17, 10.73],
+                         K_sat = [29.7, 29.7, 29.7, 25.2, 13.9, 40.9],
+                         soilThetaMax = [0.12, 0.12, 0.12, 0.20, 0.3, 0.4])
+# PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6.5,ksr_coeff=1500,SLA=0.02,sf=1.0,Psi_f=-5.0)
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02,sf=1.0,soilThetaMax=0.4,Psi_f=-5,Psi_e=-0.00138,b_soil=4.74,K_sat=29.7) #SLA=0.040)
 PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
@@ -863,162 +888,81 @@ diagnostics['tr_Seed'] = _tr_Seed
 #  - Actual grain number
 
 # %%
-ngrowing_seasons = (len(PlantX.Management.sowingDays) if (isinstance(PlantX.Management.sowingDays, int) == False) else 1)
-
-if ngrowing_seasons > 1:
-    print("Multiple sowing and harvest events occur. Only returning results for first growing season.")
-    ## ignore any time steps before first sowing event and after last harvest event
-    it_sowing = sowing_steps_itax[0]
-    
-    if PlantX.Management.harvestDays is not None:
-        it_harvest = harvest_steps_itax[0]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
-    else:
-        it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
-
-    total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
-    total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
-    
-    it_peakbiomass = np.argmax(total_carbon_t[:it_harvest+1])
-    it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[:it_harvest+1])
-else:
-    print("Just one sowing event and one harvest event occurs. Returning results for first (and only) growing season.")
-    ## ignore any time steps before first sowing event and after last harvest event
-    it_sowing = sowing_steps_itax[0]
-    
-    if PlantX.Management.harvestDays is not None:
-        it_harvest = harvest_steps_itax[0]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
-    else:
-        it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
-
-    total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
-    total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
-    
-    it_peakbiomass = np.argmax(total_carbon_t[it_sowing:it_harvest+1]) + it_sowing
-    it_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[it_sowing:it_harvest+1]) + it_sowing
-
-# Diagnose time indexes when developmental phase transitions occur
-
-# Convert the array to a numeric type, handling mixed int and float types
-idevphase = diagnostics["idevphase_numeric"][it_sowing:it_harvest+1]
-valid_mask = ~np.isnan(idevphase)
-
-# Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
-it_phase_transitions = np.where(
-    ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
-    valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
-    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
-)[0] + 1
-
-# Time index for the end of the maturity phase
-if PlantX.PlantDev.phases.index('maturity') in idevphase:
-    it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]    # Index for end of maturity phase
-elif PlantX.Management.harvestDays is not None: 
-    it_mature = it_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
-else:
-    it_mature = -1    # if there is no harvest day specified, we just take the last day of the simulation. 
-
-
-# Filter out transitions that occur after the maturity or harvest day
-#it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
-print("Phase transition time axis indexes, it_phase_transitions, for first growing season:",it_phase_transitions) 
-
+itax_sowing, itax_mature, itax_harvest, itax_phase_transitions = SiteX.time_index_growing_season(time_index, diagnostics['idevphase_numeric'], PlantX.Management, PlantX.PlantDev)
 
 # %%
 # Developmental phase indexes
-igermination = PlantX.PlantDev.phases.index("germination")
-ivegetative = PlantX.PlantDev.phases.index("vegetative")
+ip_germination = PlantX.PlantDev.phases.index("germination")
+ip_vegetative = PlantX.PlantDev.phases.index("vegetative")
 if PlantX.Management.cropType == "Wheat":
-    ispike = PlantX.PlantDev.phases.index("spike")
-ianthesis = PlantX.PlantDev.phases.index("anthesis")
-igrainfill = PlantX.PlantDev.phases.index("grainfill")
-imaturity = PlantX.PlantDev.phases.index("maturity")
+    ip_spike = PlantX.PlantDev.phases.index("spike")
+ip_anthesis = PlantX.PlantDev.phases.index("anthesis")
+ip_grainfill = PlantX.PlantDev.phases.index("grainfill")
+ip_maturity = PlantX.PlantDev.phases.index("maturity")
 
+# %%
+total_carbon_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:] + res["y"][PlantX.PlantDev.iseed,:]
+total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.PlantDev.istem,:] + res["y"][PlantX.PlantDev.iroot,:]
+
+itax_peakbiomass = np.argmax(total_carbon_t[itax_sowing:itax_harvest+1]) + itax_sowing
+itax_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[itax_sowing:itax_harvest+1]) + itax_sowing
+
+# %%
 print("--- Carbon and Water ---")
 print()
-print("Total dry biomass at peak biomass =", total_carbon_t[it_peakbiomass]/PlantX.PlantCH2O.f_C)
-print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,it_peakbiomass]/PlantX.PlantCH2O.f_C)
-print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,it_peakbiomass]/PlantX.PlantCH2O.f_C)
-print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,it_peakbiomass]/PlantX.PlantCH2O.f_C)
-if PlantX.Management.cropType == "Wheat":
-    ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
-    print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
-ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
-print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
-print("Total (integrated) seasonal GPP (sowing-harvest) =", np.sum(diagnostics['GPP'][it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal GPP (sowing-maturity) =", np.sum(diagnostics['GPP'][it_sowing:it_mature+1]))
-print("Total (integrated) seasonal NPP =", np.sum(diagnostics['NPP'][it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal Rml =", np.sum(diagnostics['Rml'][it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal Rmr =", np.sum(diagnostics['Rmr'][it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal Rg =", np.sum(diagnostics['Rg'][it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal turnover losses =", np.sum(diagnostics['trflux_total'][it_sowing:it_harvest+1]))
-print("Total (integrated) remobilisation to grain =", np.sum(diagnostics['F_C_stem2grain'][it_sowing:it_harvest+1]))
+print("Total (integrated) seasonal GPP (sowing-harvest) =", np.sum(diagnostics['GPP'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal GPP (sowing-maturity) =", np.sum(diagnostics['GPP'][itax_sowing:itax_mature+1]))
+print("Total (integrated) seasonal NPP =", np.sum(diagnostics['NPP'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal Rml =", np.sum(diagnostics['Rml'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal Rmr =", np.sum(diagnostics['Rmr'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal Rg =", np.sum(diagnostics['Rg'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal turnover losses =", np.sum(diagnostics['trflux_total'][itax_sowing:itax_harvest+1]))
+print("Total (integrated) remobilisation to grain =", np.sum(diagnostics['F_C_stem2grain'][itax_sowing:itax_harvest+1]))
 _Cflux_NPP2grain = diagnostics['u_Seed'] * diagnostics['NPP']
-print("Total (integrated) allocation to grain =", np.sum(_Cflux_NPP2grain[it_sowing:it_harvest+1]))
-print("Total (integrated) seasonal transpiration =", np.sum(diagnostics['E_mmd'][it_sowing:it_harvest+1]))
-print("Leaf area index at peak biomass =", diagnostics['LAI'][it_peakbiomass])
+print("Total (integrated) allocation to grain =", np.sum(_Cflux_NPP2grain[itax_sowing:itax_harvest+1]))
+print("Total (integrated) seasonal transpiration =", np.nansum(diagnostics['E_mmd'][itax_sowing:itax_harvest+1]))
+print("Seasonal water-use efficiency = GPP/T (sowing-maturity) =", np.sum(diagnostics['GPP'][itax_sowing:itax_mature+1]) / np.nansum(diagnostics['E_mmd'][itax_sowing:itax_mature+1]), "g C mm H2O-1")
 print()
 print("--- Development ---")
 print()
 print("Total GDD to maturity =", PlantX.PlantDev.totalgdd)
-print("Relative GDD to vegetative =", (sum(PlantX.PlantDev.gdd_requirements[:ivegetative-1]) + PlantX.PlantDev.gdd_requirements[ivegetative-1])/PlantX.PlantDev.totalgdd)
+print("Relative GDD to vegetative =", (sum(PlantX.PlantDev.gdd_requirements[:ip_vegetative-1]) + PlantX.PlantDev.gdd_requirements[ip_vegetative-1])/PlantX.PlantDev.totalgdd)
 if PlantX.Management.cropType == "Wheat":
-    print("Relative GDD to spike =", (sum(PlantX.PlantDev.gdd_requirements[:ispike-1]) + PlantX.PlantDev.gdd_requirements[ispike-1])/PlantX.PlantDev.totalgdd)
-print("Relative GDD to anthesis =", (sum(PlantX.PlantDev.gdd_requirements[:ianthesis-1]) + PlantX.PlantDev.gdd_requirements[ianthesis-1])/PlantX.PlantDev.totalgdd)
-print("Relative GDD to grain filling =", (sum(PlantX.PlantDev.gdd_requirements[:igrainfill-1]) + PlantX.PlantDev.gdd_requirements[igrainfill-1])/PlantX.PlantDev.totalgdd)
-print("Relative GDD to maturity =", (sum(PlantX.PlantDev.gdd_requirements[:imaturity-1]) + PlantX.PlantDev.gdd_requirements[imaturity-1])/PlantX.PlantDev.totalgdd)
+    print("Relative GDD to spike =", (sum(PlantX.PlantDev.gdd_requirements[:ip_spike-1]) + PlantX.PlantDev.gdd_requirements[ip_spike-1])/PlantX.PlantDev.totalgdd)
+print("Relative GDD to anthesis =", (sum(PlantX.PlantDev.gdd_requirements[:ip_anthesis-1]) + PlantX.PlantDev.gdd_requirements[ip_anthesis-1])/PlantX.PlantDev.totalgdd)
+print("Relative GDD to grain filling =", (sum(PlantX.PlantDev.gdd_requirements[:ip_grainfill-1]) + PlantX.PlantDev.gdd_requirements[ip_grainfill-1])/PlantX.PlantDev.totalgdd)
+print("Relative GDD to maturity =", (sum(PlantX.PlantDev.gdd_requirements[:ip_maturity-1]) + PlantX.PlantDev.gdd_requirements[ip_maturity-1])/PlantX.PlantDev.totalgdd)
 print()
 print("--- Grain Production ---")
 print()
-print("Spike dry biomass at anthesis =", res["y"][7,it_harvest]/PlantX.PlantCH2O.f_C)
-print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C)
-if PlantX.PlantDev.phases.index('maturity') in diagnostics['idevphase'][it_phase_transitions]:
-    ip = np.where(diagnostics['idevphase'][it_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
+print("Spike dry biomass at anthesis =", res["y"][7,itax_harvest]/PlantX.PlantCH2O.f_C)
+print("Grain yield at harvest =", res["y"][PlantX.PlantDev.iseed,itax_harvest]/PlantX.PlantCH2O.f_C)
+if PlantX.PlantDev.phases.index('maturity') in diagnostics['idevphase'][itax_phase_transitions]:
+    ip = np.where(diagnostics['idevphase'][itax_phase_transitions] == PlantX.PlantDev.phases.index('maturity'))[0][0]
     it_p = np.where(diagnostics['idevphase'] == PlantX.PlantDev.phases.index('maturity'))[0][-1]
 else:
     print("***Warning: The first growing season did not reach the maturity phase. Values below are just for last point before harvest.")
     ip = -1
     it_p = -1
-print("Grain yield at start of maturity =", res["y"][PlantX.PlantDev.iseed,it_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print("Grain yield at start of maturity =", res["y"][PlantX.PlantDev.iseed,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 print("Grain yield at end of maturity =", res["y"][PlantX.PlantDev.iseed,it_p]/PlantX.PlantCH2O.f_C)
-print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][it_harvest])
-print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,it_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
+print("Potential seed density (grain number density) =", diagnostics['S_d_pot'][itax_harvest])
+print("Actual grain number =", res["y"][PlantX.PlantDev.iseed,itax_harvest]/PlantX.PlantCH2O.f_C/PlantX.W_seedTKW0)
+print()
+print("--- Biomass at Time of Peak Biomass (excluding seed pool) ---")
+print()
+print("Total dry biomass at peak biomass =", total_carbon_t[itax_peakbiomass_exclseed]/PlantX.PlantCH2O.f_C)
+print("Leaf dry biomass at peak biomass =", res["y"][PlantX.PlantDev.ileaf,itax_peakbiomass_exclseed]/PlantX.PlantCH2O.f_C)
+print("Stem dry biomass at peak biomass =", res["y"][PlantX.PlantDev.istem,itax_peakbiomass_exclseed]/PlantX.PlantCH2O.f_C)
+print("Root dry biomass at peak biomass =", res["y"][PlantX.PlantDev.iroot,itax_peakbiomass_exclseed]/PlantX.PlantCH2O.f_C)
+if PlantX.Management.cropType == "Wheat":
+    ip = np.where(diagnostics['idevphase'][itax_phase_transitions] == PlantX.PlantDev.phases.index('spike'))[0][0]
+    print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+ip = np.where(diagnostics['idevphase'][itax_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
+print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 
-# %%
+print("Leaf area index at peak biomass =", diagnostics['LAI'][itax_peakbiomass_exclseed])
 
-# %%
-## ignore any time steps before first sowing event and after last harvest event
-it_sowing = sowing_steps_itax[0]
-
-if PlantX.Management.harvestDays is not None:
-    it_harvest = harvest_steps_itax[-1]   # np.where(np.floor(Climate_doy_f(time_axis)) == PlantX.Management.harvestDay)[0][0]
-else:
-    it_harvest = -1   # if there is no harvest day specified, we just take the last day of the simulation. 
-
-# Diagnose time indexes when developmental phase transitions occur
-
-# Convert the array to a numeric type, handling mixed int and float types
-idevphase = diagnostics["idevphase_numeric"] #[it_sowing:it_harvest+1]
-valid_mask = ~np.isnan(idevphase)
-
-# Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
-it_phase_transitions_all = np.where(
-    ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
-    valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
-    (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase) != 0))  # Number-to-different-number
-)[0] + 1
-
-# Time index for the end of the maturity phase
-if PlantX.PlantDev.phases.index('maturity') in idevphase:
-    it_mature = np.where(idevphase == PlantX.PlantDev.phases.index('maturity'))[0][-1]    # Index for end of maturity phase
-elif PlantX.Management.harvestDays is not None: 
-    it_mature = it_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
-else:
-    it_mature = -1    # if there is no harvest day specified, we just take the last day of the simulation. 
-
-
-# Filter out transitions that occur after the maturity or harvest day
-#it_phase_transitions = [t for t in it_phase_transitions if time_axis[t] <= time_axis[it_mature]]
-print("Phase transition time axis indexes, it_phase_transitions, over simulation period:",it_phase_transitions_all) 
 
 # %% [markdown]
 # ### Create figures
@@ -1026,16 +970,16 @@ print("Phase transition time axis indexes, it_phase_transitions, over simulation
 # %%
 # site_year = str(time_year_f[time_axis[0]])
 # site_name = "Milgadara - Wheat"
-# site_filename = "Milgadara_%s_Wheat_test" % site_year
-
-site_year = str(time_year_f[time_axis[0]])
-site_name = "Harden - Wheat"
-# site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
-site_filename = "Harden_%s_Wheat_control_1x" % site_year
+# site_filename = "Milgadara_%s_Wheat_testX" % site_year
 
 # site_year = str(time_year_f[time_axis[0]])
-# site_name = "Rutherglen 1971 - Wheat"
-# site_filename = "Rutherglen1971_%s_Wheat_control_2" % site_year
+# site_name = "Harden - Wheat"
+# # site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
+# site_filename = "Harden_%s_Wheat_control_1x" % site_year
+
+site_year = str(time_year_f[time_axis[0]])
+site_name = "Rutherglen 1971 - Wheat"
+site_filename = "Rutherglen1971_%s_Wheat_control_X" % site_year
 
 # %%
 
@@ -1120,7 +1064,7 @@ axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
 ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
-for itime in it_phase_transitions_all:
+for itime in itax_phase_transitions:
     ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
@@ -1157,14 +1101,14 @@ axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
 #     # if it is not, then return the last index for the time_axis
 #     itime_HI = len(time_axis) - 1
 
-accumulated_carbon = res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest]
+accumulated_carbon = res["y"][0,itax_harvest]+res["y"][1,itax_harvest]+res["y"][2,itax_harvest]+res["y"][3,itax_harvest]
 eos_accumulated_carbon = accumulated_carbon    # end-of-season total carbon (at the end of the simulation period)
 peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
 peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
-harvest_index = res["y"][3,it_harvest]/(res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest])
-harvest_index_peak = res["y"][3,it_harvest]/peak_accumulated_carbon_noseed
-harvest_index_peak_noroot = res["y"][3,it_harvest]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3,it_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
+harvest_index = res["y"][3,itax_harvest]/(res["y"][0,itax_harvest]+res["y"][1,itax_harvest]+res["y"][2,itax_harvest]+res["y"][3,itax_harvest])
+harvest_index_peak = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseed
+harvest_index_peak_noroot = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseedroot
+yield_from_seed_Cpool = res["y"][3,itax_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 # axes[4].set_ylim([0,600])
@@ -1182,6 +1126,8 @@ plt.tight_layout()
 # plt.savefig("/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/DAESIM2_%s_plant1000_dynamics.png" % site_filename,dpi=300,bbox_inches='tight')
 
 
+
+# %%
 
 # %%
 _W_L = res["y"][0,:]/PlantX.PlantCH2O.f_C
@@ -1268,14 +1214,14 @@ axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
 #     # if it is not, then return the last index for the time_axis
 #     itime_HI = len(time_axis) - 1
 
-accumulated_carbon = res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest]
+accumulated_carbon = res["y"][0,itax_harvest]+res["y"][1,itax_harvest]+res["y"][2,itax_harvest]+res["y"][3,itax_harvest]
 eos_accumulated_carbon = accumulated_carbon    # end-of-season total carbon (at the end of the simulation period)
 peak_accumulated_carbon_noseed = np.max(res["y"][0])+np.max(res["y"][1])+np.max(res["y"][2])    # peak carbon, excluding seed biomass
 peak_accumulated_carbon_noseedroot = np.max(res["y"][0])+np.max(res["y"][1])    # peak carbon, excluding seed biomass
-harvest_index = res["y"][3,it_harvest]/(res["y"][0,it_harvest]+res["y"][1,it_harvest]+res["y"][2,it_harvest]+res["y"][3,it_harvest])
-harvest_index_peak = res["y"][3,it_harvest]/peak_accumulated_carbon_noseed
-harvest_index_peak_noroot = res["y"][3,it_harvest]/peak_accumulated_carbon_noseedroot
-yield_from_seed_Cpool = res["y"][3,it_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
+harvest_index = res["y"][3,itax_harvest]/(res["y"][0,itax_harvest]+res["y"][1,itax_harvest]+res["y"][2,itax_harvest]+res["y"][3,itax_harvest])
+harvest_index_peak = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseed
+harvest_index_peak_noroot = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseedroot
+yield_from_seed_Cpool = res["y"][3,itax_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
 axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 axes[4].set_ylim([0,600])
@@ -1360,7 +1306,7 @@ axes[2].set_ylim([0,50])
 ## Add annotations for developmental phases
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
-    for itime in it_phase_transitions:
+    for itime in itax_phase_transitions:
         ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = Climate_doy_f(res["t"][itime]) + 1.5
         text_y = 0.5 * ylimmax
@@ -1401,12 +1347,12 @@ axes[1].legend()
 axes[2].plot(Climate_doy_f(res["t"]), res["y"][3,:]/PlantX.PlantCH2O.f_C)
 axes[2].set_ylabel("Grain dry weight\n"+r"($\rm g \; d.wt \; m^{-2}$)")
 axes[2].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.07,0.92), xycoords='axes fraction', verticalalignment='center', horizontalalignment='left')
-# axes[2].set_ylim([0,600])
+axes[2].set_ylim([0,700])
 
 ## Add annotations for developmental phases
 for ax in axes:
     ylimmin, ylimmax = 0, ax.get_ylim()[1]
-    for itime in it_phase_transitions:
+    for itime in itax_phase_transitions:
         ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
         text_x = Climate_doy_f(res["t"][itime]) + 1.5
         text_y = 0.5 * ylimmax
@@ -1437,7 +1383,7 @@ axes[0,0].set_xlabel("Time (days)")
 axes[0,0].set_title("Growing Degree Days")
 ax = axes[0,0]
 ylimmin, ylimmax = ax.get_ylim()
-for itime in it_phase_transitions:
+for itime in itax_phase_transitions:
     ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
@@ -1466,7 +1412,7 @@ axes[0,1].set_title("Vernalization Days")
 # axes[0,1].set_ylim([0,125])
 ax = axes[0,1]
 ylimmin, ylimmax = ax.get_ylim()
-for itime in it_phase_transitions:
+for itime in itax_phase_transitions:
     ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax
@@ -1487,7 +1433,7 @@ axes[1,1].set_title("Vernalization Factor\n(Modifier on GDD)")
 # axes[1,1].set_ylim([0,1.03])
 ax = axes[1,1]
 ylimmin, ylimmax = ax.get_ylim()
-for itime in it_phase_transitions:
+for itime in itax_phase_transitions:
     ax.vlines(x=Climate_doy_f(res["t"][itime]), ymin=ylimmin, ymax=ylimmax, color='0.5',linestyle="--")
     text_x = Climate_doy_f(res["t"][itime]) + 1.5
     text_y = 0.5 * ylimmax

@@ -162,6 +162,70 @@ class ClimateModule:
             event_steps.append(step)
         return event_steps
 
+    def time_index_growing_season(self, time_index, idevphase_array, Management, PlantDev, iseason=0):
+        """
+        Support for post-processing model outputand time indexing
+
+        Parameters
+        ----------
+        time_index : DatetimeIndex array
+            DatetimeIndex array for the model simulation time period i.e. time_axis
+        idevphase_array : np.array
+            Numpy array of the developmental phase index values over the model simulation period
+        Management : class
+            DAESIM2 Management class, which must include the attributes sowingDays, sowingYears, harvestDays and harvestYears
+        PlantDev : class
+            DAESIM2 PlantDev class, which must include the attribute phases
+        iseason : int
+            Index for selected growing season, if there is more than one growing season simulated, you must select which one to get time indexes for
+
+        Returns
+        -------
+        itax_sowing, itax_harvest, itax_phase_transitions
+            Time array indexes for sowing, harvest, and phase transition events
+        """
+        # ngrowing_seasons = (len(Management.sowingDays) if (isinstance(Management.sowingDays, int) == False) else 1)
+        # if ngrowing_seasons > 1:
+        #     print("Multiple sowing and harvest events occur. Returning results for growing season %d" % (iseason+1))
+        # else:
+        #     print("Just one sowing event and one harvest event occurs. Returning results for first (and only) growing season.")
+
+        sowingDay, sowingYear = Management.sowingDays[iseason], Management.sowingYears[iseason]
+        harvestDay, harvestYear = Management.harvestDays[iseason], Management.harvestYears[iseason]
+
+        sowingTimestamp = datetime(int(sowingYear), 1, 1) + timedelta(days=int(sowingDay) - 1)
+        harvestTimestamp = datetime(int(harvestYear), 1, 1) + timedelta(days=int(harvestDay) - 1)
+
+        # Index for sowing and harvest dates along the time_axis
+        itax_sowing, itax_harvest = self.find_event_steps([sowingTimestamp, harvestTimestamp], time_index)
+
+        # Developmental phase index array, handling mixed int and float types
+        valid_mask = ~np.isnan(idevphase_array)
+
+        # Identify all transitions (number-to-NaN, NaN-to-number, or number-to-different-number)
+        itax_phase_transitions = np.where(
+            ~valid_mask[:-1] & valid_mask[1:] |  # NaN-to-number
+            valid_mask[:-1] & ~valid_mask[1:] |  # Number-to-NaN
+            (valid_mask[:-1] & valid_mask[1:] & (np.diff(idevphase_array) != 0))  # Number-to-different-number
+        )[0] + 1
+
+        # Find time index for the end of the maturity phase (that occurs before the given seasons harvest date)
+        if PlantDev.phases.index('maturity') in idevphase_array[itax_sowing:itax_harvest+1]:
+            itax_mature = np.where(idevphase_array[itax_sowing:itax_harvest+1] == PlantDev.phases.index('maturity'))[0][-1] + itax_sowing     # Index for end of maturity phase
+        elif Management.harvestDays is not None:
+            itax_mature = itax_harvest    # Maturity developmental phase not completed, so take harvest as the end of growing season
+        else:
+            itax_mature = -1    # if there is no harvest day specified and there is no maturity in idevphase, we just take the last day of the simulation.
+
+        maturityTimestamp = time_index[itax_mature]
+
+        # Filter out transitions that occur on or before the sowing day
+        itax_phase_transitions = [t for t in itax_phase_transitions if t > int(itax_sowing+1)]
+        # Filter out transitions that occur after the end of the maturity phase
+        itax_phase_transitions = [t for t in itax_phase_transitions if t <= itax_mature]
+
+        return itax_sowing, itax_mature, itax_harvest, itax_phase_transitions
+
     def compute_mean_daily_air_temp(self,airTempMin,airTempMax):
         """
         Computes the daily mean air temperature from the daily minimum and daily maximum temperatures.

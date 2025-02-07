@@ -116,7 +116,7 @@ class SoilLayers:
             # Horizon-based method: user provides the layer thicknesses
             if self.z_horizon is None:
                 raise ValueError("For horizon method, z_horizon (layer thicknesses) must be defined.")
-            if sum(self.z_horizon) > self.z_max:
+            if np.round(sum(self.z_horizon),decimals=6) > self.z_max:
                 raise ValueError("The sum of the horizon layers cannot exceed the total soil profile depth.")
             
             z_soil = self.z_horizon  # Use the user-defined layer thicknesses

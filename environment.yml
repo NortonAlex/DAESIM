@@ -16,3 +16,4 @@ dependencies:
   - pip:
     - -r requirements.txt
   - scipy>=1.9.1
+  - netCDF4

@@ -91,7 +91,7 @@ class PlantModuleCalculator:
     grainfill_phase: list[str] = field(factory=lambda: ["grainfill"])  ## Name of developmental/growth phase(s) in which grain filling occurs (list of strings). N.B. phase(s) must be defined in in PlantDev.phases in the PlantDev() module
     
     ## Grain production module parameters for wheat (triticum)
-    W_seedTKW0: float = field(default=35.0)  ## Wheat: Thousand kernel weight of grain (g thousand grains-1), acceptable range 28-48
+    W_seedTKW0: float = field(default=35.0)  ## Wheat: Thousand kernel weight of grain (g d.wt thousand grains-1), acceptable range 28-48
     GY_FE: float = field(default=0.1)  ## Wheat: Reproductive (fruiting) efficiency (thousand grains g d.wt of spike-1), acceptable range 80-210
     GY_GN_max: float = field(default=20)  ## Wheat: Maximum potential grain number per ground area (default 20 thousand grains m-2), acceptable range 18-22
     GY_SDW_50: float = field(default=100)  ## Wheat: Spike dry weight at anthesis (SDW_a) at which grain number is half of GY_GN_max (default 100 g d.wt m-2), acceptable range 80-150

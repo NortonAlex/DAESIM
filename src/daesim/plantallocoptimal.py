@@ -18,10 +18,6 @@ class PlantOptimalAllocation:
     Plant: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
 
     ## Class parameters
-    
-    ## Biomass pool step size (defined as a factor or 'multiplier') for evaluating marginal gain and marginal cost with finite difference method
-    dWL_factor: float = field(default=1.01)    ## Step size for leaf biomass pool
-    dWR_factor: float = field(default=1.01)    ## Step size for leaf biomass pool
 
     ## Allocation coefficients that are not optimal
     u_Stem: float = field(default=0.0)    ## Carbon allocation coefficient to stem
@@ -30,6 +26,15 @@ class PlantOptimalAllocation:
     ## Turnover rates (carbon pool lifespan)
     tr_L: float = field(default=0.01)    ## Turnover rate of leaf biomass (days-1)
     tr_R: float = field(default=0.01)    ## Turnover rate of root biomass (days-1)
+
+    ## Method for calculating the gradient: For evaluating marginal gain and marginal cost with chosen method
+    gradient_method: str = field(default="fd_adaptive")  ## Gradient calculation method
+    min_step_rel_WL: float = field(default=0.01)   ## minimum relative step size (relative to function input 'x' i.e. W_L)
+    max_step_rel_WL: float = field(default=0.10)   ## maximum relative step size (relative to function input 'x' i.e. W_L)
+    min_step_rel_WR: float = field(default=0.01)   ## minimum relative step size (relative to function input 'x' i.e. W_R)
+    max_step_rel_WR: float = field(default=0.10)   ## maximum relative step size (relative to function input 'x' i.e. W_R)
+    gradient_threshold_WL: float = field(default=1e-7)  ## when the calculated gradient (with respect to leaf biomass, WL) is less than this threshold, it is effectively assumed to be zero and the allocation coefficient is set to zero
+    gradient_threshold_WR: float = field(default=1e-7)  ## when the calculated gradient (with respect to root biomass, WR) is less than this threshold, it is effectively assumed to be zero and the allocation coefficient is set to zero
 
     def calculate(
         self,
@@ -52,35 +57,45 @@ class PlantOptimalAllocation:
         d_r,    ## Root depth, m
     ) -> Tuple[float]:
 
-        ## Calculate control run
-        GPP_0, Rml_0, Rmr_0, E_0, fPsil_0, Psil_0, Psir_0, Psis_0, K_s_0, K_sr_0, k_srl_0 = self.Plant.calculate(W_L,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
-        
-        ## Calculate sensitivity run for leaf biomass
-        GPP_L, Rml_L, Rmr_L, E_L, f_Psil_L, Psil_L, Psir_L, Psis_L, K_s_L, K_sr_L, k_srl_L = self.Plant.calculate(W_L*self.dWL_factor,W_R,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
-        
-        ## Calculate sensitivity run for root biomass
-        GPP_R, Rml_R, Rmr_R, E_R, f_Psil_R, Psil_R, Psir_R, Psis_R, K_s_R, K_sr_R, k_srl_R = self.Plant.calculate(W_L,W_R*self.dWR_factor,soilTheta,leafTempC,airTempC,airRH,airCO2,airO2,airP,airUhc,swskyb,swskyd,sza,SAI,CI,hc,d_r)
-        
-        
-        ## Calculate change in GPP per unit change in biomass pool
-        dGPPdWleaf = (GPP_L-GPP_0)/(W_L*self.dWL_factor - W_L)
-        dGPPdWroot = (GPP_R-GPP_0)/(W_R*self.dWR_factor - W_R)
-        
-        ## Calculate marginal change in GPP-Rm per unit change in biomass pool
-        dGPPRmdWleaf = ((GPP_L - (Rml_L + Rmr_L))-(GPP_0 - (Rml_0 + Rmr_0)))/(W_L*self.dWL_factor - W_L)
-        dGPPRmdWroot = ((GPP_R - (Rml_R + Rmr_R))-(GPP_0 - (Rml_0 + Rmr_0)))/(W_R*self.dWR_factor - W_R)
+        ## Define functions to differentiate
+        def GPPRm_WL(W_L_var):
+            GPP, Rml, Rmr, *_ = self.Plant.calculate(
+                W_L_var, W_R, soilTheta, leafTempC, airTempC, airRH,
+                airCO2, airO2, airP, airUhc, swskyb, swskyd, sza,
+                SAI, CI, hc, d_r
+            )
+            return GPP - (Rml + Rmr)
+
+        def GPPRm_WR(W_R_var):
+            GPP, Rml, Rmr, *_ = self.Plant.calculate(
+                W_L, W_R_var, soilTheta, leafTempC, airTempC, airRH,
+                airCO2, airO2, airP, airUhc, swskyb, swskyd, sza,
+                SAI, CI, hc, d_r
+            )
+            return GPP - (Rml + Rmr)
+
+        ## Compute gradients of net carbon profit with respect to (i) leaf biomass, and (ii) root biomass
+        if self.gradient_method == "fd_forward":
+            dGPPRmdWleaf = self.forward_finite_difference(GPPRm_WL, W_L, init_step=self.min_step_rel_WR*W_L)
+            dGPPRmdWroot = self.forward_finite_difference(GPPRm_WR, W_R, init_step=self.min_step_rel_WR*W_R)
+        elif self.gradient_method == "fd_adaptive":
+            dGPPRmdWleaf = self.adaptive_finite_difference(GPPRm_WL, W_L, init_step=self.min_step_rel_WR*W_L, max_step=self.max_step_rel_WR*W_L)
+            dGPPRmdWroot = self.adaptive_finite_difference(GPPRm_WR, W_R, init_step=self.min_step_rel_WR*W_R, max_step=self.max_step_rel_WR*W_R)
+        elif self.gradient_method == "richardson":
+            dGPPRmdWleaf = self.richardson_extrapolation(GPPRm_WL, W_L, step=self.min_step_rel_WL*W_L)
+            dGPPRmdWroot = self.richardson_extrapolation(GPPRm_WR, W_R, step=self.min_step_rel_WR*W_R)
         
         ## Calculate marginal change in cost per unit change in biomass pool - proportional to pool instantaneous turnover rate (inverse of mean lifespan)
         dSdWleaf = self.tr_L
         dSdWroot = self.tr_R
 
         ## Calculate allocation coefficients
-        if dGPPRmdWleaf <= 0:
+        if dGPPRmdWleaf <= self.gradient_threshold_WL:
             # If marginal gain is >= 0, set coefficient to zero to avoid division with zeros
             u_L_prime = 0
         else:
             u_L_prime = (dGPPRmdWleaf/dSdWleaf)/((dGPPRmdWleaf/dSdWleaf)+np.maximum(0,dGPPRmdWroot/dSdWroot))
-        if dGPPRmdWroot <= 0:
+        if dGPPRmdWroot <= self.gradient_threshold_WR:
             # If marginal gain is >= 0, set coefficient to zero to avoid division with zeros
             u_R_prime = 0
         else:
@@ -90,4 +105,47 @@ class PlantOptimalAllocation:
         u_L = (1 - (self.u_Stem+self.u_Seed))*u_L_prime
         u_R = (1 - (self.u_Stem+self.u_Seed))*u_R_prime
 
-        return u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dGPPdWleaf, dGPPdWroot, dSdWleaf, dSdWroot
+        return u_L, u_R, dGPPRmdWleaf, dGPPRmdWroot, dSdWleaf, dSdWroot
+
+    def forward_finite_difference(self, func, x, init_step=1e-2):
+        """
+        Compute the derivative of func at x using an adaptive central difference method.
+        If the gradient is too small, increase the step size.
+        """
+        step = init_step  # Start with an initial step
+        f_0 = func(x)
+        f_plus = func(x + step)
+        gradient = (f_plus - f_0) / (step)
+        return gradient  # Return the gradient
+
+    def adaptive_finite_difference(self, func, x, init_step=1e-2, max_step=1e-1, tol=1e-6):
+        """
+        Compute the derivative of func at x using an adaptive central difference method.
+        If the gradient is too small, increase the step size.
+        """
+        step = init_step  # Start with an initial step
+        prev_gradient = None
+
+        for _ in range(10):  # Limit number of adjustments
+            f_plus = func(x + step)
+            f_minus = func(x - step)
+            gradient = (f_plus - f_minus) / (2 * step)
+
+            # If the gradient is too small, increase the step size
+            if prev_gradient is not None and np.abs(gradient) < tol:
+                step *= 2  # Increase step size
+            else:
+                return gradient  # Return valid gradient
+
+            prev_gradient = gradient
+
+        print("Warning: Gradient may still be small.")
+        return prev_gradient  # Return the last valid gradient
+
+    def richardson_extrapolation(self, func, x, step=1e-4):
+        """
+        Compute the derivative of func at x using Richardson extrapolation.
+        """
+        f1 = (func(x + step) - func(x - step)) / (2 * step)  # Standard central difference
+        f2 = (func(x + step/2) - func(x - step/2)) / (step)  # Smaller step size
+        return (4 * f2 - f1) / 3  # Extrapolate toward zero step size

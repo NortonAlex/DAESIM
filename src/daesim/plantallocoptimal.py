@@ -109,10 +109,9 @@ class PlantOptimalAllocation:
 
     def forward_finite_difference(self, func, x, init_step=1e-2):
         """
-        Compute the derivative of func at x using an adaptive central difference method.
-        If the gradient is too small, increase the step size.
+        Compute the derivative of func at x using an forward difference method.
         """
-        step = init_step  # Start with an initial step
+        step = init_step
         f_0 = func(x)
         f_plus = func(x + step)
         gradient = (f_plus - f_0) / (step)

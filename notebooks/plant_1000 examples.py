@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.1
+#       jupytext_version: 1.16.7
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -37,6 +37,7 @@ from daesim.leafgasexchange2 import LeafGasExchangeModule2
 from daesim.canopygasexchange import CanopyGasExchange
 from daesim.plantcarbonwater import PlantModel as PlantCH2O
 from daesim.plantallocoptimal import PlantOptimalAllocation
+from daesim.utils import daesim_io_write_diag_to_nc
 
 # %%
 from daesim.plant_1000 import PlantModuleCalculator
@@ -45,10 +46,391 @@ from daesim.plant_1000 import PlantModuleCalculator
 # # Site Level Simulation
 
 # %% [markdown]
+# ### Soil hydraulic properties data (Gladish et al., 2021)
+
+# %%
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 1 Mean.csv"
+df_soil1 = pd.read_csv(f, skiprows=2)
+
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 2 Mean.csv"
+df_soil2 = pd.read_csv(f, skiprows=2)
+
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 3 Mean.csv"
+df_soil3 = pd.read_csv(f, skiprows=2)
+
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 4 Mean.csv"
+df_soil4 = pd.read_csv(f, skiprows=2)
+
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 5 Mean.csv"
+df_soil5 = pd.read_csv(f, skiprows=2)
+
+
+
+# %%
+fig, axes = plt.subplots(5,2,figsize=(7,16))
+
+col0_xlim0, col0_xlim1 = 0, 0.55
+col1_xlim0, col1_xlim1 = 1.0, 2.0
+
+ax = axes[0,0]
+_df = df_soil1
+xc = "C0"
+ax.plot(_df["LL15 (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(_df["CLL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(_df["DUL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(_df["SAT (mm/mm) "].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend()
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+# ax.annotate("PAWC=%1.2f" % np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), (0.01,0.96), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=10)
+ax.set_title("PAWC(DUL-CUL)=%1.2f\nPAWC(DUL-LL15)=%1.2f" % (np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), np.sum(_df["DUL (mm/mm)"].values - _df["LL15 (mm/mm)"].values)), fontsize=10)
+
+ax = axes[0,1]
+ax.plot(_df["BD (G/CM^3)"].values, _df["Depth (mm)"].values, c='k', linestyle="-")
+ax.set_xlim([col1_xlim0, col1_xlim1])
+ax.invert_yaxis()
+
+
+ax = axes[1,0]
+_df = df_soil2
+xc = "C1"
+ax.plot(_df["LL15 (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(_df["CLL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(_df["DUL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(_df["SAT (mm/mm) "].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend()
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_title("PAWC(DUL-CUL)=%1.2f\nPAWC(DUL-LL15)=%1.2f" % (np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), np.sum(_df["DUL (mm/mm)"].values - _df["LL15 (mm/mm)"].values)), fontsize=10)
+
+ax = axes[1,1]
+ax.plot(_df["BD (G/CM^3)"].values, _df["Depth (mm)"].values, c='k', linestyle="-")
+ax.set_xlim([col1_xlim0, col1_xlim1])
+ax.invert_yaxis()
+
+
+ax = axes[2,0]
+_df = df_soil3
+xc = "C2"
+ax.plot(_df["LL15 (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(_df["CLL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(_df["DUL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(_df["SAT (mm/mm) "].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend()
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_title("PAWC(DUL-CUL)=%1.2f\nPAWC(DUL-LL15)=%1.2f" % (np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), np.sum(_df["DUL (mm/mm)"].values - _df["LL15 (mm/mm)"].values)), fontsize=10)
+
+ax = axes[2,1]
+ax.plot(_df["BD (G/CM^3)"].values, _df["Depth (mm)"].values, c='k', linestyle="-")
+ax.set_xlim([col1_xlim0, col1_xlim1])
+ax.invert_yaxis()
+
+
+ax = axes[3,0]
+_df = df_soil4
+xc = "C3"
+ax.plot(_df["LL15 (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(_df["CLL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(_df["DUL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(_df["SAT (mm/mm) "].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend()
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_title("PAWC(DUL-CUL)=%1.2f\nPAWC(DUL-LL15)=%1.2f" % (np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), np.sum(_df["DUL (mm/mm)"].values - _df["LL15 (mm/mm)"].values)), fontsize=10)
+
+ax = axes[3,1]
+ax.plot(_df["BD (G/CM^3)"].values, _df["Depth (mm)"].values, c='k', linestyle="-")
+ax.set_xlim([col1_xlim0, col1_xlim1])
+ax.invert_yaxis()
+
+
+ax = axes[4,0]
+_df = df_soil5
+xc = "C4"
+ax.plot(_df["LL15 (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(_df["CLL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(_df["DUL (mm/mm)"].values, _df["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(_df["SAT (mm/mm) "].values, _df["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend()
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_title("PAWC(DUL-CUL)=%1.2f\nPAWC(DUL-LL15)=%1.2f" % (np.sum(_df["DUL (mm/mm)"].values - _df["CLL (mm/mm)"].values), np.sum(_df["DUL (mm/mm)"].values - _df["LL15 (mm/mm)"].values)), fontsize=10)
+
+ax = axes[4,1]
+ax.plot(_df["BD (G/CM^3)"].values, _df["Depth (mm)"].values, c='k', linestyle="-")
+ax.set_xlim([col1_xlim0, col1_xlim1])
+ax.invert_yaxis()
+
+plt.tight_layout()
+
+# %% [markdown]
 # ### Initialise site
 
 # %% [markdown]
-# #### - Import forcing data
+# #### *SILO Data Sites*
+
+# %%
+f = "/Users/alexandernorton/Downloads/SILO_data_LongPaddock_StationID_10614.csv"
+# f = "/Users/alexandernorton/Downloads/SILO_data_LongPaddock_StationID_10692.csv"
+# f = "/Users/alexandernorton/Downloads/SILO_data_LongPaddock_StationID_79028.csv"
+# f = "/Users/alexandernorton/Downloads/SILO_data_LongPaddock_StationID_72150.csv"
+
+df = pd.read_csv(f, parse_dates=[1])
+
+df = df.rename(columns={"YYYY-MM-DD": "Date"})
+
+df = df.set_index("Date")
+
+df['DOY'] = df.index.dayofyear
+df['Year'] = df.index.year
+
+# Define seasons (based on Southern Hemisphere)
+season_map = {12: 'Summer', 1: 'Summer', 2: 'Summer',
+              3: 'Autumn', 4: 'Autumn', 5: 'Autumn',
+              6: 'Winter', 7: 'Winter', 8: 'Winter',
+              9: 'Spring', 10: 'Spring', 11: 'Spring'}
+
+df['Season'] = df.index.month.map(season_map)
+df['Year'] = df.index.year  # Extract year
+
+df["rh"] = df[["rh_tmin", "rh_tmax"]].mean(axis=1)
+df["mslp (Pa)"] = df["mslp"]*1e2
+
+site_latitude = float(df["metadata"].values[1].split("=")[-1])
+site_longitude = float(df["metadata"].values[2].split("=")[-1])
+site_elevation = float(df["metadata"].values[3].split("=")[-1].split(" ")[-2])
+
+print("Latitude =",site_latitude)
+print("Longitude =",site_longitude)
+print("Elevation =",site_elevation)
+print()
+print(df["metadata"])
+
+# %%
+# Select climate variables to analyze
+variables = ['daily_rain', 'min_temp', 'max_temp', 'radiation', 'rh', 'rh_tmin', 'rh_tmax', 'evap_pan', 'mslp (Pa)']  # Replace with your actual variable names
+
+# Compute the climatology (mean seasonal cycle)
+climatology = df.groupby('DOY')[variables].mean()
+
+# Apply cumulative sum to certain variables
+climatology["daily_rain_cumulative"] = climatology["daily_rain"].cumsum()
+climatology["evap_pan_cumulative"] = climatology["evap_pan"].cumsum()
+
+
+# %%
+fig, axes = plt.subplots(6,1,figsize=(12,15))
+
+axes[0].plot(climatology.index.values, climatology["radiation"].values, c='k')
+axes[0].set_ylim([0,35])
+
+axes[1].plot(climatology.index.values, climatology["min_temp"].values, c='b')
+axes[1].plot(climatology.index.values, climatology["max_temp"].values, c='r')
+axes[1].set_ylim([-5,40])
+
+axes[2].plot(climatology.index.values, climatology["rh_tmin"].values, c='b')
+axes[2].plot(climatology.index.values, climatology["rh_tmax"].values, c='r')
+axes[2].plot(climatology.index.values, climatology["rh"].values, c='k')
+axes[2].set_ylim([20,100])
+
+axes[3].plot(climatology.index.values, climatology["daily_rain_cumulative"].values, c='k', label="Cumulative rainfall")
+axes[3].plot(climatology.index.values, climatology["evap_pan_cumulative"].values, c='0.5', label="Cumulative pan evap.")
+axes[3].legend()
+axes[3].set_ylim([0,2000])
+
+axes[4].plot(climatology.index.values, climatology["daily_rain"].values, c='k')
+axes[4].plot(climatology.index.values, climatology["evap_pan"].values, c='0.5')
+axes[4].set_ylim([0,12])
+
+axes[5].plot(climatology.index.values, climatology["mslp (Pa)"].values, c='k')
+# axes[5].set_ylim([0,12])
+
+plt.tight_layout()
+# plt.savefig("/Users/alexandernorton/ANU/Projects/SILO_site_10614.png", dpi=300, bbox_inches='tight')
+
+# xyear = 1990
+# axes[0].plot(df.loc[df["Year"] == xyear]["DOY"].values, df.loc[df["Year"] == xyear]["radiation"].values, alpha=0.5)
+# axes[1].plot(df.loc[df["Year"] == xyear]["DOY"].values, df.loc[df["Year"] == xyear]["min_temp"].values, alpha=0.5, c='b')
+# axes[1].plot(df.loc[df["Year"] == xyear]["DOY"].values, df.loc[df["Year"] == xyear]["max_temp"].values, alpha=0.5, c='r')
+# axes[2].plot(df.loc[df["Year"] == xyear]["DOY"].values, df.loc[df["Year"] == xyear]["rh_tmin"].values, alpha=0.5, c='b')
+# axes[2].plot(df.loc[df["Year"] == xyear]["DOY"].values, df.loc[df["Year"] == xyear]["rh_tmax"].values, alpha=0.5, c='r')
+# axes[3].plot(df.loc[df["Year"] == xyear]["DOY"].values, np.cumsum(df.loc[df["Year"] == xyear]["daily_rain"].values), alpha=0.5, c='0.5')
+
+# %%
+
+# %%
+df_forcing = climatology.rename(columns={"radiation":"SRAD", "max_temp":"Maximum temperature", "min_temp":"Minimum temperature", "daily_rain":"Precipitation", "rh": "Relative humidity", "mslp (Pa)": "Atmospheric pressure"})
+
+df_forcing["Date"] = pd.date_range(start="2020-01-01", end="2020-12-31", freq="D")
+
+# Add ordinal day of year (DOY) and Year variables
+df_forcing["DOY"] = df_forcing["Date"].dt.dayofyear
+df_forcing["Year"] = df_forcing["Date"].dt.year
+
+df_forcing
+
+# %%
+
+# %%
+
+# %%
+# Define a relative moisture level index (from 0 to 1)
+soilTheta_min, soilTheta_max = 0, 1
+# Define the relative moisture level over time
+df_forcing["soilTheta_prime"] = 0.90 * np.ones(df_forcing.index.size)
+# Compute relative wetness index (W)
+df_forcing["soilTheta_W"] = (df_forcing["soilTheta_prime"] - soilTheta_min) / (soilTheta_max - soilTheta_min)
+
+# Soil hydraulic properties (over vertical layers)
+df_soil = df_soil5
+depths_z = df_soil["Depth (mm)"].values
+LL15_z = df_soil["LL15 (mm/mm)"].values
+CLL_z = df_soil["CLL (mm/mm)"].values
+DUL_z = df_soil["DUL (mm/mm)"].values
+SAT_z = df_soil["SAT (mm/mm) "].values
+
+# Initialize an array to store the time-varying soil moisture profile
+theta_profile_CLL = np.zeros((df_forcing["soilTheta_W"].size, len(depths_z)))
+theta_profile_LL15 = np.zeros((df_forcing["soilTheta_W"].size, len(depths_z)))
+theta_profile_CLLSAT = np.zeros((df_forcing["soilTheta_W"].size, len(depths_z)))
+
+for i, w_t in enumerate(df_forcing["soilTheta_W"].values):
+    theta_profile_CLL[i, :] = CLL_z + w_t * (DUL_z - CLL_z)
+    theta_profile_LL15[i, :] = LL15_z + w_t * (DUL_z - LL15_z)
+
+    theta_profile_CLLSAT[i, :] = CLL_z + w_t * (SAT_z - CLL_z)
+
+# %%
+# Choose whether to use CLL or LL15 as lower moisture limit
+theta_profile = theta_profile_CLLSAT
+
+# Add the soil moisture profile data into the forcing dataframe
+df_forcing["Soil moisture interp 0-100 mm"] = theta_profile[:,0]
+df_forcing["Soil moisture interp 100-200 mm"] = theta_profile[:,1]
+df_forcing["Soil moisture interp 200-300 mm"] = theta_profile[:,2]
+df_forcing["Soil moisture interp 300-400 mm"] = theta_profile[:,3]
+df_forcing["Soil moisture interp 400-500 mm"] = theta_profile[:,4]
+df_forcing["Soil moisture interp 500-600 mm"] = theta_profile[:,5]
+df_forcing["Soil moisture interp 600-700 mm"] = theta_profile[:,6]
+df_forcing["Soil moisture interp 700-800 mm"] = theta_profile[:,7]
+df_forcing["Soil moisture interp 800-900 mm"] = theta_profile[:,8]
+df_forcing["Soil moisture interp 900-1000 mm"] = theta_profile[:,9]
+df_forcing["Soil moisture interp 1000-1100 mm"] = theta_profile[:,10]
+df_forcing["Soil moisture interp 1100-1200 mm"] = theta_profile[:,11]
+df_forcing["Soil moisture interp 1200-1300 mm"] = theta_profile[:,12]
+df_forcing["Soil moisture interp 1300-1400 mm"] = theta_profile[:,13]
+df_forcing["Soil moisture interp 1400-1500 mm"] = theta_profile[:,14]
+df_forcing["Soil moisture interp 1500-1600 mm"] = theta_profile[:,15]
+df_forcing["Soil moisture interp 1600-1700 mm"] = theta_profile[:,16]
+df_forcing["Soil moisture interp 1700-1800 mm"] = theta_profile[:,17]
+df_forcing["Soil moisture interp 1800-1900 mm"] = theta_profile[:,18]
+df_forcing["Soil moisture interp 1900-2000 mm"] = theta_profile[:,19]
+
+# %%
+## Option 4: Use the scaled soil moisture following the a Gladish et al. (2021) profile
+_soilTheta_z = np.column_stack((
+    df_forcing["Soil moisture interp 0-100 mm"].values,
+    df_forcing["Soil moisture interp 100-200 mm"].values,
+    df_forcing["Soil moisture interp 200-300 mm"].values,
+    df_forcing["Soil moisture interp 300-400 mm"].values,
+    df_forcing["Soil moisture interp 400-500 mm"].values,
+    df_forcing["Soil moisture interp 500-600 mm"].values,
+    df_forcing["Soil moisture interp 600-700 mm"].values,
+    df_forcing["Soil moisture interp 700-800 mm"].values,
+    df_forcing["Soil moisture interp 800-900 mm"].values,
+    df_forcing["Soil moisture interp 900-1000 mm"].values,
+    df_forcing["Soil moisture interp 1000-1100 mm"].values,
+    df_forcing["Soil moisture interp 1100-1200 mm"].values,
+    df_forcing["Soil moisture interp 1200-1300 mm"].values,
+    df_forcing["Soil moisture interp 1300-1400 mm"].values,
+    df_forcing["Soil moisture interp 1400-1500 mm"].values,
+    df_forcing["Soil moisture interp 1500-1600 mm"].values,
+    df_forcing["Soil moisture interp 1600-1700 mm"].values,
+    df_forcing["Soil moisture interp 1700-1800 mm"].values,
+    df_forcing["Soil moisture interp 1800-1900 mm"].values,
+    df_forcing["Soil moisture interp 1900-2000 mm"].values,
+    ))
+
+# %%
+
+# %%
+it = 100
+
+fig, axes = plt.subplots(1,1)
+
+ax = axes
+ax.plot(theta_profile[it, :], depths_z, c="C0", label="Estimated")
+xc = "0.5"
+ax.plot(df_soil["LL15 (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(df_soil["CLL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(df_soil["DUL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(df_soil["SAT (mm/mm) "].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_ylabel("Depth (mm)")
+
+# %%
+## Harden CSIRO site location-34.52194, 148.30472
+## NOTES:
+## sowing_doy, harvest_doy = 135, 322    ## Harden 2008
+## sowing_doy, harvest_doy = 129, 339    ## Harden 2012
+SiteX = ClimateModule(CLatDeg=site_latitude,CLonDeg=site_longitude,timezone=10,Elevation=site_elevation)
+start_doy_f = df_forcing["DOY"].values[0]
+start_year_f = df_forcing["Year"].values[0]
+nrundays_f = df_forcing.index.size
+
+
+# %%
+## Time discretisation
+time_nday_f, time_doy_f, time_year_f = SiteX.time_discretisation(start_doy_f, start_year_f, nrundays=nrundays_f)
+## Adjust daily time-step to represent midday on each day
+time_doy_f = [time_doy_f[i]+0.5 for i in range(len(time_doy_f))]
+
+## Time discretization for forcing data
+time_index_f = pd.to_datetime(df_forcing["Date"].values)
+
+# %%
+# Define lists of sowing and harvest dates
+sowing_dates = [
+    pd.Timestamp(year=2020, month=5, day=15),
+]
+
+harvest_dates = [
+    pd.Timestamp(year=2020, month=12, day=15),
+]
+
+# %%
+## Make some assumption about the fraction of diffuse radiation
+diffuse_fraction = 0.3
+
+## Shortwave radiation at surface (convert MJ m-2 d-1 to W m-2)
+_Rsb_Wm2 = (1-diffuse_fraction) * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+_Rsd_Wm2 = diffuse_fraction * df_forcing["SRAD"].values * 1e6 / (60*60*24)
+
+## Create synthetic data for other forcing variables
+_es = SiteX.compute_sat_vapor_pressure_daily(df_forcing["Minimum temperature"].values,df_forcing["Maximum temperature"].values)
+_CO2 = 400*(df_forcing["Atmospheric pressure"].values/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
+_O2 = 209000*(df_forcing["Atmospheric pressure"].values/1e5)*1e-6   ## oxygen partial pressure (bar)
+_Uavg = 0.5*np.ones(nrundays_f)  ## wind speed (m s-1)
+
+# %%
+Climate_doy_f = interp_forcing(time_nday_f, time_doy_f, kind="pconst") #, fill_value=(time_doy[0],time_doy[-1]))
+Climate_year_f = interp_forcing(time_nday_f, time_year_f, kind="pconst") #, fill_value=(time_year[0],time_year[-1]))
+Climate_airTempCMin_f = interp1d(time_nday_f, df_forcing["Minimum temperature"].values)
+Climate_airTempCMax_f = interp1d(time_nday_f, df_forcing["Maximum temperature"].values)
+Climate_airTempC_f = interp1d(time_nday_f, (df_forcing["Minimum temperature"].values+df_forcing["Maximum temperature"].values)/2)
+Climate_solRadswskyb_f = interp1d(time_nday_f, _Rsb_Wm2)
+Climate_solRadswskyd_f = interp1d(time_nday_f, _Rsd_Wm2)
+Climate_airPressure_f = interp1d(time_nday_f, df_forcing["Atmospheric pressure"].values)
+Climate_airRH_f = interp1d(time_nday_f, df_forcing["Relative humidity"].values)
+Climate_airU_f = interp1d(time_nday_f, _Uavg)
+Climate_airCO2_f = interp1d(time_nday_f, _CO2)
+Climate_airO2_f = interp1d(time_nday_f, _O2)
+# Climate_soilTheta_f = interp1d(time_nday_f, _soilTheta_z)
+Climate_soilTheta_z_f = interp1d(time_nday_f, _soilTheta_z, axis=0)  # Interpolates across timesteps, handles all soil layers at once
+Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ordinal day-of-year plus each simulation day (e.g. a model run starting on Jan 30 and going for 2 years will have nday=30+np.arange(2*365))
 
 # %% [markdown]
 # #### *CSIRO Harden Experiment*
@@ -94,11 +476,179 @@ merged_df = pd.merge(df_site_tsubset[['Date', 'radn', 'maxt', 'mint', 'rain', 'v
 # Rename columns
 df_forcing_all = merged_df.rename(columns={"radn":"SRAD", "maxt":"Maximum temperature", "mint":"Minimum temperature", "rain":"Precipitation", "vp": "VPeff"})
 
+# %%
+# Interpolate sparse soil moisture values to daily
+df_forcing_all["Soil moisture interp"] = df_forcing_all["Soil moisture"].interpolate('quadratic')
+
+# %%
+plt.scatter(df_forcing_all["Date"].values, df_forcing_all["Soil moisture"].values, label="OzWALD reported", s=10)
+plt.plot(df_forcing_all["Date"].values, df_forcing_all["Soil moisture interp"].values, label="Interpolated")
+plt.legend()
+
+# %% [markdown]
+# #### - *Import Generic Soil Hydraulic Properties Profile Type*
+#
+# Based on the work by Glandish et al. (2021). 
+#
+# We align these clusters with their approximate soil type classifications and the hydraulic properties associated with those soil types as outlined in Cosby et al. (1984) and converted into appropriate units by Duursma et al. (2008). 
+#
+# Cluster 3: "Cluster 3 was similar to cluster 1 with many vertosols, but also incorporated several clays as well"
+#
+#  - Clay loam: b_soil = 8.17, Psi_e = -2.58E-03, K_sat = 13.9
+#  - Silty clay: b_soil = 10.39, Psi_e = -3.17E-03, K_sat = 7.6
+#  - Light clay: b_soil = 11.55, Psi_e = -4.58E-03, K_sat = 5.5
+#
+# Cluster 4: "Cluster 4 was like 1 and 3, including several clays but also contained sandy loam as well as other soil patterns"
+#  
+#  - Silty loam: b_soil = 5.33, Psi_e = -7.43E-03, K_sat = 15.9
+#
+# Cluster5: "Cluster 5 was pri- marily sand, particularly yellow deep sand and deep sand"
+#
+#  - Sand: b_soil = 2.79, Psi_e = –0.68E-03, K_sat = 264.3
+#  - Loamy sand: b_soil = 4.26, Psi_e = -0.36E-03, K_sat = 79.8
+
+# %%
+f = "/Users/alexandernorton/ANU/Resources/Gladish et al. (2021) Supplementary Material - tabulated - Cluster 4 Mean.csv"
+df_soil = pd.read_csv(f, skiprows=2)
+
+depths_z = df_soil["Depth (mm)"].values
+LL15_z = df_soil["LL15 (mm/mm)"].values
+CLL_z = df_soil["CLL (mm/mm)"].values
+DUL_z = df_soil["DUL (mm/mm)"].values
+
+# %%
+soiltheta = df_forcing_all["Soil moisture interp"].values
+
+# Estimate min/max soil moisture (could use empirical percentiles)
+soiltheta_min = np.nanmin(soiltheta)
+soiltheta_max = np.nanmax(soiltheta)
+print("Soil moisture range: %1.1f to %1.1f mm" % (soiltheta_min, soiltheta_max))
+
+# Compute relative wetness index (W)
+W = (soiltheta - soiltheta_min) / (soiltheta_max - soiltheta_min)
+W = np.clip(W, 0, 1)   # Ensure values stay within [0,1]
+
+# %%
+# Initialize an array to store the time-varying soil moisture profile
+theta_profile = np.zeros((len(soiltheta), len(depths_z)))
+
+for i, w_t in enumerate(W):
+    theta_profile[i, :] = CLL_z + w_t * (DUL_z - CLL_z)
+    # theta_profile[i, :] = LL15_z + w_t * (DUL_z - LL15_z)
+
+
+# %%
+# Add the soil moisture profile data into the forcing dataframe
+df_forcing_all["Soil moisture interp 0-100 mm"] = theta_profile[:,0]
+df_forcing_all["Soil moisture interp 100-200 mm"] = theta_profile[:,1]
+df_forcing_all["Soil moisture interp 200-300 mm"] = theta_profile[:,2]
+df_forcing_all["Soil moisture interp 300-400 mm"] = theta_profile[:,3]
+df_forcing_all["Soil moisture interp 400-500 mm"] = theta_profile[:,4]
+df_forcing_all["Soil moisture interp 500-600 mm"] = theta_profile[:,5]
+df_forcing_all["Soil moisture interp 600-700 mm"] = theta_profile[:,6]
+df_forcing_all["Soil moisture interp 700-800 mm"] = theta_profile[:,7]
+df_forcing_all["Soil moisture interp 800-900 mm"] = theta_profile[:,8]
+df_forcing_all["Soil moisture interp 900-1000 mm"] = theta_profile[:,9]
+df_forcing_all["Soil moisture interp 1000-1100 mm"] = theta_profile[:,10]
+df_forcing_all["Soil moisture interp 1100-1200 mm"] = theta_profile[:,11]
+df_forcing_all["Soil moisture interp 1200-1300 mm"] = theta_profile[:,12]
+df_forcing_all["Soil moisture interp 1300-1400 mm"] = theta_profile[:,13]
+df_forcing_all["Soil moisture interp 1400-1500 mm"] = theta_profile[:,14]
+df_forcing_all["Soil moisture interp 1500-1600 mm"] = theta_profile[:,15]
+df_forcing_all["Soil moisture interp 1600-1700 mm"] = theta_profile[:,16]
+df_forcing_all["Soil moisture interp 1700-1800 mm"] = theta_profile[:,17]
+df_forcing_all["Soil moisture interp 1800-1900 mm"] = theta_profile[:,18]
+df_forcing_all["Soil moisture interp 1900-2000 mm"] = theta_profile[:,19]
+
+# %%
+
+# %%
+
+# %%
+fig, axes = plt.subplots(3,2,figsize=(10,9), width_ratios=[3, 1])
+
+col0_xlim0, col0_xlim1 = 0, 0.55
+col1_xlim0, col1_xlim1 = 1.0, 2.0
+
+it = 5100
+iplot = 0
+
+ax = axes[iplot,0]
+ax.plot(df_forcing_all["Date"].values, df_forcing_all["Soil moisture interp"].values)
+ax.vlines(x=df_forcing_all["Date"].values[it], ymin=0.8*soiltheta_min, ymax=1.2*soiltheta_max, color='crimson', linewidth=0.5, label="Selected time slice")
+ax.set_ylim([0.8*soiltheta_min, 1.2*soiltheta_max])
+ax.set_ylabel("Total soil moisture (mm)")
+ax.set_title("Soil Moisture Time-Series")
+ax.legend(loc=2)
+
+ax = axes[iplot,1]
+ax.plot(theta_profile[it, :], depths_z, c="C0", label="Estimated")
+
+xc = "0.5"
+ax.plot(df_soil["LL15 (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(df_soil["CLL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(df_soil["DUL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(df_soil["SAT (mm/mm) "].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_ylabel("Depth (mm)")
+ax.set_title("Vertical Profile of\nHydraulic Properties")
+
+it = 5650
+iplot = 1
+
+ax = axes[iplot,0]
+ax.plot(df_forcing_all["Date"].values, df_forcing_all["Soil moisture interp"].values)
+ax.vlines(x=df_forcing_all["Date"].values[it], ymin=0.8*soiltheta_min, ymax=1.2*soiltheta_max, color='crimson', linewidth=0.5)
+ax.set_ylim([0.8*soiltheta_min, 1.2*soiltheta_max])
+ax.set_ylabel("Total soil moisture (mm)")
+
+ax = axes[iplot,1]
+ax.plot(theta_profile[it, :], depths_z, c="C0", label="Estimated")
+xc = "0.5"
+ax.plot(df_soil["LL15 (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(df_soil["CLL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(df_soil["DUL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(df_soil["SAT (mm/mm) "].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_ylabel("Depth (mm)")
+
+it = 6100
+iplot = 2
+
+ax = axes[iplot,0]
+ax.plot(df_forcing_all["Date"].values, df_forcing_all["Soil moisture interp"].values)
+ax.vlines(x=df_forcing_all["Date"].values[it], ymin=0.8*soiltheta_min, ymax=1.2*soiltheta_max, color='crimson', linewidth=0.5)
+ax.set_ylim([0.8*soiltheta_min, 1.2*soiltheta_max])
+ax.set_ylabel("Total soil moisture (mm)")
+
+ax = axes[iplot,1]
+ax.plot(theta_profile[it, :], depths_z, c="C0", label="Estimated")
+xc = "0.5"
+ax.plot(df_soil["LL15 (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="LL15")
+ax.plot(df_soil["CLL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle=":", label="CLL")
+ax.plot(df_soil["DUL (mm/mm)"].values, df_soil["Depth (mm)"].values, c=xc, linestyle="--", label="DUL")
+ax.plot(df_soil["SAT (mm/mm) "].values, df_soil["Depth (mm)"].values, c=xc, linestyle="-", label="SAT")
+ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.set_xlim([col0_xlim0, col0_xlim1])
+ax.invert_yaxis()
+ax.set_ylabel("Depth (mm)")
+
+
+plt.tight_layout()
+
+
+# %%
 # Select one year of data only
 # df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2017-01-01") & (df_forcing_all["Date"] <= "2017-12-31")]
 # df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2008-01-01") & (df_forcing_all["Date"] <= "2008-12-31")]
 df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2012-01-01") & (df_forcing_all["Date"] <= "2012-12-31")]
 # df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2019-01-01") & (df_forcing_all["Date"] <= "2019-12-31")]
+
+# %%
 
 # %% [markdown]
 # #### - *Generate temporally-interpolated and scaled soil moisture forcing*
@@ -106,29 +656,29 @@ df_forcing = df_forcing_all.loc[(df_forcing_all["Date"] >= "2012-01-01") & (df_f
 # The model requires soil moisture to be in units of volumetric soil water content (m3 m-3 or %). Soil moisture from the forcing data above is in units of mm. So we make a (pretty crude) assumption on how to convert mm to volumetrics soil water content. 
 
 # %%
-df_forcing["Soil moisture interp"] = df_forcing["Soil moisture"].interpolate('quadratic')
+# df_forcing["Soil moisture interp"] = df_forcing["Soil moisture"].interpolate('quadratic')
 
-## Assume that the forcing data (units: mm) can be equated to relative changes in volumetric soil moisture between two arbitrary minimum and maximum values
-f_soilTheta_min = 0.25
-f_soilTheta_max = 0.40
+# ## Assume that the forcing data (units: mm) can be equated to relative changes in volumetric soil moisture between two arbitrary minimum and maximum values
+# f_soilTheta_min = 0.25
+# f_soilTheta_max = 0.40
 
-f_soilTheta_min_mm = df_forcing["Soil moisture interp"].min()
-f_soilTheta_max_mm = df_forcing["Soil moisture interp"].max()
+# f_soilTheta_min_mm = df_forcing["Soil moisture interp"].min()
+# f_soilTheta_max_mm = df_forcing["Soil moisture interp"].max()
 
-f_soilTheta_norm_mm = (df_forcing["Soil moisture interp"].values - f_soilTheta_min_mm)/(f_soilTheta_max_mm - f_soilTheta_min_mm)
-f_soilTheta_norm = f_soilTheta_min + f_soilTheta_norm_mm * (f_soilTheta_max - f_soilTheta_min)
+# f_soilTheta_norm_mm = (df_forcing["Soil moisture interp"].values - f_soilTheta_min_mm)/(f_soilTheta_max_mm - f_soilTheta_min_mm)
+# f_soilTheta_norm = f_soilTheta_min + f_soilTheta_norm_mm * (f_soilTheta_max - f_soilTheta_min)
 
 
-fig, axes = plt.subplots(1,2,figsize=(9,3))
+# fig, axes = plt.subplots(1,2,figsize=(9,3))
 
-axes[0].scatter(df_forcing.index.values, df_forcing["Soil moisture"].values)
-axes[0].plot(df_forcing.index.values, df_forcing["Soil moisture interp"].values)
-axes[0].set_ylabel("Soil moisture (mm)")
+# axes[0].scatter(df_forcing.index.values, df_forcing["Soil moisture"].values)
+# axes[0].plot(df_forcing.index.values, df_forcing["Soil moisture interp"].values)
+# axes[0].set_ylabel("Soil moisture (mm)")
 
-axes[1].plot(df_forcing.index.values, f_soilTheta_norm)
-axes[1].set_ylabel("Volumetric soil moisture")
+# axes[1].plot(df_forcing.index.values, f_soilTheta_norm)
+# axes[1].set_ylabel("Volumetric soil moisture")
 
-plt.tight_layout()
+# plt.tight_layout()
 
 # %% [markdown]
 # #### - *Initialise site module*
@@ -156,10 +706,12 @@ time_index_f = pd.to_datetime(df_forcing["Date"].values)
 # Define lists of sowing and harvest dates
 sowing_dates = [
     pd.Timestamp(year=2012, month=5, day=20),  # First season
+    # pd.Timestamp(year=2008, month=5, day=14),
 ]
 
 harvest_dates = [
     pd.Timestamp(year=2012, month=12, day=10),  # First season
+    # pd.Timestamp(year=2008, month=11, day=17),
 ]
 
 
@@ -179,23 +731,47 @@ _RH[_RH > 100] = 100
 _CO2 = 400*(_p/1e5)*1e-6     ## carbon dioxide partial pressure (bar)
 _O2 = 209000*(_p/1e5)*1e-6   ## oxygen partial pressure (bar)
 _soilTheta =  0.35*np.ones(nrundays_f)   ## volumetric soil moisture content (m3 m-3)
-_soilTheta = f_soilTheta_norm
+# _soilTheta = f_soilTheta_norm
 
 ## Create a multi-layer soil moisture forcing dataset
 ## Option 1: Same soil moisture across all layers
-nlevmlsoil = 2
-_soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
-## Option 2: Adjust soil moisture in each layer
-_soilTheta_z0 = _soilTheta-0.04
-_soilTheta_z1 = _soilTheta+0.04
-_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
+# nlevmlsoil = 2
+# _soilTheta_z = np.repeat(_soilTheta[:, np.newaxis], nlevmlsoil, axis=1)
+# ## Option 2: Adjust soil moisture in each layer
+# _soilTheta_z0 = _soilTheta-0.04
+# _soilTheta_z1 = _soilTheta+0.04
+# _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1))
 
 ## Option 3: Adjust soil moisture in each layer, 4 layers
-_soilTheta_z0 = _soilTheta-0.08
-_soilTheta_z1 = _soilTheta-0.04
-_soilTheta_z2 = _soilTheta+0.02
-_soilTheta_z3 = _soilTheta+0.06
-_soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _soilTheta_z3))
+# _soilTheta_z0 = _soilTheta-0.08
+# _soilTheta_z1 = _soilTheta-0.04
+# _soilTheta_z2 = _soilTheta+0.02
+# _soilTheta_z3 = _soilTheta+0.06
+# _soilTheta_z = np.column_stack((_soilTheta_z0, _soilTheta_z1, _soilTheta_z2, _soilTheta_z3))
+
+## Option 4: Use the scaled soil moisture following the a Gladish et al. (2021) profile
+_soilTheta_z = np.column_stack((
+    df_forcing["Soil moisture interp 0-100 mm"].values,
+    df_forcing["Soil moisture interp 100-200 mm"].values,
+    df_forcing["Soil moisture interp 200-300 mm"].values,
+    df_forcing["Soil moisture interp 300-400 mm"].values,
+    df_forcing["Soil moisture interp 400-500 mm"].values,
+    df_forcing["Soil moisture interp 500-600 mm"].values,
+    df_forcing["Soil moisture interp 600-700 mm"].values,
+    df_forcing["Soil moisture interp 700-800 mm"].values,
+    df_forcing["Soil moisture interp 800-900 mm"].values,
+    df_forcing["Soil moisture interp 900-1000 mm"].values,
+    df_forcing["Soil moisture interp 1000-1100 mm"].values,
+    df_forcing["Soil moisture interp 1100-1200 mm"].values,
+    df_forcing["Soil moisture interp 1200-1300 mm"].values,
+    df_forcing["Soil moisture interp 1300-1400 mm"].values,
+    df_forcing["Soil moisture interp 1400-1500 mm"].values,
+    df_forcing["Soil moisture interp 1500-1600 mm"].values,
+    df_forcing["Soil moisture interp 1600-1700 mm"].values,
+    df_forcing["Soil moisture interp 1700-1800 mm"].values,
+    df_forcing["Soil moisture interp 1800-1900 mm"].values,
+    df_forcing["Soil moisture interp 1900-2000 mm"].values,
+    ))
 
 # %% [markdown]
 # #### - *Convert discrete to continuous forcing data*
@@ -219,7 +795,6 @@ Climate_nday_f = interp1d(time_nday_f, time_nday_f)   ## nday represents the ord
 
 
 # %%
-Climate_nday_f
 
 # %% [markdown]
 # #### *Milgadara Field Site*
@@ -727,46 +1302,66 @@ PlantDevX = PlantGrowthPhases(
                       [0.10, 0.033, 0.10, 0.0002, 0.0]])
 
 # %%
+
+# %%
 ManagementX = ManagementModule(cropType="Wheat",sowingDays=sowingDays,harvestDays=harvestDays,sowingYears=sowingYears,harvestYears=harvestYears,propHarvestLeaf=0.75)
 
 BoundLayerX = BoundaryLayerModule(Site=SiteX)
-LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=60e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=2.5,VPDmin=0.1)
+LeafX = LeafGasExchangeModule2(Site=SiteX,Vcmax_opt=40e-6,Jmax_opt_rVcmax=0.89,Jmax_opt_rVcmax_method="log",g1=2.5,VPDmin=0.1)
 CanopyX = CanopyLayers(nlevmlcan=3)
 CanopyRadX = CanopyRadiation(Canopy=CanopyX)
 CanopyGasExchangeX = CanopyGasExchange(Leaf=LeafX,Canopy=CanopyX,CanopyRad=CanopyRadX)
 # SoilLayersX = SoilLayers(nlevmlsoil=4,z_max=2.0,z_top=0.10,discretise_method="scaled_exp")
-SoilLayersX = SoilLayers(nlevmlsoil=6,z_max=0.66,z_top=0.10,discretise_method="horizon",
-                         z_horizon=[0.06, 0.06, 0.06, 0.10, 0.10, 0.28],
-                        Psi_e=[-1.38E-03, -1.38E-03, -1.38E-03, -1.32E-03, -2.58E-03, -0.960E-03],
-                        b_soil = [4.74, 4.74, 4.74, 6.77, 8.17, 10.73],
-                         K_sat = [29.7, 29.7, 29.7, 25.2, 13.9, 40.9],
-                         soilThetaMax = [0.12, 0.12, 0.12, 0.20, 0.3, 0.4])
+SoilLayersX = SoilLayers(nlevmlsoil=20,z_max=2.0,discretise_method="horizon",
+                         z_horizon=0.1*np.ones(20),
+                         # b_soil = 11.55, Psi_e = -4.58E-03, K_sat = 5.5,  ## Light clay soil type (Duursma et al., 2008)
+                         # b_soil = 10.39, Psi_e = -3.17E-03, K_sat = 7.6,  ## Silty clay soil type (Duursma et al., 2008)
+                         # b_soil = 10.73, Psi_e = -0.96E-03, K_sat = 40.9,  ## Sandy clay soil type (Duursma et al., 2008)
+                         # b_soil=8.17, Psi_e=-2.58E-03, K_sat=13.9,    ## Clay loam soil type (Duursma et al., 2008)
+                         # b_soil=5.33, Psi_e=-7.43E-03, K_sat=15.9,  ## Silty loam soil type (Duursma et al., 2008)
+                         # b_soil = 4.74, Psi_e = -1.38E-03, K_sat = 29.7,  ## Sandy loam soil type (Duursma et al., 2008)
+                         # b_soil = 6.77, Psi_e = -1.32e-3, K_sat = 25.2,  ## Sandy clay loam soil type (Duursma et al., 2008)
+                         # b_soil = 4.26, Psi_e = -0.36E-03, K_sat = 79.8,  ## Loamy sand soil type (Duursma et al., 2008)
+                         b_soil=2.79, Psi_e=-0.68E-03, K_sat=264.3, ## Sand soil type (Duursma et al., 2008)
+                         soilThetaMax=df_soil["SAT (mm/mm) "].values)
+
+
+# SoilLayersX = SoilLayers(nlevmlsoil=6,z_max=0.66,z_top=0.10,discretise_method="horizon",
+#                          z_horizon=[0.06, 0.06, 0.06, 0.10, 0.10, 0.28],
+#                         Psi_e=[-1.38E-03, -1.38E-03, -1.38E-03, -1.32E-03, -2.58E-03, -0.960E-03],
+#                         b_soil = [4.74, 4.74, 4.74, 6.77, 8.17, 10.73],
+#                          K_sat = [29.7, 29.7, 29.7, 25.2, 13.9, 40.9],
+#                          soilThetaMax = [0.12, 0.12, 0.12, 0.20, 0.3, 0.4])
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
-PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6.5,ksr_coeff=1500,SLA=0.02,sf=1.0,Psi_f=-5.0)
+PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6,ksr_coeff=2000,SLA=0.02,sf=1.5,Psi_f=-2.0,k_rl=0.001)
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02,sf=1.0,soilThetaMax=0.4,Psi_f=-5,Psi_e=-0.00138,b_soil=4.74,K_sat=29.7) #SLA=0.040)
-PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX,dWL_factor=1.02,dWR_factor=1.02)
+PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX) #,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
     Management=ManagementX,
     PlantDev=PlantDevX,
     PlantCH2O=PlantCH2OX,
     PlantAlloc=PlantAllocX,
-    alpha_Rg=0.2,
-    # alpha_Rg=0.3,
+    # alpha_Rg=0.2,
+    alpha_Rg=0.3,
     GDD_method="linear1",
     GDD_Tbase=0.0,
     GDD_Tupp=25.0,
     hc_max_GDDindex=sum(PlantDevX.gdd_requirements[0:2])/PlantDevX.totalgdd,
-    d_r_max=2.0,
+    #d_r_max=2.0,
+    d_r_max=1.5,
     # d_r_max=0.60,
     CI=0.75,
-    Vmaxremob=3.0,
+    Vmaxremob=6.0,
     Kmremob=0.5,
     remob_phase=["grainfill","maturity"],
     specified_phase="spike",
     grainfill_phase=["grainfill","maturity"],
     downreg_phase="maturity",
 )
+
+# %%
+PlantX.PlantAlloc.tr_L, PlantX.PlantAlloc.tr_R
 
 # %%
 ## Define the callable calculator that defines the right-hand-side ODE function
@@ -907,7 +1502,7 @@ total_carbon_exclseed_t = res["y"][PlantX.PlantDev.ileaf,:] + res["y"][PlantX.Pl
 itax_peakbiomass = np.argmax(total_carbon_t[itax_sowing:itax_harvest+1]) + itax_sowing
 itax_peakbiomass_exclseed = np.argmax(total_carbon_exclseed_t[itax_sowing:itax_harvest+1]) + itax_sowing
 
-# %%
+# %% jp-MarkdownHeadingCollapsed=true
 print("--- Carbon and Water ---")
 print()
 print("Total (integrated) seasonal GPP (sowing-harvest) =", np.sum(diagnostics['GPP'][itax_sowing:itax_harvest+1]))
@@ -960,12 +1555,26 @@ if PlantX.Management.cropType == "Wheat":
     print("Stem dry biomass at start of spike =", res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
 ip = np.where(diagnostics['idevphase'][itax_phase_transitions] == PlantX.PlantDev.phases.index('anthesis'))[0][0]
 print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print()
 
+print("Leaf dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.ileaf,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print("Stem dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print("Root dry biomass at start of anthesis =", res["y"][PlantX.PlantDev.iroot,itax_phase_transitions[ip]]/PlantX.PlantCH2O.f_C)
+print("Root:Shoot ratio at start of anthesis =", res["y"][PlantX.PlantDev.iroot,itax_phase_transitions[ip]] / (res["y"][PlantX.PlantDev.ileaf,itax_phase_transitions[ip]] + res["y"][PlantX.PlantDev.istem,itax_phase_transitions[ip]]))
+print("Actual root depth at start of anthesis =", diagnostics["d_r"][itax_phase_transitions[ip]])
+
+print()
+print("Leaf dry biomass at end of maturity =", res["y"][PlantX.PlantDev.ileaf,itax_mature]/PlantX.PlantCH2O.f_C)
+print("Stem dry biomass at end of maturity =", res["y"][PlantX.PlantDev.istem,itax_mature]/PlantX.PlantCH2O.f_C)
+print("Root dry biomass at end of maturity =", res["y"][PlantX.PlantDev.iroot,itax_mature]/PlantX.PlantCH2O.f_C)
+print("Root:Shoot ratio at end of maturity =", res["y"][PlantX.PlantDev.iroot,itax_mature] / (res["y"][PlantX.PlantDev.ileaf,itax_mature] + res["y"][PlantX.PlantDev.istem,itax_mature]))
+print("Actual root depth at end of maturity=", diagnostics["d_r"][itax_mature])
+print()
 print("Leaf area index at peak biomass =", diagnostics['LAI'][itax_peakbiomass_exclseed])
 
 
 # %% [markdown]
-# ### Create figures
+# ### Write Model Outputs to File
 
 # %%
 # site_year = str(time_year_f[time_axis[0]])
@@ -975,13 +1584,54 @@ print("Leaf area index at peak biomass =", diagnostics['LAI'][itax_peakbiomass_e
 # site_year = str(time_year_f[time_axis[0]])
 # site_name = "Harden - Wheat"
 # # site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
-# site_filename = "Harden_%s_Wheat_control_1x" % site_year
+# site_filename = "Harden_%s_Wheat_SC4_SandyLoam_CI0p5_ksrcoeff2000_Vremob6" % site_year
+
+# site_year = str(time_year_f[time_axis[0]])
+# site_name = "Rutherglen 1971 - Wheat"
+# site_filename = "Rutherglen1971_%s_Wheat_control_X" % site_year
 
 site_year = str(time_year_f[time_axis[0]])
-site_name = "Rutherglen 1971 - Wheat"
-site_filename = "Rutherglen1971_%s_Wheat_control_X" % site_year
+site_name = "Narrogin - Wheat"
+# site_filename = "Harden_%s_Wheat_control_1_highplantingdensity_CI" % site_year
+site_filename = "SILO_Narrogin_%s_Wheat_SC5SAT_LightSand_W0p9" % site_year
+
 
 # %%
+path_to_write = "/Users/alexandernorton/ANU/Projects/DAESim/DAESIM/results/Harden_wet_dry_idealised/"
+
+title = "DAESIM2-Plant Model Output " + site_filename
+description = site_filename
+
+# Add state variables to the diagnostics dictionary
+diagnostics["Cleaf"] = res["y"][0,:]
+diagnostics["Cstem"] = res["y"][1,:]
+diagnostics["Croot"] = res["y"][2,:]
+diagnostics["Cseed"] = res["y"][3,:]
+diagnostics["Bio_time"] = res["y"][4,:]
+diagnostics["VRN_time"] = res["y"][5,:]
+diagnostics["Cstate"] = res["y"][7,:]
+diagnostics["Cseedbed"] = res["y"][8,:]
+
+# Add forcing inputs to diagnostics dictionary
+for i,f in enumerate(forcing_inputs):
+    ni = i+1
+    if f(time_axis[0]).size == 1:
+        fstr = f"forcing {ni:02}"
+        diagnostics[fstr] = f(time_axis)
+    elif f(time_axis[0]).size > 1:
+        # this forcing input has levels/layers (e.g. multilayer soil moisture)
+        nz = f(time_axis[0]).size
+        for iz in range(nz):
+            fstr = f"forcing {ni:02} z{iz}"
+            diagnostics[fstr] = f(time_axis)[:,iz]
+            
+daesim_io_write_diag_to_nc(PlantX, diagnostics, 
+                        path_to_write, site_filename+".nc", 
+                        time_index, 
+                        nc_attributes={"title": title, "description": description})
+
+# %% [markdown]
+# ### Create Figures
 
 # %%
 fig, axes = plt.subplots(4,1,figsize=(8,8),sharex=True)
@@ -1060,7 +1710,6 @@ axes[2].set_ylim([0,6])
 # axes[4].plot(df_forcing.index.values[364:-1], 0.5*np.cumsum(GPP[364:]))
 axes[3].plot(Climate_doy_f(res["t"]), res["y"][4])
 axes[3].set_ylabel("Thermal Time\n"+r"($\rm ^{\circ}$C d)")
-axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Growing Degree Days - Developmental Phase", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 ax = axes[3]
 ylimmin, ylimmax = 0, np.max(res["y"][4,:])*1.05
@@ -1129,6 +1778,11 @@ plt.tight_layout()
 
 # %%
 
+
+# %%
+
+# %%
+
 # %%
 _W_L = res["y"][0,:]/PlantX.PlantCH2O.f_C
 _W_R = res["y"][2,:]/PlantX.PlantCH2O.f_C
@@ -1160,13 +1814,13 @@ for it, t in enumerate(time_axis[:-1]):
 
 
 # %%
-fig, axes = plt.subplots(5,1,figsize=(8,10),sharex=True)
+fig, axes = plt.subplots(6,1,figsize=(8,12),sharex=True)
 
 axes[0].plot(Climate_doy_f(diagnostics["t"]), diagnostics["LAI"])
 axes[0].set_ylabel("LAI\n"+r"($\rm m^2 \; m^{-2}$)")
 axes[0].tick_params(axis='x', labelrotation=45)
 axes[0].annotate("Leaf area index", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[0].set_ylim([0,6])
+axes[0].set_ylim([0,7])
 
 axes[1].plot(Climate_doy_f(diagnostics["t"]), diagnostics["GPP"])
 axes[1].plot(Climate_doy_f(diagnostics["t"]), _GPP[:-1], c='r', linestyle="--", label="Soil water stress")
@@ -1191,20 +1845,25 @@ axes[2].legend()
 
 axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["fPsil"])
 axes[3].set_ylabel(r"$\rm f_{Psi_L}$"+"\n"+r"(-)")
-axes[3].set_xlabel("Time (days)")
+# axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Leaf Water Potential Effect on Stomatal Conductance", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 # axes[3].set_ylim([])
 
+axes[4].plot(Climate_doy_f(res["t"]), res["y"][2]/(res["y"][0]+res["y"][1]),c='k')
+axes[4].set_ylabel("Root:Shoot Ratio\n"+r"(-)")
+# axes[4].set_xlabel("Time (day of year)")
+axes[4].set_ylim([0,1])
+
 alp = 0.6
-axes[4].plot(Climate_doy_f(res["t"]), res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
-axes[4].plot(Climate_doy_f(res["t"]), res["y"][0],label="Leaf", alpha=alp)
-axes[4].plot(Climate_doy_f(res["t"]), res["y"][1],label="Stem", alpha=alp)
-axes[4].plot(Climate_doy_f(res["t"]), res["y"][2],label="Root", alpha=alp)
-axes[4].plot(Climate_doy_f(res["t"]), res["y"][3],label="Seed", alpha=alp)
-# axes[4].plot(Climate_doy_f(res["t"]), res["y"][8],label="Dead", c='0.5', alpha=alp)
-axes[4].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
-axes[4].set_xlabel("Time (day of year)")
-axes[4].legend(loc=3,fontsize=9,handlelength=0.8)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][0]+res["y"][1]+res["y"][2]+res["y"][3],c='k',label="Plant", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][0],label="Leaf", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][1],label="Stem", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][2],label="Root", alpha=alp)
+axes[5].plot(Climate_doy_f(res["t"]), res["y"][3],label="Seed", alpha=alp)
+# axes[5].plot(Climate_doy_f(res["t"]), res["y"][8],label="Dead", c='0.5', alpha=alp)
+axes[5].set_ylabel("Carbon Pool Size\n"+r"(g C $\rm m^{-2}$)")
+axes[5].set_xlabel("Time (day of year)")
+axes[5].legend(loc=3,fontsize=9,handlelength=0.8)
 
 # Check if harvestDay is in time_axis
 # if PlantX.Management.harvestDay in time_axis:
@@ -1222,9 +1881,9 @@ harvest_index = res["y"][3,itax_harvest]/(res["y"][0,itax_harvest]+res["y"][1,it
 harvest_index_peak = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseed
 harvest_index_peak_noroot = res["y"][3,itax_harvest]/peak_accumulated_carbon_noseedroot
 yield_from_seed_Cpool = res["y"][3,itax_harvest]/100 * (1/PlantX.PlantCH2O.f_C)   ## convert gC m-2 to t dry biomass ha-1
-axes[4].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
-axes[4].set_ylim([0,600])
+axes[5].annotate("Yield = %1.2f t/ha" % (yield_from_seed_Cpool), (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[5].annotate("Harvest index = %1.2f" % (harvest_index_peak), (0.01,0.81), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
+axes[5].set_ylim([0,600])
 
 print("Harvest index (end-of-simulation seed:end-of-simulation plant) = %1.2f" % harvest_index)
 print("Harvest index (end-of-simulation seed:peak plant biomass (excl seed)) = %1.2f" % harvest_index_peak)
@@ -1491,7 +2150,6 @@ axes[2].set_ylim([-0.06,0.10])
 axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dSdWleaf"])
 axes[3].plot(Climate_doy_f(diagnostics["t"]), diagnostics["dSdWleaf"])
 axes[3].set_ylabel("Marginal cost\n"+r"($\rm g \; C \; g \; C^{-1}$)")
-axes[3].set_xlabel("Time (days)")
 axes[3].annotate("Marginal cost", (0.01,0.93), xycoords='axes fraction', verticalalignment='top', horizontalalignment='left', fontsize=12)
 
 axes[4].plot(Climate_doy_f(diagnostics["t"]), diagnostics["u_Leaf"], label="Leaf")

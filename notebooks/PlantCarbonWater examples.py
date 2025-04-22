@@ -31,7 +31,7 @@ from daesim.canopygasexchange import CanopyGasExchange
 from daesim.canopylayers import CanopyLayers
 from daesim.canopyradiation import CanopyRadiation
 from daesim.boundarylayer import BoundaryLayerModule
-from daesim.plantcarbonwater import PlantModel
+from daesim.plantcarbonwater import PlantModel as PlantCH2O
 from daesim.soillayers import SoilLayers
 
 # %% [markdown]
@@ -47,7 +47,7 @@ canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyra
 boundarylayer = BoundaryLayerModule(Site=site,k_wl=0.006)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,ksr_coeff=100,sf=1.5)
+plant = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=1.5,ksr_coeff=100,sf=1.5)
 
 # %% [markdown]
 # ### Example of soil-root profile and rooting depth functions
@@ -98,7 +98,7 @@ _d_r_dynamic1 = np.zeros(n)
 _d_r_dynamic2 = np.zeros(n)
 _d_r_dynamic3 = np.zeros(n)
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
+plant0 = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
  
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, 0.5)
@@ -124,10 +124,10 @@ _d_r_dynamic3 = np.zeros(n)
 
 d_rpot = 2.0
 
-plant0 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.005)
-plant1 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
-plant2 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.020)
-plant3 = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.040)
+plant0 = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.005)
+plant1 = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.010)
+plant2 = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.020)
+plant3 = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,maxLAI=1.5,ksr_coeff=100,sf=1.5,SRD=0.040)
 
 for i,x in enumerate(_W_R):
     _d_r_dynamic0[i] = plant0.calculate_root_depth(x, d_rpot)
@@ -1250,11 +1250,11 @@ canopygasexchange = CanopyGasExchange(Leaf=leaf,Canopy=canopy,CanopyRad=canopyra
 boundarylayer = BoundaryLayerModule(Site=site,k_wl=0.006)
 
 ## Module with upstream module dependencies
-plant = PlantModel(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=5.0,ksr_coeff=1000,SLA=0.020,Psi_f=-3.0,sf=2.5,m_r_r_opt=0.006)
+plant = PlantCH2O(Site=site,SoilLayers=soillayers,CanopyGasExchange=canopygasexchange,BoundaryLayer=boundarylayer,maxLAI=5.0,ksr_coeff=1000,SLA=0.020,Psi_f=-3.0,sf=2.5,m_r_r_opt=0.006)
 
 # %%
 ## initialise model
-plantalloc = PlantOptimalAllocation(Plant=plant, tr_L=0.01, tr_R=0.01, gradient_method="fd_forward", min_step_rel_WL=0.02, min_step_rel_WR=0.02, gradient_threshold_WL=1e-6, gradient_threshold_WR=1e-6)
+plantalloc = PlantOptimalAllocation(PlantCH2O=plant, tr_L=0.01, tr_R=0.01, gradient_method="fd_forward", min_step_rel_WL=0.02, min_step_rel_WR=0.02, gradient_threshold_WL=1e-6, gradient_threshold_WR=1e-6)
 
 
 # %%

@@ -12,6 +12,21 @@ import time
 from datetime import datetime
 from netCDF4 import date2num, Dataset
 import subprocess
+import re
+
+from daesim.climate import ClimateModule
+from daesim.plantgrowthphases import PlantGrowthPhases
+from daesim.management import ManagementModule
+from daesim.soillayers import SoilLayers
+from daesim.canopylayers import CanopyLayers
+from daesim.canopyradiation import CanopyRadiation
+from daesim.boundarylayer import BoundaryLayerModule
+from daesim.leafgasexchange2 import LeafGasExchangeModule2
+from daesim.canopygasexchange import CanopyGasExchange
+from daesim.plantcarbonwater import PlantModel as PlantCH2O
+from daesim.plantallocoptimal import PlantOptimalAllocation
+from daesim.plant_1000 import PlantModuleCalculator
+
 
 def array_like_wrapper(func, array_like_args):
     """
@@ -410,3 +425,146 @@ def daesim_io_write_diag_to_nc(Model, model_diagnostics, filepath, filename, dat
             ncfile.FASTproblem = str(problem).replace("\n","")
             ncfile.FASTpars = ", ".join(f"{name}={value}" for name, value in zip(problem['names'], param_values))
 
+def daesim_io_extract_module_info(daesim_string, module_name):
+    """
+    Extract a sub-string of a specified module from the DAESIMcalculator string that 
+    is written to the netcdf output, ensuring proper handling of nested parentheses.
+
+    Parameters:
+    daesim_string (str): The full DAESIMcalculator string.
+    module_name (str): The module to extract (e.g., "Management").
+
+    Returns:
+    str: Extracted details of the specified module.
+    """
+    # First, see if the module_name is right at the beginning of daesim_string, in 
+    # which case the entire string is needed
+    match = re.match(rf"^{module_name}\(", daesim_string)
+    if match:
+        # print(f"{module_name} is called at the start of the string")
+        start_idx = 0
+        end_idx = len(daesim_string)
+    else:
+        match = re.search(rf"{module_name}=[^),]*\(", daesim_string)
+    
+        if not match:
+            return f"Module '{module_name}' not found."
+    
+        # Find the starting index of the module
+        start_idx = match.start()
+        open_parens = 0
+        end_idx = start_idx
+    
+        # Traverse the string to find the matching closing parenthesis
+        for i in range(start_idx, len(daesim_string)):
+            if daesim_string[i] == '(':
+                open_parens += 1
+            elif daesim_string[i] == ')':
+                open_parens -= 1
+                if open_parens == 0:
+                    end_idx = i + 1
+                    break
+
+    return daesim_string[start_idx:end_idx]
+
+def daesim_io_remove_excluded_vars(module_string, module_class_name):
+    """
+    Removes specified variables from the module string before evaluation.
+    
+    Parameters:
+    module_string (str): Extracted module definition string.
+    module_class_name (str): Name of the module class.
+
+    Returns:
+    str: Cleaned module string with excluded variables removed.
+    """
+    # Dictionary of excluded variables for specific modules: These are attributes with 
+    # field(init=False) and will be removed from the string before eval()
+    EXCLUDED_VARS = {
+        "PlantGrowthPhases": ["ndevphases", "totalgdd"],  
+        "SoilLayers": ["soilThetaMax_z", "Psi_e_z", "b_soil_z", "K_sat_z"], 
+    }
+
+    # if module_class_name not in EXCLUDED_VARS:
+    #     return module_string  # No exclusions for this module
+    if any(key in module_string for key in EXCLUDED_VARS):
+        matching_modules = [key for key in EXCLUDED_VARS if key in module_string]
+    else:
+        return module_string    # No exclusions for this module or its sub-modules
+
+    for mod in matching_modules:
+        excluded_vars = EXCLUDED_VARS[mod]
+
+        # Regex pattern to match key=value pairs to remove
+        for var in excluded_vars:
+            # If the value is an array type, then it needs special handling
+            module_string = re.sub(rf"{var}=array\([^)]*\),?\s?", "", module_string)
+            # Otherwise, continue with typical value type
+            module_string = re.sub(rf"{var}=[^,)]*,?\s?", "", module_string)
+
+    return module_string
+
+
+def daesim_io_reinitialize_module(module_string):
+    """
+    Takes a module definition string and evaluates it into an object.
+
+    Parameters:
+    module_string (str): Extracted module string.
+
+    Returns:
+    object: Instantiated module object.
+    """
+    # Dictionary of available modules
+    MODULE_CLASSES = {
+        "ManagementModule": ManagementModule,
+        "PlantGrowthPhases": PlantGrowthPhases,
+        "ClimateModule": ClimateModule,
+        "LeafGasExchangeModule2": LeafGasExchangeModule2,
+        "BoundaryLayerModule": BoundaryLayerModule,
+        "CanopyLayers": CanopyLayers,
+        "CanopyRadiation": CanopyRadiation,
+        "SoilLayers": SoilLayers,
+        "CanopyGasExchange": CanopyGasExchange,
+        "PlantModel": PlantCH2O,    ## TODO: May need to change this to "PlantCH2O": PlantCH2O
+        "PlantOptimalAllocation": PlantOptimalAllocation, 
+        "PlantModuleCalculator": PlantModuleCalculator,
+    }
+
+    match0 = re.search(rf"^(\w+)\(", module_string)
+    if match0:
+        match = re.search(r"^(\w+)\(", module_string)
+    else:
+        # Extract module class name
+        match = re.search(r"=(\w+)\(", module_string)
+        if not match:
+            return "Error: Could not determine module type."
+
+    module_class_name = match.group(1)
+
+    # Check if module is in the dictionary
+    if module_class_name not in MODULE_CLASSES:
+        return f"Error: Module class '{module_class_name}' not recognized."
+
+    if match0:
+        # If module_name is right at the beginning of daesim_string, the entire string is needed
+        module_expr = module_string
+    else:
+        # Extract right-hand side (i.e. just the module attributes)
+        module_expr = module_string.split("=", 1)[1].strip()
+
+    # Remove excluded variables if needed
+    module_expr = daesim_io_remove_excluded_vars(module_expr, module_class_name)
+
+    # Safe dictionary of allowed variables (restrict execution scope)
+    safe_globals = {
+        **MODULE_CLASSES,  # Add all module classes
+        "array": np.array,  # Allow numpy arrays
+    }
+
+    # Evaluate the module expression safely
+    try:
+        module_instance = eval(module_expr, safe_globals)
+        return module_instance
+    except Exception as e:
+        return f"Error evaluating module: {e}"

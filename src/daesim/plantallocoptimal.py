@@ -15,7 +15,7 @@ class PlantOptimalAllocation:
     """
 
     ## Module dependencies
-    Plant: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
+    PlantCH2O: Callable = field(default=PlantCH2O())    ## It is optional to define Plant for this method. If no argument is passed in here, then default setting for Plant is the default PlantModel().
 
     ## Class parameters
 
@@ -59,7 +59,7 @@ class PlantOptimalAllocation:
 
         ## Define functions to differentiate
         def GPPRm_WL(W_L_var):
-            GPP, Rml, Rmr, *_ = self.Plant.calculate(
+            GPP, Rml, Rmr, *_ = self.PlantCH2O.calculate(
                 W_L_var, W_R, soilTheta, leafTempC, airTempC, airRH,
                 airCO2, airO2, airP, airUhc, swskyb, swskyd, sza,
                 SAI, CI, hc, d_r
@@ -67,7 +67,7 @@ class PlantOptimalAllocation:
             return GPP - (Rml + Rmr)
 
         def GPPRm_WR(W_R_var):
-            GPP, Rml, Rmr, *_ = self.Plant.calculate(
+            GPP, Rml, Rmr, *_ = self.PlantCH2O.calculate(
                 W_L, W_R_var, soilTheta, leafTempC, airTempC, airRH,
                 airCO2, airO2, airP, airUhc, swskyb, swskyd, sza,
                 SAI, CI, hc, d_r

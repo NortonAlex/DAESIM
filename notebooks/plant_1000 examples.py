@@ -1335,7 +1335,7 @@ SoilLayersX = SoilLayers(nlevmlsoil=20,z_max=2.0,discretise_method="horizon",
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02) #SLA=0.040)
 PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=6,ksr_coeff=2000,SLA=0.02,sf=1.5,Psi_f=-2.0,k_rl=0.001)
 # PlantCH2OX = PlantCH2O(Site=SiteX,SoilLayers=SoilLayersX,CanopyGasExchange=CanopyGasExchangeX,BoundaryLayer=BoundLayerX,maxLAI=5.0,ksr_coeff=5000,SLA=0.02,sf=1.0,soilThetaMax=0.4,Psi_f=-5,Psi_e=-0.00138,b_soil=4.74,K_sat=29.7) #SLA=0.040)
-PlantAllocX = PlantOptimalAllocation(Plant=PlantCH2OX) #,dWL_factor=1.02,dWR_factor=1.02)
+PlantAllocX = PlantOptimalAllocation(PlantCH2O=PlantCH2OX) #,dWL_factor=1.02,dWR_factor=1.02)
 PlantX = PlantModuleCalculator(
     Site=SiteX,
     Management=ManagementX,

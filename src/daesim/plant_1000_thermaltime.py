@@ -5,14 +5,10 @@ Plant model class: Includes differential equations, calculators, and parameters
 import numpy as np
 from typing import Tuple, Callable
 from attrs import define, field
-from scipy.optimize import OptimizeResult
-from scipy.integrate import solve_ivp
 from daesim.climate import *
 from daesim.biophysics_funcs import func_TempCoeff, growing_degree_days_DTT_nonlinear, growing_degree_days_DTT_linear1, growing_degree_days_DTT_linear2, growing_degree_days_DTT_linear3, growing_degree_days_DTT_linear4, growing_degree_days_DTT_linearpeaked
 from daesim.plantgrowthphases import PlantGrowthPhases
 from daesim.management import ManagementModule
-from daesim.plantcarbonwater import PlantModel as PlantCH2O
-from daesim.plantallocoptimal import PlantOptimalAllocation
 
 @define
 class PlantModuleCalculator:
@@ -124,7 +120,7 @@ class PlantModuleCalculator:
                 'idevphase': idevphase,
             }
 
-        return (dGDDdt, dVDdt, diagnostics)
+        return (dGDDdt, dVDdt, diagnostics)    # N.B. diagnostics must always be the last item in the returned output
 
     def calculate_dailythermaltime(self,Tmin,Tmax,sunrise,sunset):
         if self.GDD_method == "nonlinear":
@@ -151,16 +147,6 @@ class PlantModuleCalculator:
         _vfunc = np.vectorize(growing_degree_days_DTT_nonlinear)
         deltaVD = _vfunc(Tmin,Tmax,sunrise,sunset,self.VD_Tbase,self.VD_Tupp,self.VD_Topt,normalise=True)
         return deltaVD
-
-    def calculate_dailyhydrothermaltime(self,airTempC,soilTheta):
-        """
-        Calculates the daily increment in hydrothermal time
-        """
-        T = airTempC
-        Psi_s = self.PlantCH2O.soil_water_potential(soilTheta)
-        bool_multiplier = (T > self.HTT_T_b) & (T < self.HTT_T_c) & (Psi_s > self.HTT_psi_b + self.HTT_k * (T - self.HTT_T_b))  # this constrains the equation to be within the temperature and soil water potential limits
-        deltaHTT_d = np.maximum(0, (T - self.HTT_T_b) * (Psi_s - self.HTT_psi_b - self.HTT_k*(T - self.HTT_T_b))) * bool_multiplier
-        return deltaHTT_d
 
     def vernalization_factor(self,VD):
         """
@@ -208,13 +194,25 @@ class PlantModuleCalculator:
             fV = 1 - (0.0054545*self.VD_Rv + 0.0003)*((2*self.VD50)-VD)
         return fV
 
-    def calculate_sowingtime_conditional(self,_doy):
-        if self.Management.sowingDay is None:
+    def calculate_sowingtime_conditional(self,_doy,_year):
+        sowingDays = self.Management.sowingDays
+        sowingYears = self.Management.sowingYears
+        if sowingDays is None or sowingYears is None:
             return 0
-        elif (self.Management.sowingDay <= _doy < self.Management.sowingDay+1):
-            return 1
-        else:
-            return 0
+
+        # Convert to lists if they are single integers
+        if isinstance(sowingDays, int):
+            sowingDays = [sowingDays]
+        if isinstance(sowingYears, int):
+            sowingYears = [sowingYears]
+
+        # Check each sowing event
+        for day, year in zip(sowingDays, sowingYears):
+            if day <= _doy < day + 1 and year == _year:
+                return 1
+
+        # If no match is found
+        return 0
 
 
     def calculate_sowingdepth_factor(self, Bio_time):
@@ -253,10 +251,22 @@ class PlantModuleCalculator:
         BioHarvest = HarvestTime*np.maximum(propHarvest*Biomass/HarvestTurnoverTime,0)
         return BioHarvest
 
-    def calculate_harvesttime_conditional(self,_doy,harvestDay):
-        if harvestDay is None:
+    def calculate_harvesttime_conditional(self,_doy,_year):
+        harvestDays = self.Management.harvestDays
+        harvestYears = self.Management.harvestYears
+        if harvestDays is None or harvestYears is None:
             return 0
-        elif (harvestDay <= _doy < harvestDay+3):  ## assume harvest happens over a single day
-            return 1
-        else:
-            return 0
+
+        # Convert to lists if they are single integers
+        if isinstance(harvestDays, int):
+            harvestDays = [harvestDays]
+        if isinstance(harvestYears, int):
+            harvestYears = [harvestYears]
+
+        # Check each sowing event
+        for day, year in zip(harvestDays, harvestYears):
+            if day <= _doy < day + 1 and year == _year:
+                return 1
+
+        # If no match is found
+        return 0

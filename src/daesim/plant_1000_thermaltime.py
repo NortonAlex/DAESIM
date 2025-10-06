@@ -197,7 +197,7 @@ class PlantModuleCalculator:
     def calculate_sowingtime_conditional(self,_doy,_year):
         sowingDays = self.Management.sowingDays
         sowingYears = self.Management.sowingYears
-        if sowingDays is None or sowingYears is None:
+        if not sowingDays or not sowingYears:    # means these are empty lists, equivalent to 'no data'
             return 0
 
         # Convert to lists if they are single integers

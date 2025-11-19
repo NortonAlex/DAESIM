@@ -43,6 +43,11 @@ class PlantModel:
     Psi_f: float = field(default=-2.3)   ## Leaf water potential at which half of stomatal conductance occurs (MPa), see Drewry et al. (2010, doi:10.1029/2010JG001340)
     sf: float = field(default=3.5)     ## Stomatal sensitivity parameter between stomatal conductance and leaf water potential (MPa-1), see Drewry et al. (2010, doi:10.1029/2010JG001340)
 
+    root_scale_vcmax: bool = field(default=False)   ## Optional method to dynamically scale leaf Vcmax_opt by root biomass and depth, a (stupidly) simple emulator for nutrient acquisition by roots to support the optimal carbon allocation scheme
+
+    ## Parameters that are set and need storage
+    p1: float = field(default=None)
+
     def calculate(
         self,
         W_L,         ## leaf structural dry biomass (g d.wt m-2)
@@ -63,6 +68,10 @@ class PlantModel:
         hc,     ## canopy height, m
         d_rpot,     ## potential root depth, m
     ) -> Tuple[float]:
+
+        # Before any modification of module attributes (i.e. parameters), we must store their initial values
+        if self.p1 == None:
+            self.p1 = self.CanopyGasExchange.Leaf.Vcmax_opt
 
         ## Make sure to run set_index which assigns the canopy layer indexes for the given canopy structure
         self.SoilLayers.set_index()
@@ -92,6 +101,11 @@ class PlantModel:
 
         ## Calculate actual root depth
         d_r = self.calculate_root_depth(W_R, d_rpot)
+
+        ## Calculate root depth and root biomass scaling on physiological parameter Vcmax
+        if self.root_scale_vcmax:
+            scaling_factor = self.curvilinear_scaling_factor(d_r, W_R)
+            self.CanopyGasExchange.Leaf.Vcmax_opt = self.p1 * scaling_factor
 
         ## Cumulative root fraction for all layers (assume d_soil is a vector for soil layer thickness)
         fc_r_z = self.calculate_root_distribution(d_r, d_soil)  # Calculate the cumulative root distribution for all layers
@@ -736,3 +750,39 @@ class PlantModel:
         d_r_srd = W_R * self.SRD    # root depth based on root biomass and specific root depth
         d_r = np.minimum(d_r_srd, d_rpot) 
         return d_r
+
+    def curvilinear_scaling_factor(self, d_r, W_R, depth_range=(0.1, 1.0), biomass_range=(10, 300), alpha=0.5, beta=1.0, curvature=0.1):
+        """
+        Calculates a curvi-linear scaling factor between 0.5 and 1 based on root depth and root biomass.
+
+        Parameters:
+        - d_r (float): Root depth (m)
+        - W_R (float): Root dry biomass (g d.wt m-2)
+        - depth_range (tuple): Typical range of root depth (min, max)
+        - biomass_range (tuple): Typical range of root biomass (min, max)
+        - alpha (float): Weight for root depth contribution
+        - beta (float): Weight for root biomass contribution
+        - curvature (float): Curvature parameter controlling steepness at low values
+
+        Returns:
+        - scaling_factor (float): Value between 0.5 and 1
+        """
+        # Unpack ranges
+        depth_min, depth_max = depth_range
+        biomass_min, biomass_max = biomass_range
+        
+        # Normalize root depth and root biomass to [0, 1]
+        root_depth_norm = max(0, min(1, (d_r - depth_min) / (depth_max - depth_min)))
+        root_biomass_norm = max(0, min(1, (W_R - biomass_min) / (biomass_max - biomass_min)))
+        
+        # Apply curvi-linear saturation function to each normalized variable
+        root_depth_curve = root_depth_norm / (root_depth_norm + curvature)
+        root_biomass_curve = root_biomass_norm / (root_biomass_norm + curvature)
+        
+        # Combine contributions using weights
+        combined_curve = alpha * root_depth_curve + beta * root_biomass_curve
+        
+        # Ensure scaling factor is between 0.5 and 1
+        scaling_factor = 0.5 + 0.5 * min(1, combined_curve)
+        
+        return scaling_factor

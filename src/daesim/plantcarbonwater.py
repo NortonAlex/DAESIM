@@ -44,6 +44,12 @@ class PlantModel:
     sf: float = field(default=3.5)     ## Stomatal sensitivity parameter between stomatal conductance and leaf water potential (MPa-1), see Drewry et al. (2010, doi:10.1029/2010JG001340)
 
     root_scale_vcmax: bool = field(default=False)   ## Optional method to dynamically scale leaf Vcmax_opt by root biomass and depth, a (stupidly) simple emulator for nutrient acquisition by roots to support the optimal carbon allocation scheme
+    root_scale_vcmax_min: float = field(default=0.5)
+    root_scale_vcmax_curvature: float = field(default=0.1)
+    root_scale_vcmax_alpha: float = field(default=0.5)
+    root_scale_vcmax_beta: float = field(default=1.0)
+    root_scale_vcmax_d_range:  Tuple[float, float] = (0.0, 2.0)
+    root_scale_vcmax_W_range:  Tuple[float, float] = (0.0, 300.0)
 
     ## Parameters that are set and need storage
     p1: float = field(default=None)
@@ -509,7 +515,7 @@ class PlantModel:
         _vfunc = np.vectorize(self.factor_leaf_water_potential_conditional,otypes=[float])
         f_Psi_l = _vfunc(Psi_l)
         return f_Psi_l
-        
+
     def calculate_LAI(self,W_L):
         """
         Parameters
@@ -751,7 +757,7 @@ class PlantModel:
         d_r = np.minimum(d_r_srd, d_rpot) 
         return d_r
 
-    def curvilinear_scaling_factor(self, d_r, W_R, depth_range=(0.1, 1.0), biomass_range=(10, 300), alpha=0.5, beta=1.0, curvature=0.1):
+    def curvilinear_scaling_factor(self, d_r, W_R):
         """
         Calculates a curvi-linear scaling factor between 0.5 and 1 based on root depth and root biomass.
 
@@ -768,21 +774,21 @@ class PlantModel:
         - scaling_factor (float): Value between 0.5 and 1
         """
         # Unpack ranges
-        depth_min, depth_max = depth_range
-        biomass_min, biomass_max = biomass_range
+        depth_min, depth_max = self.root_scale_vcmax_d_range
+        biomass_min, biomass_max = self.root_scale_vcmax_W_range
         
         # Normalize root depth and root biomass to [0, 1]
         root_depth_norm = max(0, min(1, (d_r - depth_min) / (depth_max - depth_min)))
         root_biomass_norm = max(0, min(1, (W_R - biomass_min) / (biomass_max - biomass_min)))
         
         # Apply curvi-linear saturation function to each normalized variable
-        root_depth_curve = root_depth_norm / (root_depth_norm + curvature)
-        root_biomass_curve = root_biomass_norm / (root_biomass_norm + curvature)
+        root_depth_curve = root_depth_norm / (root_depth_norm + self.root_scale_vcmax_curvature)
+        root_biomass_curve = root_biomass_norm / (root_biomass_norm + self.root_scale_vcmax_curvature)
         
         # Combine contributions using weights
-        combined_curve = alpha * root_depth_curve + beta * root_biomass_curve
+        combined_curve = self.root_scale_vcmax_alpha * root_depth_curve + self.root_scale_vcmax_beta * root_biomass_curve
         
         # Ensure scaling factor is between 0.5 and 1
-        scaling_factor = 0.5 + 0.5 * min(1, combined_curve)
+        scaling_factor = self.root_scale_vcmax_min + (1 - self.root_scale_vcmax_min) * min(1, combined_curve)
         
         return scaling_factor

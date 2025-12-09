@@ -4,7 +4,31 @@
 
 This repository contains the python implementation of the Dynamic Agro-Ecosystem SIMulator (DAESIM) model. 
 
+Models for crop growth, development and yield are important tools for identifying opportunities for improved 
+crop production and reduced environmental impacts in a changing world. This model provides a mechanistic 
+description of physiological, structural, and developmental processes in annual crops. It includes an 
+innovative, eco-evolutionary optimality approach to biomass partitioning (carbon allocation) that provides 
+a foundation for evaluating crop performance in different climates and soil types. Key features of the plant 
+model (DAESIM2-Plant) include: 
+ * Mechanistic simulations of crop physiology and phenology.
+ * Two-stream canopy radiative transfer.
+ * Soil-plant-atmosphere hydraulic constraints.
+ * Flexible temporal resolution (daily or custom step).
+ * Optimal carbon allocation based on eco-evolutionary principles.
+
+The model is written in a modular class-based Python architecture, with Jupyter notebook examples to 
+test and evaluate modules either individually or in combination. 
+
+Authors/Contributors: 
+* Alexander Norton (CSIRO)
+* Justin Borevitz (ANU)
+* Firouzeh Taghikhah (USYD)
+
 References: Taghikhah et al. (2022) https://doi.org/10.1016/j.ecolmodel.2022.109930
+
+## Project Status and Scope
+
+Currently, the model is used as a research tool as it is under active development. 
 
 ## Installation
 
@@ -14,10 +38,6 @@ Before installation of DAESim, you will need to have the following things instal
 - pip: A Python package management tool. It is the recommended tool for installing and managing Python packages. 
 - Anaconda (Conda): A cross-platform, package and environment management system. 
 Conda and pip do a lot of similar things. Here, we use Conda to install Python package dependencies as well as to manage the virtual environment, while we use pip to install the DAESim package source code. 
-
-### Installing tools on Mac
-
-Text todo
 
 ## Getting started
 
@@ -59,6 +79,75 @@ You'll notice that we ignore `*.ipynb` in our `.gitignore`.
 
 Thanks to jupytext, you can just click on the `.py` files and they will open like standard notebooks.
 
+## Quick Start Guide
+
+For a quick start it is recommended that you follow the instructions above to install the package and then step through 
+the Jupyter notebook examples. 
+
+## Configuration and Customisation
+
+### Module-based Python architecture
+
+The model is organised as a set of Python modules, each implemented as a class. Every module is designed to encapsulate:
+
+1. Model parameters – as class attributes
+2. Model functions – as class methods
+3. (Optional) calculate method – which evaluates the rate of change in the state variables (the right-hand side of the ODEs) and diagnostic fluxes for that module
+
+### Why this design?
+
+This architecture is intentional and serves two main purposes:
+
+1. Ease of use for model users
+  * All parameters and methods for a process live in one place, so you can easily inspect, understand, and modify them from an interactive Python session, a script, or a notebook.
+  * Parameters can be updated in-place (e.g. model.CanopyPhotosynthesis.g1 = 3.5) without needing to manage external parameter files or complex configuration layers.
+  * This reduces friction for both exploratory experimentation and systematic calibration/sensitivity analysis.
+
+2. Clear structure for model development
+  * Each “model” component is effectively the combination of its parameters and methods, providing a clean separation between:
+    * Model parameters (fixed traits and coefficients)
+    * Model state variables (dynamic quantities integrated over time)
+    * Model diagnostics (e.g. fluxes, intermediate rates)
+    * Model forcing (external inputs: climate, soil, management)
+  * This separation makes it easier to:
+    * Swap or extend process formulations (e.g. new allocation scheme, alternative phenology model).
+    * Trace how a change in one parameter or process propagates through the system.
+    * Write tests for individual modules in isolation.
+
+### Low-level and high-level modules
+
+Modules are “stitched together” to represent the interacting components of the plant–soil–atmosphere system. Conceptually, we distinguish between:
+
+* Low-level modules
+  * Have few or no dependencies on other modules.
+  * Implement fundamental relations and biophysics (e.g. solar geometry, canopy radiation, leaf gas exchange, soil hydraulic functions).
+  * Can often be tested independently with minimal inputs.
+
+* High-level modules
+  * Depend on multiple low-level modules and coordinate interactions between them.
+  * Typically implement emergent processes such as:
+    * Whole-plant carbon and nitrogen balance
+    * Optimal carbon allocation / biomass partitioning
+    * Phenology and development
+    * Yield formation
+  * May include feedbacks, where:
+    * Outputs from a high-level module (e.g. allocation decisions, canopy structure) are used as inputs to low-level modules (e.g. photosynthesis, transpiration, soil water uptake) in subsequent time steps.
+
+This layered design makes it transparent how physiological, structural, and developmental processes are connected:
+
+* You can analyse or replace a single process (e.g. the allocation scheme) without restructuring the entire codebase.
+* You can run reduced models by using only a subset of modules.
+* You can trace feedback loops (e.g. soil water → plant hydraulics → stomatal conductance → carbon gain → allocation → leaf/root growth → future water and carbon fluxes) in a structured and debuggable way.
+
+### Customising parameters and processes
+
+Because parameters live as class attributes, you can configure the model in several ways:
+
+* At instantiation
+* In-place, after creation.
+* Via configuration helpers (if provided)
+
+
 ## General guidance on working in this repository
 
 ### Repository guiding principles
@@ -73,9 +162,9 @@ Then, to add your changes, make a merge request from your own branch back into t
 
 ## Support
 
-If you need support, the first place to go is the [issue tracker] (todo: link the repository / issues).
+If you need support, the first place to go is the issue tracker (https://github.com/NortonAlex/DAESIM/issues).
 From there, you can tag other model users to ask for help.
-As a second step, reach out directly to your collaborators.
+As a second step, reach out directly to the creators of the model.
 
 ## Other helpful snippets
 
@@ -111,9 +200,9 @@ git checkout -b test-notebook-an
 jupyter notebook
 ```
 
-## Reading and viewing
+## Guidance for good practice
 
-Not all of these will be neccesary for everyone, but a helpful list
+A helpful list of materials to help you develop and contribute to this project. 
 
 ### What is self
 
@@ -137,21 +226,7 @@ https://www.educative.io/answers/what-is-self-in-python
 
 - [Numerical recipes](http://numerical.recipes/book/book.html) (buying the book is also a good option)
 
-### Big climate model output and handling netCDF files
-
-- [Software Carpentry's introduction to Python for atmosphere and ocean scientists](https://carpentries-lab.github.io/python-aos-lesson/), particularly if you think you're going to be working with netCDF files
-- [CMIP6 in the cloud](https://medium.com/pangeo/cmip6-in-the-cloud-five-ways-96b177abe396), particularly if you're going to be dealing with CMIP data a lot (although speak with someone about how far you need to go, it's unlikely that every step will be relevant)
-
 ### Miscellaneous
 
 - [Basic introduction to Jupyter notebooks](https://realpython.com/jupyter-notebook-introduction/)
 
-## Recommended tools
-
-- An IDE (e.g. pycharm) or more light-weight editor (e.g. Sublime)
-- If on Mac, homebrew
-- Git
-- Make
-- Slack
-- gfortran
-- cmake
